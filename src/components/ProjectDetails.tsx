@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -11,7 +11,9 @@ import {
   Edit2,
   Flag,
   AlertTriangle,
-  Layers
+  Layers,
+  UserPlus,
+  X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -25,6 +27,7 @@ import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
 import { ProjectComponents } from './ProjectComponents';
+import { projectService, teamService } from '../services/apiService';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -36,10 +39,63 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'components'>('overview');
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<any[]>([]);
+  const [availableTeamMembers, setAvailableTeamMembers] = useState<any[]>([]);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const projectTasks = state.tasks.filter(task => task.projectId === project.id);
-  const projectMembers = state.users.filter(user => project.teamMembers.includes(user.id));
   const projectProgress = calculateProjectProgress(project, projectTasks);
+
+  // Fetch project members and available team members
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [members, teamMembers] = await Promise.all([
+          projectService.getMembers(project.id),
+          teamService.getAll()
+        ]);
+        setProjectMembers(members);
+        setAvailableTeamMembers(teamMembers);
+      } catch (error) {
+        console.error('Failed to fetch project data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [project.id]);
+
+  const handleAddMember = async (memberId: number, role: string = 'member') => {
+    try {
+      await projectService.addMember(project.id, { 
+        user_id: memberId, 
+        user_type: 'team',
+        role 
+      });
+      
+      // Refresh project members
+      const members = await projectService.getMembers(project.id);
+      setProjectMembers(members);
+      setIsAddMemberModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add member:', error);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: number) => {
+    try {
+      await projectService.removeMember(project.id, memberId);
+      
+      // Refresh project members
+      const members = await projectService.getMembers(project.id);
+      setProjectMembers(members);
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+    }
+  };
 
   const handleCreateTask = (taskData: Partial<Task>) => {
     // Auto-calculate progress based on status
@@ -653,26 +709,54 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
 
   const renderTeam = () => (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Project Team</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Project Team</h3>
+        <Button 
+          onClick={() => setIsAddMemberModalOpen(true)}
+          className="flex items-center space-x-2"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>Add Member</span>
+        </Button>
+      </div>
       
-      {projectMembers.length > 0 ? (
+      {loading ? (
+        <div className="text-center py-8">
+          <div className="text-gray-500">Loading team members...</div>
+        </div>
+      ) : projectMembers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projectMembers.map((member) => {
-            const memberTasks = projectTasks.filter(task => task.assignees.includes(member.id));
+            const memberTasks = projectTasks.filter(task => task.assignees && task.assignees.includes(member.user_id || member.id));
             const completedTasks = memberTasks.filter(task => task.status === 'completed');
             const completionRate = memberTasks.length > 0 ? Math.round((completedTasks.length / memberTasks.length) * 100) : 0;
             
             return (
               <Card key={member.id}>
                 <CardContent className="p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                      {member.name.charAt(0)}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                        {member.name?.charAt(0) || 'U'}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">{member.name || 'Unknown User'}</h4>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline">{member.role || 'member'}</Badge>
+                          {member.skills && (
+                            <p className="text-sm text-gray-600">{member.skills.join?.(', ') || member.skills}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">{member.name}</h4>
-                      <p className="text-sm text-gray-600">{member.skills.join(', ')}</p>
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveMember(member.id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
                   
                   <div className="space-y-3">
@@ -702,7 +786,14 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           <CardContent className="p-8 text-center">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Members</h3>
-            <p className="text-gray-600">No team members have been assigned to this project yet.</p>
+            <p className="text-gray-600 mb-4">No team members have been assigned to this project yet.</p>
+            <Button 
+              onClick={() => setIsAddMemberModalOpen(true)}
+              className="flex items-center space-x-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Add First Member</span>
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -804,6 +895,100 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         categories={state.categories}
         users={state.users}
       />
+
+      {/* Add Member Modal */}
+      <AddMemberModal
+        isOpen={isAddMemberModalOpen}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onSubmit={handleAddMember}
+        availableMembers={availableTeamMembers}
+        projectMembers={projectMembers}
+      />
     </div>
+  );
+}
+
+// Add Member Modal Component
+interface AddMemberModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (memberId: number, role: string) => void;
+  availableMembers: any[];
+  projectMembers: any[];
+}
+
+function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMembers }: AddMemberModalProps) {
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [selectedRole, setSelectedRole] = useState('member');
+
+  const assignedMemberIds = projectMembers.map(pm => pm.user_id || pm.id);
+  const unassignedMembers = availableMembers.filter(member => 
+    !assignedMemberIds.includes(member.id)
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedMemberId) {
+      onSubmit(selectedMemberId, selectedRole);
+      setSelectedMemberId(null);
+      setSelectedRole('member');
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Team Member">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Team Member
+          </label>
+          <select
+            value={selectedMemberId || ''}
+            onChange={(e) => setSelectedMemberId(Number(e.target.value))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          >
+            <option value="">Choose a team member...</option>
+            {unassignedMembers.map(member => (
+              <option key={member.id} value={member.id}>
+                {member.name} ({member.email})
+              </option>
+            ))}
+          </select>
+          {unassignedMembers.length === 0 && (
+            <p className="text-sm text-gray-500 mt-1">
+              All team members are already assigned to this project.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Role
+          </label>
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="member">Member</option>
+            <option value="manager">Manager</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={!selectedMemberId || unassignedMembers.length === 0}
+          >
+            Add Member
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

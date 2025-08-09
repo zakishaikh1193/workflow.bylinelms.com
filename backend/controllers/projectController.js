@@ -383,12 +383,10 @@ const getProjectMembers = async (req, res) => {
         pm.*,
         tm.name,
         tm.email,
-        tm.phone,
-        tm.avatar_url,
-        tm.hourly_rate,
+        tm.is_active,
         GROUP_CONCAT(DISTINCT s.name) as skills
       FROM project_members pm
-      JOIN team_members tm ON pm.user_id = tm.id
+      JOIN team_members tm ON pm.user_id = tm.id AND pm.user_type = 'team'
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       WHERE pm.project_id = ?
@@ -450,7 +448,7 @@ const addProjectMember = async (req, res) => {
     }
 
     // Check if user exists
-    const [user] = await db.query('SELECT id FROM team_members WHERE id = ?', [user_id]);
+    const user = await db.query('SELECT id FROM team_members WHERE id = ?', [user_id]);
     if (user.length === 0) {
       return res.status(404).json({
         success: false,
@@ -462,7 +460,7 @@ const addProjectMember = async (req, res) => {
     }
 
     // Check if member is already in project
-    const [existing] = await db.query(
+    const existing = await db.query(
       'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
       [id, user_id]
     );
@@ -478,20 +476,18 @@ const addProjectMember = async (req, res) => {
     }
 
     // Add member to project
-    const [result] = await db.query(
-      'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
-      [id, user_id, role]
+    const result = await db.insert(
+      'INSERT INTO project_members (project_id, user_id, user_type, role) VALUES (?, ?, ?, ?)',
+      [id, user_id, 'team', role]
     );
 
     // Get the created project member with user details
-    const [newMember] = await db.query(`
+    const newMember = await db.query(`
       SELECT 
         pm.*,
         tm.name,
         tm.email,
-        tm.phone,
-        tm.avatar_url,
-        tm.hourly_rate
+        tm.is_active
       FROM project_members pm
       JOIN team_members tm ON pm.user_id = tm.id
       WHERE pm.id = ?
@@ -521,7 +517,7 @@ const removeProjectMember = async (req, res) => {
     const { id, memberId } = req.params;
 
     // Check if membership exists
-    const [existing] = await db.query(
+    const existing = await db.query(
       'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
       [id, memberId]
     );

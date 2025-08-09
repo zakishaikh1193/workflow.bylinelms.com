@@ -74,6 +74,8 @@ const projectRoutes = require('./routes/projects');
 const categoryRoutes = require('./routes/categories');
 const teamRoutes = require('./routes/team');
 const skillRoutes = require('./routes/skills');
+const taskRoutes = require('./routes/tasks');
+const stageRoutes = require('./routes/stages');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -81,6 +83,8 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/skills', skillRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/stages', stageRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {

@@ -4,19 +4,18 @@ import {
   CheckSquare, 
   Clock, 
   AlertTriangle, 
-  User,
   Calendar,
-  Filter,
   Search,
   Edit2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
+import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import { Task, TaskStatus, Priority } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
+import { taskService, stageService, teamService, projectService, skillService } from '../services/apiService';
 
 export function TaskManager() {
   const { state, dispatch } = useApp();
@@ -26,6 +25,43 @@ export function TaskManager() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch tasks and related data from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [tasksData, teamData, stagesData, projectsData, skillsData] = await Promise.all([
+          taskService.getAll(),
+          teamService.getAll(),
+          stageService.getAll(),
+          projectService.getAll(),
+          skillService.getAll()
+        ]);
+        
+        setTasks(tasksData);
+        setTeamMembers(teamData);
+        setStages(stagesData);
+        setProjects(projectsData);
+        setSkills(skillsData);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to fetch task data:', err);
+        setError(err.message || 'Failed to load tasks');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -66,7 +102,7 @@ export function TaskManager() {
     return dueDate >= today && dueDate <= weekFromNow && task.status !== 'completed';
   };
 
-  const filteredTasks = state.tasks.filter(task => {
+  const filteredTasks = tasks.filter((task: any) => {
     if (searchTerm && !task.name.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
@@ -83,47 +119,67 @@ export function TaskManager() {
     return true;
   });
 
-  const handleCreateTask = (taskData: Partial<Task>) => {
-    // Auto-calculate progress based on status
-    const autoProgress = taskData.status ? calculateTaskProgress(taskData.status) : 0;
-    
-    if (editingTask) {
-      // Update existing task
-      const updatedTask: Task = {
-        ...editingTask,
-        ...taskData,
-        progress: taskData.progress !== undefined ? taskData.progress : autoProgress,
-        startDate: taskData.startDate || editingTask.startDate,
-        endDate: taskData.endDate || editingTask.endDate,
-      };
-      dispatch({ type: 'UPDATE_TASK', payload: updatedTask });
-    } else {
-      // Create new task
-      const newTask: Task = {
-        id: Date.now().toString(),
-        name: taskData.name || '',
-        description: taskData.description || '',
-        projectId: taskData.projectId || '',
-        stageId: taskData.stageId || '',
-        gradeId: taskData.gradeId,
-        bookId: taskData.bookId,
-        unitId: taskData.unitId,
-        lessonId: taskData.lessonId,
-        componentPath: taskData.componentPath,
-        assignees: taskData.assignees || [],
-        skills: taskData.skills || [],
-        status: 'not-started' as TaskStatus,
-        priority: taskData.priority || 'medium',
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-        progress: autoProgress,
-        estimatedHours: taskData.estimatedHours || 8,
-        ...taskData,
-      };
-      dispatch({ type: 'ADD_TASK', payload: newTask });
+  const handleCreateTask = async (taskData: Partial<Task>) => {
+    try {
+      if (editingTask) {
+        // Update existing task
+        const updateData = {
+          name: taskData.name,
+          description: taskData.description,
+          status: taskData.status,
+          priority: taskData.priority,
+          start_date: taskData.startDate,
+          end_date: taskData.endDate,
+          estimated_hours: taskData.estimatedHours,
+          assignees: taskData.assignees?.map(id => ({ id, type: 'team' })),
+          skills: taskData.skills
+        };
+        
+        await taskService.update(editingTask.id, updateData);
+        
+        // Refresh tasks list
+        const tasksData = await taskService.getAll();
+        setTasks(tasksData);
+      } else {
+        // Convert skill names to skill IDs
+        const skillIds = (taskData.skills || []).map((skillName: string) => {
+          const skill = skills.find(s => s.name === skillName);
+          return skill ? skill.id : null;
+        }).filter(id => id !== null);
+
+        // Create new task
+        const createData = {
+          name: taskData.name || '',
+          description: taskData.description || '',
+          project_id: parseInt(taskData.projectId || '1'),
+          stage_id: parseInt(taskData.stageId || '1'), 
+          status: taskData.status || 'not-started',
+          priority: taskData.priority || 'medium',
+          start_date: taskData.startDate || new Date().toISOString().split('T')[0],
+          end_date: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          estimated_hours: taskData.estimatedHours || 8,
+          assignees: taskData.assignees?.map(id => ({ id, type: 'team' })) || [],
+          skills: skillIds,
+          component_path: taskData.componentPath
+        };
+        
+        console.log('🚀 Creating task with data:', createData);
+        
+        const newTask = await taskService.create(createData);
+        
+        // Refresh tasks list
+        const tasksData = await taskService.getAll();
+        setTasks(tasksData);
+        
+        console.log('✅ Task created successfully:', newTask);
+      }
+      
+      setIsCreateModalOpen(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('❌ Failed to save task:', error);
+      setError('Failed to save task');
     }
-    setIsCreateModalOpen(false);
-    setEditingTask(null);
   };
 
   const getStatusVariant = (status: TaskStatus) => {
@@ -153,12 +209,39 @@ export function TaskManager() {
   };
 
   const taskStats = {
-    total: state.tasks.length,
-    notStarted: state.tasks.filter(t => t.status === 'not-started').length,
-    inProgress: state.tasks.filter(t => t.status === 'in-progress').length,
-    completed: state.tasks.filter(t => t.status === 'completed').length,
-    overdue: state.tasks.filter(t => isOverdue(t)).length,
+    total: tasks.length,
+    notStarted: tasks.filter((t: any) => t.status === 'not-started').length,
+    inProgress: tasks.filter((t: any) => t.status === 'in-progress').length,
+    completed: tasks.filter((t: any) => t.status === 'completed').length,
+    overdue: tasks.filter((t: any) => new Date(t.end_date) < new Date() && t.status !== 'completed').length,
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="text-lg font-medium text-gray-900 mb-2">Loading tasks...</div>
+            <div className="text-gray-500">Please wait while we fetch your tasks</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="text-lg font-medium text-red-600 mb-2">Failed to load tasks</div>
+            <div className="text-gray-500 mb-4">{error}</div>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -429,9 +512,10 @@ export function TaskManager() {
           setEditingTask(null);
         }}
         onSubmit={handleCreateTask}
-        users={state.users}
-        skills={state.skills}
-        projects={state.projects}
+        users={teamMembers}
+        skills={skills}
+        projects={projects}
+        stages={stages}
         editingTask={editingTask}
       />
     </div>
@@ -443,8 +527,9 @@ export interface CreateTaskModalProps {
   onClose: () => void;
   onSubmit: (task: Partial<Task>) => void;
   users: any[];
-  skills: string[];
+  skills: any[];
   projects: any[];
+  stages: any[];
   editingTask?: Task | null;
 }
 
@@ -520,19 +605,19 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     let componentPath = '';
     const selectedProject = projects.find(p => p.id === formData.projectId);
     if (selectedProject && formData.gradeId) {
-      const grade = selectedProject.grades?.find(g => g.id === formData.gradeId);
+      const grade = selectedProject.grades?.find((g: any) => g.id === formData.gradeId);
       if (grade) {
         componentPath = grade.name;
         if (formData.bookId) {
-          const book = grade.books.find(b => b.id === formData.bookId);
+          const book = grade.books.find((b: any) => b.id === formData.bookId);
           if (book) {
             componentPath += ` > ${book.name}`;
             if (formData.unitId) {
-              const unit = book.units.find(u => u.id === formData.unitId);
+              const unit = book.units.find((u: any) => u.id === formData.unitId);
               if (unit) {
                 componentPath += ` > ${unit.name}`;
                 if (formData.lessonId) {
-                  const lesson = unit.lessons.find(l => l.id === formData.lessonId);
+                  const lesson = unit.lessons.find((l: any) => l.id === formData.lessonId);
                   if (lesson) {
                     componentPath += ` > ${lesson.name}`;
                   }
@@ -562,31 +647,31 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     }));
   };
 
-  const toggleSkill = (skill: string) => {
+  const toggleSkill = (skillName: string) => {
     setFormData(prev => ({
       ...prev,
-      skills: prev.skills.includes(skill)
-        ? prev.skills.filter(s => s !== skill)
-        : [...prev.skills, skill]
+      skills: prev.skills.includes(skillName)
+        ? prev.skills.filter(s => s !== skillName)
+        : [...prev.skills, skillName]
     }));
   };
 
   const selectedProject = projects.find(p => p.id === formData.projectId);
-  const availableStages = selectedProject?.stages || [];
-  const availableGrades = selectedProject?.grades || [];
-  const selectedGrade = availableGrades.find(g => g.id === formData.gradeId);
-  const availableBooks = selectedGrade?.books || [];
-  const selectedBook = availableBooks.find(b => b.id === formData.bookId);
-  const availableUnits = selectedBook?.units || [];
-  const selectedUnit = availableUnits.find(u => u.id === formData.unitId);
-  const availableLessons = selectedUnit?.lessons || [];
+  // const availableStages = selectedProject?.stages || [];
+  // const availableGrades = selectedProject?.grades || [];
+  // const selectedGrade = availableGrades.find((g: any) => g.id === formData.gradeId);
+  // const availableBooks = selectedGrade?.books || [];
+  // const selectedBook = availableBooks.find((b: any) => b.id === formData.bookId);
+  // const availableUnits = selectedBook?.units || [];
+  // const selectedUnit = availableUnits.find((u: any) => u.id === formData.unitId);
+  // const availableLessons = selectedUnit?.lessons || [];
 
   // Build availableComponents array for the component selector
-  const availableComponents = [];
+  const availableComponents: any[] = [];
   
   if (selectedProject) {
     // Add grades
-    selectedProject.grades?.forEach(grade => {
+    selectedProject.grades?.forEach((grade: any) => {
       availableComponents.push({
         id: grade.id,
         name: grade.name,
@@ -598,7 +683,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
       });
       
       // Add books within this grade
-      grade.books?.forEach(book => {
+      grade.books?.forEach((book: any) => {
         availableComponents.push({
           id: `${grade.id}-${book.id}`,
           name: `${grade.name} > ${book.name}`,
@@ -610,7 +695,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
         });
         
         // Add units within this book
-        book.units?.forEach(unit => {
+        book.units?.forEach((unit: any) => {
           availableComponents.push({
             id: `${grade.id}-${book.id}-${unit.id}`,
             name: `${grade.name} > ${book.name} > ${unit.name}`,
@@ -622,7 +707,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
           });
           
           // Add lessons within this unit
-          unit.lessons?.forEach(lesson => {
+          unit.lessons?.forEach((lesson: any) => {
             availableComponents.push({
               id: `${grade.id}-${book.id}-${unit.id}-${lesson.id}`,
               name: `${grade.name} > ${book.name} > ${unit.name} > ${lesson.name}`,
@@ -735,8 +820,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
               value={formData.status}
               onChange={(e) => {
                 const newStatus = e.target.value as TaskStatus;
-                const autoProgress = calculateTaskProgress(newStatus);
-                setFormData({ ...formData, status: newStatus, progress: autoProgress });
+                setFormData({ ...formData, status: newStatus });
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -862,14 +946,14 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
           </label>
           <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
             {skills.map(skill => (
-              <label key={skill} className="flex items-center space-x-2 cursor-pointer">
+              <label key={skill.id} className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.skills.includes(skill)}
-                  onChange={() => toggleSkill(skill)}
+                  checked={formData.skills.includes(skill.name)}
+                  onChange={() => toggleSkill(skill.name)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">{skill}</span>
+                <span className="text-sm text-gray-700">{skill.name}</span>
               </label>
             ))}
           </div>

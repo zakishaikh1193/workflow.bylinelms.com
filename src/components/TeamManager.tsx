@@ -204,9 +204,9 @@ export function TeamManager() {
     }
   };
 
-  // Generate a random passcode for new team members
+  // Generate a consistent demo passcode for team members
   const generatePasscode = () => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+    return 'DEMO123'; // Using consistent demo passcode for all team members
   };
 
   const handleEditUser = (member: any) => {

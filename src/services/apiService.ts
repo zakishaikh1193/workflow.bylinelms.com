@@ -237,17 +237,109 @@ export const skillService = {
   },
 };
 
+// Task Service
+export const taskService = {
+  // Get all tasks
+  getAll: async (filters?: any) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/tasks?${queryParams}` : '/tasks';
+    const result = await apiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get task by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/tasks/${id}`);
+    return result.data;
+  },
+
+  // Create new task
+  create: async (taskData: any) => {
+    const result = await apiService.post('/tasks', taskData);
+    return result.data;
+  },
+
+  // Update task
+  update: async (id: string | number, taskData: any) => {
+    const result = await apiService.put(`/tasks/${id}`, taskData);
+    return result.data;
+  },
+
+  // Delete task
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/tasks/${id}`);
+    return result.data;
+  },
+
+  // Get tasks by project
+  getByProject: async (projectId: string | number) => {
+    const result = await apiService.get(`/tasks?project_id=${projectId}`);
+    return result.data;
+  },
+
+  // Get tasks by assignee
+  getByAssignee: async (assigneeId: string | number, assigneeType: 'admin' | 'team') => {
+    const result = await apiService.get(`/tasks?assignee_id=${assigneeId}&assignee_type=${assigneeType}`);
+    return result.data;
+  },
+
+  // Update task status
+  updateStatus: async (id: string | number, status: string, progress?: number) => {
+    const data: any = { status };
+    if (progress !== undefined) {
+      data.progress = progress;
+    }
+    const result = await apiService.put(`/tasks/${id}`, data);
+    return result.data;
+  },
+
+  // Update task progress
+  updateProgress: async (id: string | number, progress: number) => {
+    const result = await apiService.put(`/tasks/${id}`, { progress });
+    return result.data;
+  },
+};
+
+// Stage Service
+export const stageService = {
+  // Get all stages
+  getAll: async (projectId?: string | number) => {
+    const endpoint = projectId ? `/stages?project_id=${projectId}` : '/stages';
+    const result = await apiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get stage by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/stages/${id}`);
+    return result.data;
+  },
+
+  // Create new stage
+  create: async (stageData: any) => {
+    const result = await apiService.post('/stages', stageData);
+    return result.data;
+  },
+
+  // Get stages by project
+  getByProject: async (projectId: string | number) => {
+    const result = await apiService.get(`/stages?project_id=${projectId}`);
+    return result.data;
+  },
+};
+
 // Dashboard Service
 export const dashboardService = {
   // Get dashboard overview data
   getOverview: async () => {
     try {
       // Fetch all necessary data in parallel
-      const [projects, teamMembers, categories, skills] = await Promise.all([
+      const [projects, teamMembers, categories, skills, tasks] = await Promise.all([
         projectService.getAll(),
         teamService.getAll(),
         categoryService.getAll(),
-        skillService.getAll()
+        skillService.getAll(),
+        taskService.getAll()
       ]);
 
       // Calculate statistics
@@ -257,12 +349,17 @@ export const dashboardService = {
         totalTeamMembers: teamMembers.length,
         activeTeamMembers: teamMembers.filter((m: any) => m.status === 'active').length,
         totalCategories: categories.length,
-        totalSkills: skills.length
+        totalSkills: skills.length,
+        totalTasks: tasks.length,
+        activeTasks: tasks.filter((t: any) => ['not-started', 'in-progress', 'under-review'].includes(t.status)).length,
+        completedTasks: tasks.filter((t: any) => t.status === 'completed').length,
+        overdueTasks: tasks.filter((t: any) => new Date(t.end_date) < new Date() && t.status !== 'completed').length
       };
 
       return {
         projects,
         teamMembers,
+        tasks,
         categories,
         skills,
         stats
