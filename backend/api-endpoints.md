@@ -10,7 +10,6 @@
 ### Admin Authentication
 ```
 POST   /auth/admin/login          # Admin login with email/password
-POST   /auth/admin/register       # Admin registration
 POST   /auth/admin/refresh        # Refresh admin token
 POST   /auth/admin/logout         # Admin logout
 GET    /auth/admin/me             # Get current admin profile

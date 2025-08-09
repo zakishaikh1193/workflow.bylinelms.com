@@ -29,7 +29,7 @@ app.use('/api/', limiter);
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5174',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -68,14 +68,30 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// API routes will be added here
-app.use('/api', (req, res, next) => {
+// Import routes
+const authRoutes = require('./routes/auth');
+const projectRoutes = require('./routes/projects');
+const categoryRoutes = require('./routes/categories');
+const teamRoutes = require('./routes/team');
+const skillRoutes = require('./routes/skills');
+
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/team', teamRoutes);
+app.use('/api/skills', skillRoutes);
+
+// API info endpoint
+app.get('/api', (req, res) => {
   res.json({
     message: 'Workflow LMS API',
     version: '1.0.0',
     endpoints: {
       health: '/health',
-      api: '/api'
+      auth: '/api/auth',
+      admin_login: '/api/auth/admin/login',
+      team_login: '/api/auth/team/login'
     }
   });
 });
@@ -176,7 +192,7 @@ async function startServer() {
       console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   Port: ${PORT}`);
       console.log(`   Database: ${process.env.DB_NAME || 'workflow_db'}`);
-      console.log(`   CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
+      console.log(`   CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5174'}`);
       console.log(`\n📍 Endpoints:`);
       console.log(`   Health Check: http://localhost:${PORT}/health`);
       console.log(`   API Base: http://localhost:${PORT}/api`);

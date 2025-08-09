@@ -98,11 +98,11 @@ export function Auth() {
         {/* Demo Credentials Info */}
         <CardContent className="pt-0">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">Authentication Required</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Demo Credentials</h4>
             <div className="text-sm text-blue-700">
-              <p className="mb-2">This application is connected to a live Supabase project.</p>
-              <p className="mb-2">To log in, you need to use credentials for a user that exists in your Supabase project.</p>
-              <p><strong>To create a user:</strong> Go to your Supabase Dashboard → Authentication → Users → Invite user</p>
+              <p className="mb-2">Use these demo credentials to test the system:</p>
+              <p className="mb-1"><strong>Email:</strong> admin@demo.com</p>
+              <p><strong>Password:</strong> demo123</p>
             </div>
           </div>
         </CardContent>
