@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Auth() {
   const [email, setEmail] = useState('');

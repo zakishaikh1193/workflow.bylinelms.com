@@ -1,7 +1,7 @@
 import React from 'react';
 import { Bell, Search, User, LogOut } from 'lucide-react';
 import { Button } from './ui/Button';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Header() {
   const { signOut, user } = useAuth();

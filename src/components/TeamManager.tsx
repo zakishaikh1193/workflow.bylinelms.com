@@ -25,8 +25,8 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
-import { useAuth } from '../hooks/useAuth';
-import { teamMemberService } from '../services/teamMemberService';
+import { useAuth } from '../contexts/AuthContext';
+import { teamService } from '../services/apiService';
 import type { User, PerformanceFlag } from '../types';
 
 export function TeamManager() {
@@ -85,7 +85,7 @@ export function TeamManager() {
   useEffect(() => {
     const loadTeamMembers = async () => {
       try {
-        const members = await teamMemberService.getAll();
+        const members = await teamService.getAll();
         dispatch({ type: 'SET_USERS', payload: members });
       } catch (error) {
         console.error('Failed to load team members:', error);
@@ -98,7 +98,7 @@ export function TeamManager() {
     try {
       if (editingUser) {
         // Update existing user
-        const updatedUser = await teamMemberService.update(editingUser.id, userData);
+        const updatedUser = await teamService.update(editingUser.id, userData);
         dispatch({ type: 'UPDATE_USER', payload: { ...editingUser, ...userData } });
       } else {
         // Create new user
@@ -106,12 +106,12 @@ export function TeamManager() {
           name: userData.name || '',
           email: userData.email || '',
           skills: userData.skills || [],
-          passcode: teamMemberService.generatePasscode(),
+          passcode: teamService.generatePasscode(),
           isActive: userData.isActive !== false,
           performanceFlags: [],
           ...userData,
         };
-        const createdUser = await teamMemberService.create(newUserData);
+        const createdUser = await teamService.create(newUserData);
         dispatch({ type: 'ADD_USER', payload: { ...newUserData, id: createdUser.id } });
       }
     } catch (error) {
@@ -137,7 +137,7 @@ export function TeamManager() {
     if (userToUpdate) {
       try {
         const updatedUser = { ...userToUpdate, isActive: !userToUpdate.isActive };
-        await teamMemberService.update(userId, { isActive: updatedUser.isActive });
+        await teamService.update(userId, { isActive: updatedUser.isActive });
         dispatch({ type: 'UPDATE_USER', payload: updatedUser });
       } catch (error) {
         console.error('Failed to update user status:', error);
@@ -156,7 +156,7 @@ export function TeamManager() {
     const userToUpdate = state.users.find(u => u.id === userId);
     if (userToUpdate) {
       try {
-        const createdFlag = await teamMemberService.addPerformanceFlag(
+        const createdFlag = await teamService.addPerformanceFlag(
           userId,
           flagType,
           flagReasons[flagType],
@@ -186,7 +186,7 @@ export function TeamManager() {
     const userToUpdate = state.users.find(u => u.id === userId);
     if (userToUpdate) {
       try {
-        await teamMemberService.removePerformanceFlag(flagId);
+        await teamService.removePerformanceFlag(flagId);
         
         const updatedUser = {
           ...userToUpdate,
@@ -323,12 +323,12 @@ export function TeamManager() {
                   <span className="text-xs font-medium text-gray-700">Passcode:</span>
                   <div className="flex items-center space-x-1">
                     <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                      {member.passcode || teamMemberService.generatePasscode()}
+                      {member.passcode || teamService.generatePasscode()}
                     </code>
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => copyPasscode(member.passcode || teamMemberService.generatePasscode())}
+                      onClick={() => copyPasscode(member.passcode || teamService.generatePasscode())}
                       className="h-6 w-6 p-0"
                     >
                       {copiedPasscode === member.passcode ? (

@@ -21,8 +21,8 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
-import { useAuth } from '../hooks/useAuth';
-import { teamMemberService } from '../services/teamMemberService';
+import { useAuth } from '../contexts/AuthContext';
+import { teamService, categoryService, skillService } from '../services/apiService';
 
 interface Stage {
   id: string;
@@ -98,7 +98,7 @@ export function Settings() {
         ]);
         
         // Load team members from database
-        const members = await teamMemberService.getAll();
+        const members = await teamService.getAll();
         setTeamMembers(members);
       } catch (error) {
         console.error('Failed to load users:', error);
@@ -200,12 +200,12 @@ export function Settings() {
           name: userData.name,
           email: userData.email,
           skills: userData.skills || [],
-          passcode: userData.passcode || teamMemberService.generatePasscode(),
+          passcode: userData.passcode || teamService.generatePasscode(),
           isActive: userData.isActive !== false,
           performanceFlags: [],
         };
         
-        const createdMember = await teamMemberService.create(newMemberData);
+        const createdMember = await teamService.create(newMemberData);
         const newMember = { ...newMemberData, id: createdMember.id };
         setTeamMembers([...teamMembers, newMember]);
       }
@@ -230,7 +230,7 @@ export function Settings() {
         const member = teamMembers.find(m => m.id === userId);
         if (member) {
           const updatedMember = { ...member, isActive: !member.isActive };
-          await teamMemberService.update(userId, updatedMember);
+          await teamService.update(userId, updatedMember);
           setTeamMembers(teamMembers.map(m => m.id === userId ? updatedMember : m));
         }
       }
@@ -248,7 +248,7 @@ export function Settings() {
 
   const handleDeleteTeamMember = async (memberId: string) => {
     try {
-      // In a real app, you would call teamMemberService.delete(memberId)
+      // In a real app, you would call teamService.delete(memberId)
       setTeamMembers(teamMembers.filter(m => m.id !== memberId));
     } catch (error) {
       console.error('Failed to delete team member:', error);
@@ -265,7 +265,7 @@ export function Settings() {
       } else {
         // For team members, update the passcode
         const updatedMember = { ...selectedUser, passcode: newPassword };
-        await teamMemberService.update(selectedUser.id, updatedMember);
+        await teamService.update(selectedUser.id, updatedMember);
         setTeamMembers(teamMembers.map(m => m.id === selectedUser.id ? updatedMember : m));
       }
       setIsPasswordModalOpen(false);
@@ -977,7 +977,7 @@ function PasswordResetModal({ isOpen, onClose, onSubmit, user, userType }: Passw
   useEffect(() => {
     if (isOpen) {
       if (userType === 'team') {
-        setNewPassword(teamMemberService.generatePasscode());
+        setNewPassword(teamService.generatePasscode());
       } else {
         setNewPassword('');
       }
@@ -991,7 +991,7 @@ function PasswordResetModal({ isOpen, onClose, onSubmit, user, userType }: Passw
   };
 
   const generateNewPasscode = () => {
-    setNewPassword(teamMemberService.generatePasscode());
+    setNewPassword(teamService.generatePasscode());
   };
 
   return (

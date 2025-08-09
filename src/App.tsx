@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useState } from 'react';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from './contexts/AuthContext';
 import { Auth } from './components/Auth';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -19,6 +19,9 @@ function App() {
   const { user, loading } = useAuth();
   const [teamMemberUser, setTeamMemberUser] = useState<UserType | null>(null);
   const [showTeamPortal, setShowTeamPortal] = useState(false);
+
+  // Debug logging
+  console.log('🔍 App render - user:', user, 'loading:', loading);
 
   if (loading) {
     return (

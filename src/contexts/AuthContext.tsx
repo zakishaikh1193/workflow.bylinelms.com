@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 // Backend API configuration
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -21,20 +21,33 @@ interface AuthSession {
   expires_in: number;
 }
 
-export function useAuth() {
+interface AuthContextType {
+  user: ApiUser | null;
+  session: AuthSession | null;
+  loading: boolean;
+  signUp: (email: string, password: string, name: string) => Promise<any>;
+  signIn: (email: string, password: string) => Promise<any>;
+  signOut: () => Promise<any>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session on page load
     const checkExistingSession = async () => {
       const token = localStorage.getItem('access_token');
       const userData = localStorage.getItem('user_data');
-      
+
       if (token && userData) {
         try {
-          // Verify token is still valid
           const response = await fetch(`${API_URL}/auth/admin/me`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -55,13 +68,11 @@ export function useAuth() {
               setUser(user);
               setSession(session);
             } else {
-              // Invalid session, clear storage
               localStorage.removeItem('access_token');
               localStorage.removeItem('refresh_token');
               localStorage.removeItem('user_data');
             }
           } else {
-            // Token expired or invalid, clear storage
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
             localStorage.removeItem('user_data');
@@ -80,16 +91,14 @@ export function useAuth() {
   }, []);
 
   const signUp = async (_email: string, _password: string, _name: string) => {
-    // Admin registration is not allowed - admins are created manually
-    return { 
-      data: null, 
-      error: { message: 'Admin registration is not available. Please contact system administrator.' } 
+    return {
+      data: null,
+      error: { message: 'Admin registration is not available. Please contact system administrator.' }
     };
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      // Call backend API for admin login
       const response = await fetch(`${API_URL}/auth/admin/login`, {
         method: 'POST',
         headers: {
@@ -102,15 +111,13 @@ export function useAuth() {
 
       if (response.ok && result.success) {
         const { user, access_token, refresh_token, expires_in } = result.data;
-        
-        // Store tokens in localStorage
+
         localStorage.setItem('access_token', access_token);
         localStorage.setItem('user_data', JSON.stringify(user));
         if (refresh_token) {
           localStorage.setItem('refresh_token', refresh_token);
         }
 
-        // Create session object
         const session = {
           user,
           access_token,
@@ -118,25 +125,26 @@ export function useAuth() {
           expires_in
         };
 
-        // Update state
+        console.log('🔧 Setting user state:', user);
         setUser(user);
         setSession(session);
 
-        return { 
-          data: { user, session }, 
-          error: null 
+        console.log('✅ Login successful, user state should be set');
+
+        return {
+          data: { user, session },
+          error: null
         };
       } else {
-        // Login failed
-        return { 
-          data: { user: null, session: null }, 
+        return {
+          data: { user: null, session: null },
           error: { message: result.message || 'Login failed' }
         };
       }
     } catch (error) {
       console.error('Login error:', error);
-      return { 
-        data: { user: null, session: null }, 
+      return {
+        data: { user: null, session: null },
         error: { message: 'Network error. Please check your connection.' }
       };
     }
@@ -145,9 +153,8 @@ export function useAuth() {
   const signOut = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      
+
       if (token) {
-        // Call backend logout API
         await fetch(`${API_URL}/auth/admin/logout`, {
           method: 'POST',
           headers: {
@@ -156,32 +163,30 @@ export function useAuth() {
           },
         });
       }
-      
-      // Clear localStorage and state regardless of API call result
+
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_data');
-      
+
       setUser(null);
       setSession(null);
-      
+
       return { error: null };
     } catch (error) {
       console.error('Logout error:', error);
-      
-      // Still clear localStorage and state even if API call fails
+
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_data');
-      
+
       setUser(null);
       setSession(null);
-      
+
       return { error: null };
     }
   };
 
-  return {
+  const value = {
     user,
     session,
     loading,
@@ -189,4 +194,18 @@ export function useAuth() {
     signIn,
     signOut,
   };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
