@@ -1,4 +1,4 @@
-const pool = require('../db');
+const db = require('../db');
 
 // Get all projects with filters
 const getProjects = async (req, res) => {
@@ -14,56 +14,28 @@ const getProjects = async (req, res) => {
     } = req.query;
 
     const offset = (page - 1) * limit;
-    let query = `
-      SELECT 
-        p.*,
-        c.name as category_name,
-        c.color as category_color,
-        COUNT(pm.user_id) as member_count
-      FROM projects p
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      WHERE 1=1
-    `;
-
-    const queryParams = [];
-    let paramIndex = 1;
-
-    // Add filters
-    if (search) {
-      query += ` AND (p.name LIKE ? OR p.description LIKE ?)`;
-      queryParams.push(`%${search}%`, `%${search}%`);
-      paramIndex += 2;
-    }
-
-    if (status) {
-      query += ` AND p.status = ?`;
-      queryParams.push(status);
-      paramIndex++;
-    }
-
-    if (category) {
-      query += ` AND p.category_id = ?`;
-      queryParams.push(category);
-      paramIndex++;
-    }
-
-    query += ` GROUP BY p.id`;
-
-    // Add sorting
-    const validSortFields = ['name', 'created_at', 'updated_at', 'start_date', 'end_date', 'status'];
-    const validOrders = ['asc', 'desc'];
+    // Test with simplest possible query first
+    const testQuery = 'SELECT COUNT(*) as count FROM projects';
+    console.log('🔍 Testing projects table exists...');
     
-    if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
-      query += ` ORDER BY p.${sort} ${order.toUpperCase()}`;
+    try {
+      const testResult = await db.query(testQuery);
+      console.log('✅ Projects table exists, count:', testResult[0].count);
+    } catch (error) {
+      console.error('❌ Projects table issue:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Projects table not found or accessible',
+        error: error.message
+      });
     }
 
-    // Add pagination
-    query += ` LIMIT ? OFFSET ?`;
-    queryParams.push(parseInt(limit), parseInt(offset));
+    // Simple query without any parameters first
+    let query = 'SELECT * FROM projects ORDER BY created_at DESC LIMIT 20';
+    console.log('🔍 Project Query:', query);
 
     // Execute query
-    const [rows] = await pool.execute(query, queryParams);
+    const rows = await db.query(query);
 
     // Get total count for pagination
     let countQuery = `
@@ -91,7 +63,7 @@ const getProjects = async (req, res) => {
       countParams.push(category);
     }
 
-    const [countResult] = await pool.execute(countQuery, countParams);
+    const countResult = await db.query('SELECT COUNT(*) as total FROM projects');
     const total = countResult[0].total;
 
     res.json({
@@ -128,14 +100,13 @@ const getProject = async (req, res) => {
       SELECT 
         p.*,
         c.name as category_name,
-        c.color as category_color,
         c.description as category_description
       FROM projects p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.id = ?
     `;
 
-    const [rows] = await pool.execute(query, [id]);
+    const rows = await db.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -174,10 +145,8 @@ const createProject = async (req, res) => {
       start_date,
       end_date,
       status = 'planning',
-      client_name,
-      budget,
-      currency = 'USD',
-      priority = 'medium'
+      progress = 0,
+      parent_id = null
     } = req.body;
 
     // Validate required fields
@@ -191,37 +160,74 @@ const createProject = async (req, res) => {
       });
     }
 
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Start date and end date are required'
+        }
+      });
+    }
+
     const query = `
       INSERT INTO projects (
         name, description, category_id, start_date, end_date, 
-        status, client_name, budget, currency, priority, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        status, progress, created_by, parent_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const [result] = await pool.execute(query, [
-      name,
-      description,
-      category_id,
-      start_date,
-      end_date,
-      status,
-      client_name,
-      budget,
-      currency,
-      priority,
-      req.user.id
-    ]);
+    // Ensure all parameters are defined and properly formatted
+    const created_by = req.user?.id || 1; // Fallback to admin user ID 1
+    
+    // Format dates to MySQL DATE format (YYYY-MM-DD)
+    const formatDate = (dateStr) => {
+      if (!dateStr) return null;
+      const date = new Date(dateStr);
+      return date.toISOString().split('T')[0]; // Extract YYYY-MM-DD part
+    };
+    
+    const formattedStartDate = formatDate(start_date);
+    const formattedEndDate = formatDate(end_date);
+    
+    const params = [
+      name || null,
+      description || null,
+      category_id || null,
+      formattedStartDate,
+      formattedEndDate,
+      status || 'planning',
+      progress || 0,
+      created_by,
+      parent_id || null
+    ];
+
+    console.log('🚀 Creating project with formatted values:', {
+      name, description, category_id, 
+      start_date: formattedStartDate, 
+      end_date: formattedEndDate, 
+      status, progress, created_by, parent_id
+    });
+    
+    console.log('🔍 SQL Parameters:', params);
+    console.log('🔍 Parameter types:', params.map(p => typeof p));
+
+    // Use the fixed db.insert method
+    const result = await db.insert(query, params);
+    const insertId = result.insertId;
+
+    console.log('✅ Project created with ID:', insertId);
 
     // Get the created project
-    const [createdProject] = await pool.execute(
+    const createdProject = await db.query(
       `SELECT 
         p.*,
         c.name as category_name,
-        c.color as category_color
+        c.description as category_description
       FROM projects p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.id = ?`,
-      [result.insertId]
+      [insertId]
     );
 
     res.status(201).json({
@@ -253,14 +259,12 @@ const updateProject = async (req, res) => {
       start_date,
       end_date,
       status,
-      client_name,
-      budget,
-      currency,
-      priority
+      progress,
+      parent_id
     } = req.body;
 
     // Check if project exists
-    const [existing] = await pool.execute('SELECT id FROM projects WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM projects WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -279,34 +283,35 @@ const updateProject = async (req, res) => {
         start_date = COALESCE(?, start_date),
         end_date = COALESCE(?, end_date),
         status = COALESCE(?, status),
-        client_name = COALESCE(?, client_name),
-        budget = COALESCE(?, budget),
-        currency = COALESCE(?, currency),
-        priority = COALESCE(?, priority),
+        progress = COALESCE(?, progress),
+        parent_id = COALESCE(?, parent_id),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
 
-    await pool.execute(query, [
+    console.log('🔄 Updating project with values:', {
+      name, description, category_id, start_date, end_date, 
+      status, progress, parent_id, id
+    });
+
+    await db.query(query, [
       name,
       description,
       category_id,
       start_date,
       end_date,
       status,
-      client_name,
-      budget,
-      currency,
-      priority,
+      progress,
+      parent_id,
       id
     ]);
 
     // Get updated project
-    const [updatedProject] = await pool.execute(
+    const updatedProject = await db.query(
       `SELECT 
         p.*,
         c.name as category_name,
-        c.color as category_color
+        c.description as category_description
       FROM projects p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.id = ?`,
@@ -337,7 +342,7 @@ const deleteProject = async (req, res) => {
     const { id } = req.params;
 
     // Check if project exists
-    const [existing] = await pool.execute('SELECT id FROM projects WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM projects WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -349,7 +354,7 @@ const deleteProject = async (req, res) => {
     }
 
     // Delete project (this will cascade delete related records due to foreign key constraints)
-    await pool.execute('DELETE FROM projects WHERE id = ?', [id]);
+    await db.query('DELETE FROM projects WHERE id = ?', [id]);
 
     res.json({
       success: true,
@@ -391,7 +396,7 @@ const getProjectMembers = async (req, res) => {
       ORDER BY pm.created_at DESC
     `;
 
-    const [rows] = await pool.execute(query, [id]);
+    const rows = await db.query(query, [id]);
 
     // Convert skills from comma-separated string to array
     const members = rows.map(member => ({
@@ -433,7 +438,7 @@ const addProjectMember = async (req, res) => {
     }
 
     // Check if project exists
-    const [project] = await pool.execute('SELECT id FROM projects WHERE id = ?', [id]);
+    const project = await db.query('SELECT id FROM projects WHERE id = ?', [id]);
     if (project.length === 0) {
       return res.status(404).json({
         success: false,
@@ -445,7 +450,7 @@ const addProjectMember = async (req, res) => {
     }
 
     // Check if user exists
-    const [user] = await pool.execute('SELECT id FROM team_members WHERE id = ?', [user_id]);
+    const [user] = await db.query('SELECT id FROM team_members WHERE id = ?', [user_id]);
     if (user.length === 0) {
       return res.status(404).json({
         success: false,
@@ -457,7 +462,7 @@ const addProjectMember = async (req, res) => {
     }
 
     // Check if member is already in project
-    const [existing] = await pool.execute(
+    const [existing] = await db.query(
       'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
       [id, user_id]
     );
@@ -473,13 +478,13 @@ const addProjectMember = async (req, res) => {
     }
 
     // Add member to project
-    const [result] = await pool.execute(
+    const [result] = await db.query(
       'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
       [id, user_id, role]
     );
 
     // Get the created project member with user details
-    const [newMember] = await pool.execute(`
+    const [newMember] = await db.query(`
       SELECT 
         pm.*,
         tm.name,
@@ -516,7 +521,7 @@ const removeProjectMember = async (req, res) => {
     const { id, memberId } = req.params;
 
     // Check if membership exists
-    const [existing] = await pool.execute(
+    const [existing] = await db.query(
       'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
       [id, memberId]
     );
@@ -532,7 +537,7 @@ const removeProjectMember = async (req, res) => {
     }
 
     // Remove member from project
-    await pool.execute(
+    await db.query(
       'DELETE FROM project_members WHERE project_id = ? AND user_id = ?',
       [id, memberId]
     );

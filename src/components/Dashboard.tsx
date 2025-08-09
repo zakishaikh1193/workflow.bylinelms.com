@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FolderOpen, 
   Users, 
@@ -7,17 +7,44 @@ import {
   TrendingUp,
   AlertTriangle,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Button } from './ui/Button';
 import { useApp } from '../contexts/AppContext';
+import { dashboardService } from '../services/apiService';
 import { calculateProjectProgress } from '../utils/progressCalculator';
 
 export function Dashboard() {
   const { state, dispatch } = useApp();
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch dashboard data on component mount
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const data = await dashboardService.getOverview();
+        setDashboardData(data);
+        
+        console.log('📊 Dashboard data loaded:', data);
+      } catch (err: any) {
+        console.error('Dashboard fetch error:', err);
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const handleStatClick = (view: string, filter?: any) => {
     dispatch({ type: 'SET_SELECTED_VIEW', payload: view as any });
@@ -26,76 +53,101 @@ export function Dashboard() {
     }
   };
 
+  // Temporary fallback data for tasks until we implement the tasks API
+  const todayTasks: any[] = [];
+  const tomorrowTasks: any[] = [];
+  const thisWeekTasks: any[] = [];
+  const allTasks: any[] = [];
+  
+  // Get projects and team members from dashboard data
+  const projects = dashboardData?.projects || [];
+  const teamMembers = dashboardData?.teamMembers || [];
+
   const handleUserClick = (userId: string) => {
     dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
     dispatch({ type: 'SET_FILTERS', payload: { teamMembers: [userId] } });
   };
 
-  // Get fresh task data for calculations
-  const allTasks = state.tasks || [];
-  
-  const isOverdue = (task: any) => {
-    return new Date(task.endDate) < new Date() && task.status !== 'completed';
-  };
+  // This function will be called after data is loaded
 
-  const isDueToday = (task: any) => {
-    const today = new Date();
-    const dueDate = new Date(task.endDate);
-    return today.toDateString() === dueDate.toDateString() && task.status !== 'completed';
-  };
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Overview of your project management activities</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Loading dashboard data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const isDueTomorrow = (task: any) => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dueDate = new Date(task.endDate);
-    return tomorrow.toDateString() === dueDate.toDateString() && task.status !== 'completed';
-  };
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Overview of your project management activities</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <AlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-600" />
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline"
+            >
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const isDueThisWeek = (task: any) => {
-    const today = new Date();
-    const weekFromNow = new Date();
-    weekFromNow.setDate(today.getDate() + 7);
-    const dueDate = new Date(task.endDate);
-    return dueDate >= today && dueDate <= weekFromNow && task.status !== 'completed';
-  };
+  // Use backend data instead of context state  
+  const stats_data = dashboardData?.stats || {};
 
-  const overdueTasks = allTasks.filter(isOverdue);
-  const todayTasks = allTasks.filter(isDueToday);
-  const tomorrowTasks = allTasks.filter(isDueTomorrow);
-  const thisWeekTasks = allTasks.filter(isDueThisWeek);
-
+  // Create stats array with real backend data
   const stats = [
     {
-      title: 'Active Projects',
-      value: state.projects.filter(p => p.status === 'active').length,
+      title: 'Total Projects',
+      value: stats_data.totalProjects || 0,
       icon: FolderOpen,
       color: 'text-blue-600',
       bg: 'bg-blue-50',
+      onClick: () => handleStatClick('projects'),
+    },
+    {
+      title: 'Active Projects',
+      value: stats_data.activeProjects || 0,
+      icon: TrendingUp,
+      color: 'text-green-600',
+      bg: 'bg-green-50',
       onClick: () => handleStatClick('projects', { statuses: ['active'] }),
     },
     {
       title: 'Team Members',
-      value: state.users.length,
+      value: stats_data.totalTeamMembers || 0,
       icon: Users,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
       onClick: () => handleStatClick('teams'),
     },
     {
-      title: 'Open Tasks',
-      value: allTasks.filter(t => t.status !== 'completed').length,
+      title: 'Categories',
+      value: stats_data.totalCategories || 0,
       icon: CheckSquare,
       color: 'text-orange-600',
       bg: 'bg-orange-50',
-      onClick: () => handleStatClick('tasks', { statuses: ['not-started', 'in-progress', 'under-review', 'blocked'] }),
-    },
-    {
-      title: 'Overdue Tasks',
-      value: overdueTasks.length,
-      icon: AlertTriangle,
-      color: 'text-red-600',
-      bg: 'bg-red-50',
-      onClick: () => handleStatClick('tasks', { overdue: true }),
+      onClick: () => handleStatClick('settings'),
     },
   ];
 
@@ -213,7 +265,7 @@ export function Dashboard() {
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{project.name}</h4>
                   <p className="text-sm text-gray-600">{project.category}</p>
-                  <ProgressBar value={calculateProjectProgress(project, state.tasks).progress} className="mt-2" />
+                  <ProgressBar value={calculateProjectProgress(project, allTasks).progress} className="mt-2" />
                 </div>
                 <div className="flex items-center space-x-2">
                   <Badge variant={

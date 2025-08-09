@@ -50,13 +50,21 @@ const teamMemberValidation = [
     .withMessage('Phone must not exceed 20 characters'),
   
   body('passcode')
+    .optional()
     .isLength({ min: 4 })
     .withMessage('Passcode must be at least 4 characters long'),
   
   body('hourly_rate')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Hourly rate must be a positive number'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // Allow null, undefined, or empty string
+      }
+      if (typeof value === 'number' && value >= 0) {
+        return true; // Allow positive numbers
+      }
+      throw new Error('Hourly rate must be a positive number or null');
+    }),
   
   body('avatar_url')
     .optional()
@@ -112,9 +120,16 @@ const teamMemberUpdateValidation = [
     .withMessage('Passcode must be at least 4 characters long'),
   
   body('hourly_rate')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Hourly rate must be a positive number'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true; // Allow null, undefined, or empty string
+      }
+      if (typeof value === 'number' && value >= 0) {
+        return true; // Allow positive numbers
+      }
+      throw new Error('Hourly rate must be a positive number or null');
+    }),
   
   body('avatar_url')
     .optional()

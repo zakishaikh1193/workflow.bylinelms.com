@@ -236,3 +236,46 @@ export const skillService = {
     return result.data;
   },
 };
+
+// Dashboard Service
+export const dashboardService = {
+  // Get dashboard overview data
+  getOverview: async () => {
+    try {
+      // Fetch all necessary data in parallel
+      const [projects, teamMembers, categories, skills] = await Promise.all([
+        projectService.getAll(),
+        teamService.getAll(),
+        categoryService.getAll(),
+        skillService.getAll()
+      ]);
+
+      // Calculate statistics
+      const stats = {
+        totalProjects: projects.length,
+        activeProjects: projects.filter((p: any) => p.status === 'active').length,
+        totalTeamMembers: teamMembers.length,
+        activeTeamMembers: teamMembers.filter((m: any) => m.status === 'active').length,
+        totalCategories: categories.length,
+        totalSkills: skills.length
+      };
+
+      return {
+        projects,
+        teamMembers,
+        categories,
+        skills,
+        stats
+      };
+    } catch (error) {
+      console.error('Dashboard overview fetch error:', error);
+      throw error;
+    }
+  },
+
+  // Get recent activity (placeholder for now)
+  getRecentActivity: async () => {
+    // TODO: Implement when we have activity/audit logs
+    return [];
+  }
+};

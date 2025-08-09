@@ -43,11 +43,11 @@ const db = {
     }
   },
 
-  // Insert and return insert ID
+  // Insert and return full result object
   async insert(sql, params = []) {
     try {
       const [result] = await pool.execute(sql, params);
-      return result.insertId;
+      return result; // Return full result object with insertId
     } catch (error) {
       console.error('Database insert error:', error);
       throw error;

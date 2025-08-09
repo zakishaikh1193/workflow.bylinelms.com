@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const pool = require('../db');
+const db = require('../db');
 
 // Middleware to verify admin JWT token
 const requireAdminAuth = async (req, res, next) => {
@@ -41,7 +41,7 @@ const requireAdminAuth = async (req, res, next) => {
     // }
 
     // Get admin user
-    const [adminRows] = await pool.execute(
+    const adminRows = await db.query(
       'SELECT id, email, name, is_active FROM admin_users WHERE id = ? AND is_active = true',
       [decoded.id]
     );
@@ -116,7 +116,7 @@ const requireTeamAuth = async (req, res, next) => {
     // We'll skip session validation for team members for now
     
     // Get team member
-    const [teamMemberRows] = await pool.execute(
+    const teamMemberRows = await db.query(
       'SELECT id, email, name, status FROM team_members WHERE id = ? AND status = "active"',
       [decoded.id]
     );
@@ -194,7 +194,7 @@ const requireAuth = async (req, res, next) => {
       //   });
       // }
 
-      const [adminRows] = await pool.execute(
+      const adminRows = await db.query(
         'SELECT id, email, name, is_active FROM admin_users WHERE id = ? AND is_active = true',
         [decoded.id]
       );
@@ -217,7 +217,7 @@ const requireAuth = async (req, res, next) => {
 
     } else if (decoded.type === 'team') {
       // Team member authentication (skip session validation for now)
-      const [teamMemberRows] = await pool.execute(
+      const teamMemberRows = await db.query(
         'SELECT id, email, name, status FROM team_members WHERE id = ? AND status = "active"',
         [decoded.id]
       );
@@ -283,7 +283,7 @@ const optionalAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (decoded.type === 'admin') {
-      const [adminRows] = await pool.execute(
+      const adminRows = await db.query(
         'SELECT id, email, name FROM admin_users WHERE id = ? AND is_active = true',
         [decoded.id]
       );
@@ -292,7 +292,7 @@ const optionalAuth = async (req, res, next) => {
         req.user = { ...adminRows[0], type: 'admin' };
       }
     } else if (decoded.type === 'team') {
-      const [teamMemberRows] = await pool.execute(
+      const teamMemberRows = await db.query(
         'SELECT id, email, name FROM team_members WHERE id = ? AND status = "active"',
         [decoded.id]
       );

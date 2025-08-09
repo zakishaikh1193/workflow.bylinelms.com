@@ -2,10 +2,14 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   skills: string[];
   avatar?: string;
   passcode?: string;
   isActive?: boolean;
+  status?: 'active' | 'inactive' | 'on-leave';
+  hourly_rate?: number;
+  bio?: string;
   performanceFlags?: PerformanceFlag[];
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   FolderOpen, 
@@ -7,7 +7,9 @@ import {
   MoreHorizontal,
   Filter,
   Grid,
-  List
+  List,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -18,6 +20,7 @@ import { useApp } from '../contexts/AppContext';
 import { Project, ProjectStatus } from '../types';
 import { ProjectDetails } from './ProjectDetails';
 import { calculateProjectProgress } from '../utils/progressCalculator';
+import { projectService, categoryService } from '../services/apiService';
 
 // Category-specific stage templates
 const stageTemplates = {
@@ -61,50 +64,141 @@ export function ProjectManager() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  
+  // Backend data state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredProjects = state.projects.filter(project => {
-    if (selectedCategory !== 'all' && project.category !== selectedCategory) return false;
+  // Fetch data from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const [projectsData, categoriesData] = await Promise.all([
+          projectService.getAll(),
+          categoryService.getAll()
+        ]);
+        
+        setProjects(projectsData);
+        setCategories(categoriesData);
+        
+        console.log('📋 Projects loaded:', projectsData);
+        console.log('📂 Categories loaded:', categoriesData);
+      } catch (err: any) {
+        console.error('ProjectManager fetch error:', err);
+        setError(err.message || 'Failed to load projects data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const filteredProjects = projects.filter(project => {
+    if (selectedCategory !== 'all' && project.category_name !== selectedCategory) return false;
     if (selectedStatus !== 'all' && project.status !== selectedStatus) return false;
     return true;
   });
 
-  const handleCreateProject = (projectData: Partial<Project>) => {
-    // Get stages for the selected category
-    const categoryStages = stageTemplates[projectData.category as keyof typeof stageTemplates] || [];
-    
-    // Add weights to stages (distribute evenly)
-    const stagesWithWeights = categoryStages.map((stage, index, array) => {
-      const baseWeight = Math.floor(100 / array.length);
-      const remainder = 100 - (baseWeight * array.length);
-      return {
-        ...stage,
-        weight: index === 0 ? baseWeight + remainder : baseWeight,
-        status: 'not-started' as const,
-        progress: 0,
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        reviewRounds: [],
-        tasks: [],
+  const handleCreateProject = async (projectData: Partial<Project>) => {
+    try {
+      setError(null);
+      
+      // Find the category ID from the name
+      const category = categories.find(c => c.name === projectData.category);
+      
+      // Prepare project data for backend
+      const backendProjectData = {
+        name: projectData.name || '',
+        description: projectData.description || '',
+        category_id: category?.id || categories[0]?.id,
+        start_date: projectData.startDate || new Date().toISOString().split('T')[0],
+        end_date: projectData.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'planning',
+        progress: 0
       };
-    });
-    
-    const newProject: Project = {
-      id: Date.now().toString(),
-      name: projectData.name || '',
-      description: projectData.description || '',
-      category: projectData.category || state.categories[0],
-      status: 'planning' as ProjectStatus,
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-      progress: 0,
-      teamMembers: [],
-      // Add category-specific stages to new projects
-      stages: stagesWithWeights,
-      ...projectData,
-    };
-    
-    dispatch({ type: 'ADD_PROJECT', payload: newProject });
-    setIsCreateModalOpen(false);
+      
+      console.log('🚀 Creating project:', backendProjectData);
+      
+      // Create project via API
+      const newProject = await projectService.create(backendProjectData);
+      
+      // Add to local state
+      setProjects(prev => [...prev, newProject]);
+      setIsCreateModalOpen(false);
+      
+      console.log('✅ Project created successfully:', newProject);
+    } catch (err: any) {
+      console.error('❌ Create project error:', err);
+      setError(err.message || 'Failed to create project');
+    }
+  };
+
+  const handleUpdateProject = async (projectId: string, projectData: Partial<Project>) => {
+    try {
+      setError(null);
+      
+      // Find the category ID from the name if category is being updated
+      const category = projectData.category ? categories.find(c => c.name === projectData.category) : null;
+      
+      // Prepare project data for backend
+      const backendProjectData: any = {};
+      if (projectData.name) backendProjectData.name = projectData.name;
+      if (projectData.description) backendProjectData.description = projectData.description;
+      if (category) backendProjectData.category_id = category.id;
+      if (projectData.startDate) backendProjectData.start_date = projectData.startDate.toISOString().split('T')[0];
+      if (projectData.endDate) backendProjectData.end_date = projectData.endDate.toISOString().split('T')[0];
+      if (projectData.status) backendProjectData.status = projectData.status;
+      if (projectData.progress !== undefined) backendProjectData.progress = projectData.progress;
+      
+      console.log('🔄 Updating project:', projectId, backendProjectData);
+      
+      // Update project via API
+      const updatedProject = await projectService.update(projectId, backendProjectData);
+      
+      // Update local state
+      setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
+      
+      console.log('✅ Project updated successfully:', updatedProject);
+      return updatedProject;
+    } catch (err: any) {
+      console.error('❌ Update project error:', err);
+      setError(err.message || 'Failed to update project');
+      throw err;
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      setError(null);
+      
+      if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+        return;
+      }
+      
+      console.log('🗑️ Deleting project:', projectId);
+      
+      // Delete project via API
+      await projectService.delete(projectId);
+      
+      // Remove from local state
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      
+      // Close project details if this project was selected
+      if (selectedProject?.id === projectId) {
+        setSelectedProject(null);
+      }
+      
+      console.log('✅ Project deleted successfully');
+    } catch (err: any) {
+      console.error('❌ Delete project error:', err);
+      setError(err.message || 'Failed to delete project');
+    }
   };
 
   const getStatusVariant = (status: ProjectStatus) => {
@@ -121,8 +215,50 @@ export function ProjectManager() {
     return (
       <ProjectDetails 
         project={selectedProject} 
-        onBack={() => setSelectedProject(null)} 
+        onBack={() => setSelectedProject(null)}
+        onUpdate={handleUpdateProject}
+        onDelete={handleDeleteProject}
+        categories={categories.map(c => c.name)}
       />
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
+          <p className="text-gray-600">Manage and track your project portfolio</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Loading projects...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
+          <p className="text-gray-600">Manage and track your project portfolio</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <AlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-600" />
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -150,8 +286,8 @@ export function ProjectManager() {
               className="border border-gray-300 rounded px-3 py-1 text-sm"
             >
               <option value="all">All Categories</option>
-              {state.categories.map(category => (
-                <option key={category} value={category}>{category}</option>
+              {categories.map(category => (
+                <option key={category.id} value={category.name}>{category.name}</option>
               ))}
             </select>
           </div>
@@ -201,11 +337,33 @@ export function ProjectManager() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{project.category}</p>
+                    <p className="text-sm text-gray-600 mt-1">{project.category_name || project.category}</p>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center space-x-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProject(project);
+                      }}
+                      title="Edit Project"
+                    >
+                      ✏️
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteProject(project.id);
+                      }}
+                      title="Delete Project"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      🗑️
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -225,13 +383,13 @@ export function ProjectManager() {
                   </Badge>
                   <div className="flex items-center text-sm text-gray-600">
                     <Users className="w-4 h-4 mr-1" />
-                    {project.teamMembers.length}
+                    {project.teamMembers?.length || 0}
                   </div>
                 </div>
 
                 <div className="flex items-center text-sm text-gray-600">
                   <Calendar className="w-4 h-4 mr-2" />
-                  {new Date(project.endDate).toLocaleDateString()}
+                  {project.end_date ? new Date(project.end_date).toLocaleDateString() : 'No due date'}
                 </div>
               </CardContent>
             </Card>
@@ -281,7 +439,7 @@ export function ProjectManager() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {project.category}
+                        {project.category_name || project.category}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={getStatusVariant(project.status)}>
@@ -297,16 +455,38 @@ export function ProjectManager() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
                           <Users className="w-4 h-4 mr-1 text-gray-400" />
-                          {project.teamMembers.length}
+                          {project.teamMembers?.length || 0}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(project.endDate).toLocaleDateString()}
+                        {project.end_date ? new Date(project.end_date).toLocaleDateString() : 'No due date'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center justify-end space-x-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedProject(project);
+                            }}
+                            title="Edit Project"
+                          >
+                            ✏️
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteProject(project.id);
+                            }}
+                            title="Delete Project"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            🗑️
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -322,7 +502,7 @@ export function ProjectManager() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateProject}
-        categories={state.categories}
+        categories={categories.map(c => c.name)}
       />
     </div>
   );

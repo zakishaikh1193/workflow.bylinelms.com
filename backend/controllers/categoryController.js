@@ -1,4 +1,4 @@
-const pool = require('../db');
+const db = require('../db');
 
 // Get all categories
 const getCategories = async (req, res) => {
@@ -13,7 +13,7 @@ const getCategories = async (req, res) => {
       ORDER BY c.name ASC
     `;
 
-    const [rows] = await pool.execute(query);
+    const rows = await db.query(query);
 
     res.json({
       success: true,
@@ -47,7 +47,7 @@ const getCategory = async (req, res) => {
       GROUP BY c.id
     `;
 
-    const [rows] = await pool.execute(query, [id]);
+    const [rows] = await db.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -97,7 +97,7 @@ const createCategory = async (req, res) => {
     }
 
     // Check if category name already exists
-    const [existing] = await pool.execute(
+    const [existing] = await db.query(
       'SELECT id FROM categories WHERE name = ?',
       [name]
     );
@@ -117,10 +117,10 @@ const createCategory = async (req, res) => {
       VALUES (?, ?, ?)
     `;
 
-    const [result] = await pool.execute(query, [name, description, color]);
+    const [result] = await db.query(query, [name, description, color]);
 
     // Get the created category
-    const [createdCategory] = await pool.execute(
+    const [createdCategory] = await db.query(
       'SELECT * FROM categories WHERE id = ?',
       [result.insertId]
     );
@@ -150,7 +150,7 @@ const updateCategory = async (req, res) => {
     const { name, description, color } = req.body;
 
     // Check if category exists
-    const [existing] = await pool.execute('SELECT id FROM categories WHERE id = ?', [id]);
+    const [existing] = await db.query('SELECT id FROM categories WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -163,7 +163,7 @@ const updateCategory = async (req, res) => {
 
     // If name is being updated, check for duplicates
     if (name) {
-      const [duplicate] = await pool.execute(
+      const [duplicate] = await db.query(
         'SELECT id FROM categories WHERE name = ? AND id != ?',
         [name, id]
       );
@@ -188,10 +188,10 @@ const updateCategory = async (req, res) => {
       WHERE id = ?
     `;
 
-    await pool.execute(query, [name, description, color, id]);
+    await db.query(query, [name, description, color, id]);
 
     // Get updated category
-    const [updatedCategory] = await pool.execute(
+    const [updatedCategory] = await db.query(
       'SELECT * FROM categories WHERE id = ?',
       [id]
     );
@@ -220,7 +220,7 @@ const deleteCategory = async (req, res) => {
     const { id } = req.params;
 
     // Check if category exists
-    const [existing] = await pool.execute('SELECT id FROM categories WHERE id = ?', [id]);
+    const [existing] = await db.query('SELECT id FROM categories WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -232,7 +232,7 @@ const deleteCategory = async (req, res) => {
     }
 
     // Check if category is being used by any projects
-    const [projects] = await pool.execute(
+    const [projects] = await db.query(
       'SELECT COUNT(*) as count FROM projects WHERE category_id = ?',
       [id]
     );
@@ -248,7 +248,7 @@ const deleteCategory = async (req, res) => {
     }
 
     // Delete category
-    await pool.execute('DELETE FROM categories WHERE id = ?', [id]);
+    await db.query('DELETE FROM categories WHERE id = ?', [id]);
 
     res.json({
       success: true,

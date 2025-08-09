@@ -1,4 +1,4 @@
-const pool = require('../db');
+const db = require('../db');
 
 // Get all skills
 const getSkills = async (req, res) => {
@@ -15,7 +15,7 @@ const getSkills = async (req, res) => {
       ORDER BY s.name ASC
     `;
 
-    const [rows] = await pool.execute(query);
+    const rows = await db.query(query);
 
     res.json({
       success: true,
@@ -51,7 +51,7 @@ const getSkill = async (req, res) => {
       GROUP BY s.id
     `;
 
-    const [rows] = await pool.execute(query, [id]);
+    const [rows] = await db.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -101,7 +101,7 @@ const createSkill = async (req, res) => {
     }
 
     // Check if skill name already exists
-    const [existing] = await pool.execute(
+    const [existing] = await db.query(
       'SELECT id FROM skills WHERE name = ?',
       [name]
     );
@@ -121,10 +121,10 @@ const createSkill = async (req, res) => {
       VALUES (?, ?, ?)
     `;
 
-    const [result] = await pool.execute(query, [name, description, category]);
+    const [result] = await db.query(query, [name, description, category]);
 
     // Get the created skill
-    const [createdSkill] = await pool.execute(
+    const [createdSkill] = await db.query(
       'SELECT * FROM skills WHERE id = ?',
       [result.insertId]
     );
@@ -154,7 +154,7 @@ const updateSkill = async (req, res) => {
     const { name, description, category } = req.body;
 
     // Check if skill exists
-    const [existing] = await pool.execute('SELECT id FROM skills WHERE id = ?', [id]);
+    const [existing] = await db.query('SELECT id FROM skills WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -167,7 +167,7 @@ const updateSkill = async (req, res) => {
 
     // If name is being updated, check for duplicates
     if (name) {
-      const [duplicate] = await pool.execute(
+      const [duplicate] = await db.query(
         'SELECT id FROM skills WHERE name = ? AND id != ?',
         [name, id]
       );
@@ -192,10 +192,10 @@ const updateSkill = async (req, res) => {
       WHERE id = ?
     `;
 
-    await pool.execute(query, [name, description, category, id]);
+    await db.query(query, [name, description, category, id]);
 
     // Get updated skill
-    const [updatedSkill] = await pool.execute(
+    const [updatedSkill] = await db.query(
       'SELECT * FROM skills WHERE id = ?',
       [id]
     );
@@ -224,7 +224,7 @@ const deleteSkill = async (req, res) => {
     const { id } = req.params;
 
     // Check if skill exists
-    const [existing] = await pool.execute('SELECT id FROM skills WHERE id = ?', [id]);
+    const [existing] = await db.query('SELECT id FROM skills WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -236,7 +236,7 @@ const deleteSkill = async (req, res) => {
     }
 
     // Check if skill is being used
-    const [usage] = await pool.execute(`
+    const [usage] = await db.query(`
       SELECT 
         (SELECT COUNT(*) FROM team_member_skills WHERE skill_id = ?) as team_member_count,
         (SELECT COUNT(*) FROM task_skills WHERE skill_id = ?) as task_count
@@ -253,7 +253,7 @@ const deleteSkill = async (req, res) => {
     }
 
     // Delete skill
-    await pool.execute('DELETE FROM skills WHERE id = ?', [id]);
+    await db.query('DELETE FROM skills WHERE id = ?', [id]);
 
     res.json({
       success: true,

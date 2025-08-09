@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 // Backend API configuration
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -32,22 +32,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkExistingSession = async () => {
-      const token = localStorage.getItem('access_token');
-      const userData = localStorage.getItem('user_data');
-
-      if (token && userData) {
-        try {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (token) {
           const response = await fetch(`${API_URL}/auth/admin/me`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -58,31 +52,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (response.ok) {
             const result = await response.json();
             if (result.success) {
-              const user = result.data;
-              const session = {
-                user,
+              const userData = result.data;
+              const sessionData = {
+                user: userData,
                 access_token: token,
                 refresh_token: localStorage.getItem('refresh_token') || '',
                 expires_in: 24 * 60 * 60
               };
-              setUser(user);
-              setSession(session);
-            } else {
-              localStorage.removeItem('access_token');
-              localStorage.removeItem('refresh_token');
-              localStorage.removeItem('user_data');
+              setUser(userData);
+              setSession(sessionData);
             }
-          } else {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            localStorage.removeItem('user_data');
           }
-        } catch (error) {
-          console.error('Session check failed:', error);
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user_data');
         }
+      } catch (error) {
+        console.error('Session check failed:', error);
+        localStorage.clear();
       }
       setLoading(false);
     };
@@ -90,10 +74,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkExistingSession();
   }, []);
 
-  const signUp = async (_email: string, _password: string, _name: string) => {
+  const signUp = async () => {
     return {
       data: null,
-      error: { message: 'Admin registration is not available. Please contact system administrator.' }
+      error: { message: 'Admin registration is not available.' }
     };
   };
 
@@ -101,59 +85,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await fetch(`${API_URL}/auth/admin/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        const { user, access_token, refresh_token, expires_in } = result.data;
+        const { user: userData, access_token, refresh_token, expires_in } = result.data;
 
         localStorage.setItem('access_token', access_token);
-        localStorage.setItem('user_data', JSON.stringify(user));
+        localStorage.setItem('user_data', JSON.stringify(userData));
         if (refresh_token) {
           localStorage.setItem('refresh_token', refresh_token);
         }
 
-        const session = {
-          user,
+        const sessionData = {
+          user: userData,
           access_token,
           refresh_token: refresh_token || '',
           expires_in
         };
 
-        console.log('🔧 Setting user state:', user);
-        setUser(user);
-        setSession(session);
+        setUser(userData);
+        setSession(sessionData);
 
-        console.log('✅ Login successful, user state should be set');
-
-        return {
-          data: { user, session },
-          error: null
-        };
+        return { data: { user: userData, session: sessionData }, error: null };
       } else {
-        return {
-          data: { user: null, session: null },
-          error: { message: result.message || 'Login failed' }
-        };
+        return { data: { user: null, session: null }, error: { message: result.message || 'Login failed' } };
       }
     } catch (error) {
-      console.error('Login error:', error);
-      return {
-        data: { user: null, session: null },
-        error: { message: 'Network error. Please check your connection.' }
-      };
+      return { data: { user: null, session: null }, error: { message: 'Network error' } };
     }
   };
 
   const signOut = async () => {
     try {
       const token = localStorage.getItem('access_token');
-
       if (token) {
         await fetch(`${API_URL}/auth/admin/logout`, {
           method: 'POST',
@@ -163,40 +131,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
           },
         });
       }
-
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_data');
-
-      setUser(null);
-      setSession(null);
-
-      return { error: null };
     } catch (error) {
       console.error('Logout error:', error);
-
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_data');
-
-      setUser(null);
-      setSession(null);
-
-      return { error: null };
     }
-  };
 
-  const value = {
-    user,
-    session,
-    loading,
-    signUp,
-    signIn,
-    signOut,
+    localStorage.clear();
+    setUser(null);
+    setSession(null);
+    return { error: null };
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      loading,
+      signUp,
+      signIn,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

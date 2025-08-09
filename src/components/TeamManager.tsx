@@ -3,7 +3,7 @@ import {
   Plus, 
   Users, 
   Edit2, 
-  Trash2, 
+  Trash2,
   Copy, 
   Check, 
   Eye, 
@@ -14,11 +14,11 @@ import {
   Star,
   UserPlus,
   Mail,
-  Calendar,
   Activity,
   Building2,
   BarChart3,
-  User as UserIcon
+  User as UserIcon,
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -26,7 +26,7 @@ import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
-import { teamService } from '../services/apiService';
+import { teamService, skillService } from '../services/apiService';
 import type { User, PerformanceFlag } from '../types';
 
 export function TeamManager() {
@@ -36,6 +36,39 @@ export function TeamManager() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [copiedPasscode, setCopiedPasscode] = useState<string | null>(null);
   const [selectedView, setSelectedView] = useState<'grid' | 'list' | 'functional-units'>('grid');
+  
+  // Backend integration state
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch data from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [teamData, skillsData] = await Promise.all([
+          teamService.getAll(),
+          skillService.getAll()
+        ]);
+        
+        console.log('✅ Team members fetched:', teamData);
+        console.log('✅ Skills fetched:', skillsData);
+        
+        setTeamMembers(teamData);
+        setSkills(skillsData);
+        setError(null);
+      } catch (error) {
+        console.error('❌ Fetch team data error:', error);
+        setError('Failed to load team data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
   
   // Functional Units data (in real app, this would come from state/database)
   const functionalUnits = [
@@ -81,45 +114,104 @@ export function TeamManager() {
     }
   ];
 
-  // Load team members from database
-  useEffect(() => {
-    const loadTeamMembers = async () => {
-      try {
-        const members = await teamService.getAll();
-        dispatch({ type: 'SET_USERS', payload: members });
-      } catch (error) {
-        console.error('Failed to load team members:', error);
-      }
-    };
-    loadTeamMembers();
-  }, [dispatch]);
+  // Remove duplicate useEffect - we already have data fetching above
 
   const handleCreateUser = async (userData: Partial<User>) => {
     try {
       if (editingUser) {
         // Update existing user
-        const updatedUser = await teamService.update(editingUser.id, userData);
-        dispatch({ type: 'UPDATE_USER', payload: { ...editingUser, ...userData } });
+        console.log('🔄 Updating team member:', editingUser.id, userData);
+        
+        // Convert skill names to skill IDs for update
+        const skillIds = (userData.skills || []).map((skillName: string) => {
+          const skill = skills.find(s => s.name === skillName);
+          return skill ? skill.id : null;
+        }).filter(id => id !== null);
+        
+        const updateData = {
+          ...userData,
+          skills: skillIds,
+        };
+        
+        const updatedUser = await teamService.update(editingUser.id, updateData);
+        setTeamMembers(teamMembers.map(member => 
+          member.id === editingUser.id ? { ...member, ...updatedUser } : member
+        ));
       } else {
         // Create new user
+        console.log('🚀 Creating team member:', userData);
+        
+        // Convert skill names to skill IDs
+        console.log('🔍 Input skills:', userData.skills);
+        console.log('🔍 Available skills:', skills);
+        const skillIds = (userData.skills || []).map((skillName: string) => {
+          const skill = skills.find(s => s.name === skillName);
+          console.log(`🔍 Skill "${skillName}" → ID:`, skill?.id);
+          return skill ? skill.id : null;
+        }).filter(id => id !== null);
+        console.log('🔍 Final skill IDs:', skillIds);
+        
         const newUserData = {
+          ...userData,
           name: userData.name || '',
           email: userData.email || '',
-          skills: userData.skills || [],
-          passcode: teamService.generatePasscode(),
-          isActive: userData.isActive !== false,
-          performanceFlags: [],
-          ...userData,
+          phone: userData.phone || '',
+          passcode: generatePasscode(),
+          hourly_rate: userData.hourly_rate || null,
+          bio: userData.bio || '',
+          status: userData.status || 'active',
+          skills: skillIds,
         };
+        console.log('🔍 Final data being sent:', newUserData);
         const createdUser = await teamService.create(newUserData);
-        dispatch({ type: 'ADD_USER', payload: { ...newUserData, id: createdUser.id } });
+        setTeamMembers([...teamMembers, createdUser]);
+        console.log('✅ Team member created:', createdUser);
       }
     } catch (error) {
-      console.error('Failed to save user:', error);
-      // You might want to show an error message to the user here
+      console.error('❌ Failed to save team member:', error);
+      setError('Failed to save team member');
     }
     setIsCreateModalOpen(false);
     setEditingUser(null);
+  };
+
+  const handleUpdateUser = async (userId: string, updateData: any) => {
+    try {
+      console.log('🔄 Updating team member:', userId, updateData);
+      const updatedUser = await teamService.update(userId, updateData);
+      setTeamMembers(teamMembers.map(member => 
+        member.id === userId ? { ...member, ...updatedUser } : member
+      ));
+    } catch (error) {
+      console.error('❌ Update team member error:', error);
+      setError('Failed to update team member');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to delete this team member?')) {
+      return;
+    }
+    
+    try {
+      console.log('🗑️ Deleting team member:', userId);
+      await teamService.delete(userId);
+      setTeamMembers(teamMembers.filter(member => member.id !== userId));
+      console.log('✅ Team member deleted');
+    } catch (error) {
+      console.error('❌ Delete team member error:', error);
+      setError('Failed to delete team member');
+    }
+  };
+
+  // Generate a random passcode for new team members
+  const generatePasscode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+
+  const handleEditUser = (member: any) => {
+    setEditingUser(member);
+    setIsCreateModalOpen(true);
   };
 
   const copyPasscode = async (passcode: string) => {
@@ -133,12 +225,11 @@ export function TeamManager() {
   };
 
   const toggleUserStatus = async (userId: string) => {
-    const userToUpdate = state.users.find(u => u.id === userId);
+    const userToUpdate = teamMembers.find(member => member.id === userId);
     if (userToUpdate) {
       try {
-        const updatedUser = { ...userToUpdate, isActive: !userToUpdate.isActive };
-        await teamService.update(userId, { isActive: updatedUser.isActive });
-        dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+        const newStatus = userToUpdate.status === 'active' ? 'inactive' : 'active';
+        await handleUpdateUser(userId, { status: newStatus });
       } catch (error) {
         console.error('Failed to update user status:', error);
       }
@@ -153,15 +244,15 @@ export function TeamManager() {
       red: 'Performance issue'
     };
 
-    const userToUpdate = state.users.find(u => u.id === userId);
+    const userToUpdate = teamMembers.find(member => member.id === userId);
     if (userToUpdate) {
       try {
-        const createdFlag = await teamService.addPerformanceFlag(
-          userId,
-          flagType,
-          flagReasons[flagType],
-          user?.email || 'System'
-        );
+        const createdFlag = await teamService.addPerformanceFlag(userId, {
+          type: flagType,
+          description: flagReasons[flagType],
+          severity: 'medium',
+          flagged_by: user?.id || 1
+        });
 
         const newFlag: PerformanceFlag = {
           id: createdFlag.id,
@@ -183,14 +274,14 @@ export function TeamManager() {
   };
 
   const removePerformanceFlag = async (userId: string, flagId: string) => {
-    const userToUpdate = state.users.find(u => u.id === userId);
+    const userToUpdate = teamMembers.find(member => member.id === userId);
     if (userToUpdate) {
       try {
         await teamService.removePerformanceFlag(flagId);
         
         const updatedUser = {
           ...userToUpdate,
-          performanceFlags: (userToUpdate.performanceFlags || []).filter(flag => flag.id !== flagId)
+          performanceFlags: (userToUpdate.performanceFlags || []).filter((flag: PerformanceFlag) => flag.id !== flagId)
         };
         dispatch({ type: 'UPDATE_USER', payload: updatedUser });
       } catch (error) {
@@ -199,27 +290,23 @@ export function TeamManager() {
     }
   };
 
-  const getFunctionalUnitForMember = (member: User) => {
-    return functionalUnits.find(unit => 
-      unit.skills.some(skill => member.skills.includes(skill))
-    );
-  };
+  // Helper function to determine which functional unit a member belongs to
+  // const getFunctionalUnitForMember = (member: User) => {
+  //   return functionalUnits.find(unit => 
+  //     unit.skills.some(skill => (member.skills || []).includes(skill))
+  //   );
+  // };
 
   const getMembersForUnit = (unit: any) => {
-    return (state.users || []).filter(user => 
-      unit.skills.some((skill: string) => user.skills.includes(skill))
+    return (teamMembers || []).filter(member => 
+      unit.skills.some((skill: string) => member.skills?.includes(skill))
     );
   };
 
   const getUnitUtilization = (unit: any) => {
     const members = getMembersForUnit(unit);
-    const activeMembers = members.filter(m => m.isActive !== false);
+    const activeMembers = members.filter(m => m.status === 'active');
     return members.length > 0 ? Math.round((activeMembers.length / members.length) * 100) : 0;
-  };
-
-  const handleEditUser = (userToEdit: User) => {
-    setEditingUser(userToEdit);
-    setIsCreateModalOpen(true);
   };
 
   const getFlagIcon = (type: string) => {
@@ -261,7 +348,7 @@ export function TeamManager() {
 
   const renderGridView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {(state.users || []).map((member) => {
+      {(teamMembers || []).map((member) => {
         const stats = getUserStats(member.id);
         
         return (
@@ -285,8 +372,8 @@ export function TeamManager() {
                   >
                     <Edit2 className="w-4 h-4" />
                   </Button>
-                  <Badge variant={member.isActive ? 'success' : 'secondary'} size="sm">
-                    {member.isActive ? 'Active' : 'Inactive'}
+                  <Badge variant={member.status === 'active' ? 'success' : 'secondary'} size="sm">
+                    {member.status === 'active' ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
               </div>
@@ -297,7 +384,7 @@ export function TeamManager() {
               <div>
                 <p className="text-xs font-medium text-gray-700 mb-1">Skills:</p>
                 <div className="flex flex-wrap gap-1">
-                  {member.skills.map((skill, index) => (
+                  {(member.skills || []).map((skill: string, index: number) => (
                     <Badge key={index} variant="secondary" size="sm">
                       {skill}
                     </Badge>
@@ -323,12 +410,12 @@ export function TeamManager() {
                   <span className="text-xs font-medium text-gray-700">Passcode:</span>
                   <div className="flex items-center space-x-1">
                     <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                      {member.passcode || teamService.generatePasscode()}
+                      {member.passcode || 'DEMO123'}
                     </code>
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => copyPasscode(member.passcode || teamService.generatePasscode())}
+                      onClick={() => copyPasscode(member.passcode || 'DEMO123')}
                       className="h-6 w-6 p-0"
                     >
                       {copiedPasscode === member.passcode ? (
@@ -384,20 +471,21 @@ export function TeamManager() {
                 {/* Display Performance Flags */}
                 {member.performanceFlags && member.performanceFlags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {member.performanceFlags.map((flag) => (
+                    {member.performanceFlags.map((flag: PerformanceFlag) => (
                       <div
                         key={flag.id}
                         className="relative group"
                       >
-                        <Badge
-                          className={`text-xs px-2 py-1 ${getFlagColor(flag.type)}`}
-                          title={`${flag.reason} - Added on ${new Date(flag.date).toLocaleDateString()}`}
-                        >
-                          <div className="flex items-center space-x-1">
-                            {getFlagIcon(flag.type)}
-                            <span>{flag.type}</span>
-                          </div>
-                        </Badge>
+                        <div title={`${flag.reason} - Added on ${new Date(flag.date).toLocaleDateString()}`}>
+                          <Badge
+                            className={`text-xs px-2 py-1 ${getFlagColor(flag.type)}`}
+                          >
+                            <div className="flex items-center space-x-1">
+                              {getFlagIcon(flag.type)}
+                              <span>{flag.type}</span>
+                            </div>
+                          </Badge>
+                        </div>
                         <button
                           onClick={() => removePerformanceFlag(member.id, flag.id)}
                           className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
@@ -413,17 +501,17 @@ export function TeamManager() {
                 {/* Flag Counts Summary */}
                 {member.performanceFlags && member.performanceFlags.length > 0 && (
                   <div className="text-xs text-gray-600 mt-1">
-                    {member.performanceFlags.filter(f => f.type === 'gold').length > 0 && (
-                      <span className="mr-2">🥇 {member.performanceFlags.filter(f => f.type === 'gold').length}</span>
+                    {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'gold').length > 0 && (
+                      <span className="mr-2">🥇 {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'gold').length}</span>
                     )}
-                    {member.performanceFlags.filter(f => f.type === 'green').length > 0 && (
-                      <span className="mr-2">🟢 {member.performanceFlags.filter(f => f.type === 'green').length}</span>
+                    {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'green').length > 0 && (
+                      <span className="mr-2">🟢 {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'green').length}</span>
                     )}
-                    {member.performanceFlags.filter(f => f.type === 'orange').length > 0 && (
-                      <span className="mr-2">🟠 {member.performanceFlags.filter(f => f.type === 'orange').length}</span>
+                    {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'orange').length > 0 && (
+                      <span className="mr-2">🟠 {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'orange').length}</span>
                     )}
-                    {member.performanceFlags.filter(f => f.type === 'red').length > 0 && (
-                      <span className="mr-2">🔴 {member.performanceFlags.filter(f => f.type === 'red').length}</span>
+                    {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'red').length > 0 && (
+                      <span className="mr-2">🔴 {member.performanceFlags.filter((f: PerformanceFlag) => f.type === 'red').length}</span>
                     )}
                   </div>
                 )}
@@ -434,11 +522,11 @@ export function TeamManager() {
                 <span className="text-xs font-medium text-gray-700">Access:</span>
                 <Button
                   size="sm"
-                  variant={member.isActive ? "outline" : "primary"}
+                  variant={member.status === 'active' ? "outline" : "primary"}
                   onClick={() => toggleUserStatus(member.id)}
                   className="h-7 px-3 text-xs"
                 >
-                  {member.isActive ? (
+                  {member.status === 'active' ? (
                     <>
                       <EyeOff className="w-3 h-3 mr-1" />
                       Disable
@@ -486,7 +574,7 @@ export function TeamManager() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {(state.users || []).map((member) => {
+              {(teamMembers || []).map((member) => {
                 const stats = getUserStats(member.id);
                 
                 return (
@@ -504,14 +592,14 @@ export function TeamManager() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1">
-                        {member.skills.slice(0, 2).map((skill, index) => (
+                        {(member.skills || []).slice(0, 2).map((skill: string, index: number) => (
                           <Badge key={index} variant="secondary" size="sm">
                             {skill}
                           </Badge>
                         ))}
-                        {member.skills.length > 2 && (
+                        {(member.skills || []).length > 2 && (
                           <Badge variant="secondary" size="sm">
-                            +{member.skills.length - 2}
+                            +{(member.skills || []).length - 2}
                           </Badge>
                         )}
                       </div>
@@ -524,20 +612,20 @@ export function TeamManager() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex space-x-1">
-                        {member.performanceFlags?.slice(0, 3).map((flag) => (
-                          <Badge
-                            key={flag.id}
-                            className={`text-xs ${getFlagColor(flag.type)}`}
-                            title={flag.reason}
-                          >
-                            {getFlagIcon(flag.type)}
-                          </Badge>
+                        {member.performanceFlags?.slice(0, 3).map((flag: PerformanceFlag) => (
+                          <div key={flag.id} title={flag.reason}>
+                            <Badge
+                              className={`text-xs ${getFlagColor(flag.type)}`}
+                            >
+                              {getFlagIcon(flag.type)}
+                            </Badge>
+                          </div>
                         ))}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={member.isActive ? 'success' : 'secondary'}>
-                        {member.isActive ? 'Active' : 'Inactive'}
+                      <Badge variant={member.status === 'active' ? 'success' : 'secondary'}>
+                        {member.status === 'active' ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -554,7 +642,15 @@ export function TeamManager() {
                           size="sm"
                           onClick={() => toggleUserStatus(member.id)}
                         >
-                          {member.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {member.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteUser(member.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </td>
@@ -635,7 +731,7 @@ export function TeamManager() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {functionalUnits.map((unit) => {
           const members = getMembersForUnit(unit);
-          const activeMembers = members.filter(m => m.isActive !== false);
+          const activeMembers = members.filter(m => m.status === 'active');
           const utilization = getUnitUtilization(unit);
           
           const getUtilizationColor = (util: number) => {
@@ -723,9 +819,9 @@ export function TeamManager() {
                         <div 
                           key={member.id}
                           className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium ${
-                            member.isActive !== false ? 'bg-blue-500' : 'bg-gray-400'
+                            member.status === 'active' ? 'bg-blue-500' : 'bg-gray-400'
                           }`}
-                          title={`${member.name} - ${member.isActive !== false ? 'Active' : 'Inactive'}`}
+                          title={`${member.name} - ${member.status === 'active' ? 'Active' : 'Inactive'}`}
                         >
                           {member.name.charAt(0)}
                         </div>
@@ -749,6 +845,50 @@ export function TeamManager() {
       </div>
     </div>
   );
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
+          <p className="text-gray-600">Manage team members, access codes, and performance</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Loading team members...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
+          <p className="text-gray-600">Manage team members, access codes, and performance</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <AlertTriangle className="w-8 h-8 mx-auto mb-4 text-red-600" />
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button 
+              onClick={() => {
+                setError(null);
+                window.location.reload();
+              }}
+            >
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -805,7 +945,7 @@ export function TeamManager() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Members</p>
-                <p className="text-2xl font-bold text-gray-900">{state.users?.length || 0}</p>
+                <p className="text-2xl font-bold text-gray-900">{teamMembers?.length || 0}</p>
               </div>
             </div>
           </CardContent>
@@ -820,7 +960,7 @@ export function TeamManager() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Active Members</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {state.users?.filter(u => u.isActive !== false).length || 0}
+                  {teamMembers?.filter(member => member.status === 'active').length || 0}
                 </p>
               </div>
             </div>
@@ -836,7 +976,7 @@ export function TeamManager() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Top Performers</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {state.users?.filter(u => u.performanceFlags?.some(f => f.type === 'gold')).length || 0}
+                  {teamMembers?.filter(member => member.performanceFlags?.some((f: PerformanceFlag) => f.type === 'gold')).length || 0}
                 </p>
               </div>
             </div>
@@ -864,7 +1004,7 @@ export function TeamManager() {
        renderFunctionalUnitsView()}
 
       {/* Empty State */}
-      {(!state.users || state.users.length === 0) && (
+      {(!teamMembers || teamMembers.length === 0) && (
         <Card>
           <CardContent className="p-12 text-center">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -891,7 +1031,7 @@ export function TeamManager() {
           setEditingUser(null);
         }}
         onSubmit={handleCreateUser}
-        skills={state.skills || []}
+        skills={skills || []}
         editingUser={editingUser}
       />
     </div>
@@ -902,7 +1042,7 @@ interface CreateUserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (user: Partial<User>) => void;
-  skills: string[];
+  skills: any[];
   editingUser?: User | null;
 }
 
@@ -910,7 +1050,7 @@ function CreateUserModal({ isOpen, onClose, onSubmit, skills, editingUser }: Cre
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    skills: [] as string[],
+    skills: [] as any[],
     isActive: true,
   });
 
@@ -919,7 +1059,7 @@ function CreateUserModal({ isOpen, onClose, onSubmit, skills, editingUser }: Cre
       setFormData({
         name: editingUser.name,
         email: editingUser.email,
-        skills: editingUser.skills,
+        skills: editingUser.skills || [],
         isActive: editingUser.isActive !== false,
       });
     } else {
@@ -943,12 +1083,12 @@ function CreateUserModal({ isOpen, onClose, onSubmit, skills, editingUser }: Cre
     });
   };
 
-  const toggleSkill = (skill: string) => {
+  const toggleSkill = (skillName: string) => {
     setFormData(prev => ({
       ...prev,
-      skills: prev.skills.includes(skill)
-        ? prev.skills.filter(s => s !== skill)
-        : [...prev.skills, skill]
+      skills: prev.skills.includes(skillName)
+        ? prev.skills.filter(s => s !== skillName)
+        : [...prev.skills, skillName]
     }));
   };
 
@@ -995,15 +1135,15 @@ function CreateUserModal({ isOpen, onClose, onSubmit, skills, editingUser }: Cre
             Skills
           </label>
           <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-3">
-            {skills.map(skill => (
-              <label key={skill} className="flex items-center space-x-2 cursor-pointer">
+            {skills.map((skill: any) => (
+              <label key={skill.id || skill.name} className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.skills.includes(skill)}
-                  onChange={() => toggleSkill(skill)}
+                  checked={formData.skills.includes(skill.name)}
+                  onChange={() => toggleSkill(skill.name)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">{skill}</span>
+                <span className="text-sm text-gray-700">{skill.name}</span>
               </label>
             ))}
           </div>

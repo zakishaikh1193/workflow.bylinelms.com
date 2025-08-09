@@ -1,4 +1,4 @@
-const pool = require('../db');
+const db = require('../db');
 const bcrypt = require('bcryptjs');
 
 // Get all team members
@@ -14,59 +14,63 @@ const getTeamMembers = async (req, res) => {
     } = req.query;
 
     const offset = (page - 1) * limit;
-    let query = `
-      SELECT 
-        tm.*,
-        GROUP_CONCAT(DISTINCT s.name) as skills,
-        COUNT(DISTINCT pm.project_id) as project_count,
-        COUNT(DISTINCT ta.task_id) as active_tasks
-      FROM team_members tm
-      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
-      LEFT JOIN skills s ON tms.skill_id = s.id
-      LEFT JOIN project_members pm ON tm.id = pm.user_id
-      LEFT JOIN task_assignees ta ON tm.id = ta.user_id
-      LEFT JOIN tasks t ON ta.task_id = t.id AND t.status NOT IN ('completed', 'cancelled')
-      WHERE 1=1
-    `;
+    // Test with simplest possible query first
+    const testQuery = 'SELECT COUNT(*) as count FROM team_members';
+    console.log('🔍 Testing team_members table exists...');
+    
+    try {
+      const testResult = await db.query(testQuery);
+      console.log('✅ Team members table exists, count:', testResult[0].count);
+    } catch (error) {
+      console.error('❌ Team members table issue:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Team members table not found or accessible',
+        error: error.message
+      });
+    }
 
+    // Simple query without any parameters first
+    let query = 'SELECT * FROM team_members';
     const queryParams = [];
-    let paramIndex = 1;
+    let hasWhere = false;
 
     // Add filters
     if (search) {
-      query += ` AND (tm.name LIKE ? OR tm.email LIKE ?)`;
+      query += ` WHERE (name LIKE ? OR email LIKE ?)`;
       queryParams.push(`%${search}%`, `%${search}%`);
-      paramIndex += 2;
+      hasWhere = true;
     }
 
     if (status) {
-      query += ` AND tm.status = ?`;
-      queryParams.push(status);
-      paramIndex++;
+      query += hasWhere ? ` AND` : ` WHERE`;
+      query += ` is_active = ?`;
+      queryParams.push(status === 'active' ? 1 : 0);
+      hasWhere = true;
     }
 
-    query += ` GROUP BY tm.id`;
+
 
     // Add sorting
-    const validSortFields = ['name', 'email', 'created_at', 'updated_at', 'hourly_rate', 'status'];
+    const validSortFields = ['name', 'email', 'created_at', 'updated_at', 'is_active'];
     const validOrders = ['asc', 'desc'];
     
     if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
-      query += ` ORDER BY tm.${sort} ${order.toUpperCase()}`;
+      query += ` ORDER BY ${sort} ${order.toUpperCase()}`;
+    } else {
+      query += ' ORDER BY created_at DESC';
     }
 
-    // Add pagination
-    query += ` LIMIT ? OFFSET ?`;
-    queryParams.push(parseInt(limit), parseInt(offset));
+    // Add pagination - simplified to avoid parameter issues for now
+    query += ' LIMIT 20';
+
+    console.log('🔍 Team Query:', query);
 
     // Execute query
-    const [rows] = await pool.execute(query, queryParams);
+    const rows = await db.query(query);
 
-    // Convert skills from comma-separated string to array
-    const teamMembers = rows.map(member => ({
-      ...member,
-      skills: member.skills ? member.skills.split(',') : []
-    }));
+    // For now, just return the basic team member data
+    const teamMembers = rows;
 
     // Get total count for pagination
     let countQuery = `
@@ -87,7 +91,7 @@ const getTeamMembers = async (req, res) => {
       countParams.push(status);
     }
 
-    const [countResult] = await pool.execute(countQuery, countParams);
+    const countResult = await db.query('SELECT COUNT(*) as total FROM team_members');
     const total = countResult[0].total;
 
     res.json({
@@ -131,7 +135,7 @@ const getTeamMember = async (req, res) => {
       GROUP BY tm.id
     `;
 
-    const [rows] = await pool.execute(query, [id]);
+    const rows = await db.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -192,7 +196,7 @@ const createTeamMember = async (req, res) => {
     }
 
     // Check if email already exists
-    const [existing] = await pool.execute(
+    const existing = await db.query(
       'SELECT id FROM team_members WHERE email = ?',
       [email]
     );
@@ -210,73 +214,59 @@ const createTeamMember = async (req, res) => {
     // Hash the passcode
     const hashedPasscode = await bcrypt.hash(passcode, 10);
 
-    // Start transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
+    // Use db.insert method for consistency - match actual schema
+    const query = `
+      INSERT INTO team_members (
+        name, email, passcode, is_active
+      ) VALUES (?, ?, ?, ?)
+    `;
 
-    try {
-      // Insert team member
-      const query = `
-        INSERT INTO team_members (
-          name, email, phone, passcode_hash, hourly_rate, 
-          avatar_url, bio, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `;
+    const params = [
+      name,
+      email,
+      hashedPasscode,
+      status === 'active' ? 1 : 0
+    ];
 
-      const [result] = await connection.execute(query, [
-        name,
-        email,
-        phone,
-        hashedPasscode,
-        hourly_rate,
-        avatar_url,
-        bio,
-        status
-      ]);
+    console.log('🚀 Creating team member with params:', params);
 
-      const teamMemberId = result.insertId;
+    const result = await db.insert(query, params);
+    const teamMemberId = result.insertId;
 
-      // Add skills if provided
-      if (skills && skills.length > 0) {
-        for (const skillId of skills) {
-          await connection.execute(
-            'INSERT INTO team_member_skills (team_member_id, skill_id) VALUES (?, ?)',
-            [teamMemberId, skillId]
-          );
-        }
+    console.log('✅ Team member created with ID:', teamMemberId);
+
+    // Add skills if provided
+    if (skills && skills.length > 0) {
+      for (const skillId of skills) {
+        await db.query(
+          'INSERT INTO team_member_skills (team_member_id, skill_id) VALUES (?, ?)',
+          [teamMemberId, skillId]
+        );
       }
-
-      await connection.commit();
-
-      // Get the created team member with skills
-      const [createdMember] = await pool.execute(`
-        SELECT 
-          tm.*,
-          GROUP_CONCAT(DISTINCT s.name) as skills
-        FROM team_members tm
-        LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
-        LEFT JOIN skills s ON tms.skill_id = s.id
-        WHERE tm.id = ?
-        GROUP BY tm.id
-      `, [teamMemberId]);
-
-      const memberData = {
-        ...createdMember[0],
-        skills: createdMember[0].skills ? createdMember[0].skills.split(',') : []
-      };
-
-      res.status(201).json({
-        success: true,
-        data: memberData,
-        message: 'Team member created successfully'
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
     }
+
+    // Get the created team member with skills
+    const createdMember = await db.query(`
+      SELECT 
+        tm.*,
+        GROUP_CONCAT(DISTINCT s.name) as skills
+      FROM team_members tm
+      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
+      LEFT JOIN skills s ON tms.skill_id = s.id
+      WHERE tm.id = ?
+      GROUP BY tm.id
+    `, [teamMemberId]);
+
+    const memberData = {
+      ...createdMember[0],
+      skills: createdMember[0] && createdMember[0].skills ? createdMember[0].skills.split(',') : []
+    };
+
+    res.status(201).json({
+      success: true,
+      data: memberData,
+      message: 'Team member created successfully'
+    });
 
   } catch (error) {
     console.error('Create team member error:', error);
@@ -307,7 +297,7 @@ const updateTeamMember = async (req, res) => {
     } = req.body;
 
     // Check if team member exists
-    const [existing] = await pool.execute('SELECT id FROM team_members WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM team_members WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -320,7 +310,7 @@ const updateTeamMember = async (req, res) => {
 
     // If email is being updated, check for duplicates
     if (email) {
-      const [duplicate] = await pool.execute(
+      const duplicate = await db.query(
         'SELECT id FROM team_members WHERE email = ? AND id != ?',
         [email, id]
       );
@@ -336,88 +326,84 @@ const updateTeamMember = async (req, res) => {
       }
     }
 
-    // Start transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
+    // Prepare update query - only update fields that exist in schema
+    let updateQuery = `
+      UPDATE team_members SET
+        updated_at = CURRENT_TIMESTAMP
+    `;
+    let updateParams = [];
 
-    try {
-      // Prepare update query
-      let updateQuery = `
-        UPDATE team_members SET
-          name = COALESCE(?, name),
-          email = COALESCE(?, email),
-          phone = COALESCE(?, phone),
-          hourly_rate = COALESCE(?, hourly_rate),
-          avatar_url = COALESCE(?, avatar_url),
-          bio = COALESCE(?, bio),
-          status = COALESCE(?, status),
-          updated_at = CURRENT_TIMESTAMP
-      `;
+    // Only update provided fields that exist in the schema
+    if (name !== undefined) {
+      updateQuery += `, name = ?`;
+      updateParams.push(name);
+    }
+    
+    if (email !== undefined) {
+      updateQuery += `, email = ?`;
+      updateParams.push(email);
+    }
+    
+    if (status !== undefined) {
+      updateQuery += `, is_active = ?`;
+      updateParams.push(status === 'active' ? 1 : 0);
+    }
 
-      let updateParams = [name, email, phone, hourly_rate, avatar_url, bio, status];
+    // Hash new passcode if provided
+    if (passcode) {
+      const hashedPasscode = await bcrypt.hash(passcode, 10);
+      updateQuery += `, passcode = ?`;
+      updateParams.push(hashedPasscode);
+    }
 
-      // Hash new passcode if provided
-      if (passcode) {
-        const hashedPasscode = await bcrypt.hash(passcode, 10);
-        updateQuery += `, passcode_hash = ?`;
-        updateParams.push(hashedPasscode);
-      }
+    updateQuery += ` WHERE id = ?`;
+    updateParams.push(id);
 
-      updateQuery += ` WHERE id = ?`;
-      updateParams.push(id);
+    console.log('🔄 Updating team member with params:', updateParams);
+    
+    await db.query(updateQuery, updateParams);
 
-      await connection.execute(updateQuery, updateParams);
+    // Update skills if provided
+    if (skills !== undefined) {
+      // Remove existing skills
+      await db.query(
+        'DELETE FROM team_member_skills WHERE team_member_id = ?',
+        [id]
+      );
 
-      // Update skills if provided
-      if (skills !== undefined) {
-        // Remove existing skills
-        await connection.execute(
-          'DELETE FROM team_member_skills WHERE team_member_id = ?',
-          [id]
-        );
-
-        // Add new skills
-        if (skills.length > 0) {
-          for (const skillId of skills) {
-            await connection.execute(
-              'INSERT INTO team_member_skills (team_member_id, skill_id) VALUES (?, ?)',
-              [id, skillId]
-            );
-          }
+      // Add new skills
+      if (skills.length > 0) {
+        for (const skillId of skills) {
+          await db.query(
+            'INSERT INTO team_member_skills (team_member_id, skill_id) VALUES (?, ?)',
+            [id, skillId]
+          );
         }
       }
-
-      await connection.commit();
-
-      // Get updated team member with skills
-      const [updatedMember] = await pool.execute(`
-        SELECT 
-          tm.*,
-          GROUP_CONCAT(DISTINCT s.name) as skills
-        FROM team_members tm
-        LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
-        LEFT JOIN skills s ON tms.skill_id = s.id
-        WHERE tm.id = ?
-        GROUP BY tm.id
-      `, [id]);
-
-      const memberData = {
-        ...updatedMember[0],
-        skills: updatedMember[0].skills ? updatedMember[0].skills.split(',') : []
-      };
-
-      res.json({
-        success: true,
-        data: memberData,
-        message: 'Team member updated successfully'
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
     }
+
+    // Get updated team member with skills
+    const updatedMember = await db.query(`
+      SELECT 
+        tm.*,
+        GROUP_CONCAT(DISTINCT s.name) as skills
+      FROM team_members tm
+      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
+      LEFT JOIN skills s ON tms.skill_id = s.id
+      WHERE tm.id = ?
+      GROUP BY tm.id
+    `, [id]);
+
+    const memberData = {
+      ...updatedMember[0],
+      skills: updatedMember[0] && updatedMember[0].skills ? updatedMember[0].skills.split(',') : []
+    };
+
+    res.json({
+      success: true,
+      data: memberData,
+      message: 'Team member updated successfully'
+    });
 
   } catch (error) {
     console.error('Update team member error:', error);
@@ -437,7 +423,7 @@ const deleteTeamMember = async (req, res) => {
     const { id } = req.params;
 
     // Check if team member exists
-    const [existing] = await pool.execute('SELECT id FROM team_members WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM team_members WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -449,7 +435,7 @@ const deleteTeamMember = async (req, res) => {
     }
 
     // Check if team member is assigned to any active projects or tasks
-    const [assignments] = await pool.execute(`
+    const assignments = await db.query(`
       SELECT 
         (SELECT COUNT(*) FROM project_members WHERE user_id = ?) as project_count,
         (SELECT COUNT(*) FROM task_assignees ta 
@@ -468,7 +454,7 @@ const deleteTeamMember = async (req, res) => {
     }
 
     // Delete team member (this will cascade delete related records)
-    await pool.execute('DELETE FROM team_members WHERE id = ?', [id]);
+    await db.query('DELETE FROM team_members WHERE id = ?', [id]);
 
     res.json({
       success: true,
@@ -502,7 +488,7 @@ const getTeamMemberFlags = async (req, res) => {
       ORDER BY pf.created_at DESC
     `;
 
-    const [rows] = await pool.execute(query, [id]);
+    const rows = await db.query(query, [id]);
 
     res.json({
       success: true,
@@ -538,7 +524,7 @@ const addPerformanceFlag = async (req, res) => {
     }
 
     // Check if team member exists
-    const [member] = await pool.execute('SELECT id FROM team_members WHERE id = ?', [id]);
+    const member = await db.query('SELECT id FROM team_members WHERE id = ?', [id]);
     if (member.length === 0) {
       return res.status(404).json({
         success: false,
@@ -554,10 +540,10 @@ const addPerformanceFlag = async (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `;
 
-    const [result] = await pool.execute(query, [id, type, description, severity, req.user.id]);
+    const result = await db.insert(query, [id, type, description, severity, req.user.id]);
 
     // Get the created flag with admin details
-    const [newFlag] = await pool.execute(`
+    const newFlag = await db.query(`
       SELECT 
         pf.*,
         au.name as flagged_by_name
@@ -590,7 +576,7 @@ const removePerformanceFlag = async (req, res) => {
     const { flagId } = req.params;
 
     // Check if flag exists
-    const [existing] = await pool.execute('SELECT id FROM performance_flags WHERE id = ?', [flagId]);
+    const existing = await db.query('SELECT id FROM performance_flags WHERE id = ?', [flagId]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -601,7 +587,7 @@ const removePerformanceFlag = async (req, res) => {
       });
     }
 
-    await pool.execute('DELETE FROM performance_flags WHERE id = ?', [flagId]);
+    await db.query('DELETE FROM performance_flags WHERE id = ?', [flagId]);
 
     res.json({
       success: true,
