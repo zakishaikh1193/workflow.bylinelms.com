@@ -78,16 +78,19 @@ export function TaskManager() {
   }, [state.filters, dispatch]);
 
   const isOverdue = (task: Task) => {
+    if (!task.endDate) return false;
     return new Date(task.endDate) < new Date() && task.status !== 'completed';
   };
 
   const isDueToday = (task: Task) => {
+    if (!task.endDate) return false;
     const today = new Date();
     const dueDate = new Date(task.endDate);
     return today.toDateString() === dueDate.toDateString() && task.status !== 'completed';
   };
 
   const isDueTomorrow = (task: Task) => {
+    if (!task.endDate) return false;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dueDate = new Date(task.endDate);
@@ -95,6 +98,7 @@ export function TaskManager() {
   };
 
   const isDueThisWeek = (task: Task) => {
+    if (!task.endDate) return false;
     const today = new Date();
     const weekFromNow = new Date();
     weekFromNow.setDate(today.getDate() + 7);
@@ -108,7 +112,7 @@ export function TaskManager() {
     }
     if (selectedStatus !== 'all' && task.status !== selectedStatus) return false;
     if (selectedPriority !== 'all' && task.priority !== selectedPriority) return false;
-    if (selectedAssignee !== 'all' && !task.assignees.includes(selectedAssignee)) return false;
+    if (selectedAssignee !== 'all' && (!task.assignees || !task.assignees.includes(selectedAssignee))) return false;
     
     // Apply dashboard filters
     if (state.filters?.overdue && !isOverdue(task)) return false;
@@ -413,7 +417,7 @@ export function TaskManager() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredTasks.map((task) => {
-                  const assignedUsers = state.users.filter(u => task.assignees.includes(u.id));
+                  const assignedUsers = state.users.filter(u => task.assignees && task.assignees.includes(u.id));
                   const overdue = isOverdue(task);
                   const project = state.projects.find(p => p.id === task.projectId);
                   const stage = project?.stages?.find(s => s.id === task.stageId);
@@ -456,7 +460,7 @@ export function TaskManager() {
                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                 {user.name}
                                 <br />
-                                <span className="text-gray-300">{user.skills[0]}</span>
+                                <span className="text-gray-300">{user.skills?.[0] || 'No skills'}</span>
                               </div>
                             </div>
                           ))}
@@ -470,7 +474,7 @@ export function TaskManager() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1 text-gray-400" />
-                          {new Date(task.endDate).toLocaleDateString()}
+                          {task.endDate ? new Date(task.endDate).toLocaleDateString() : 'No due date'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -478,10 +482,10 @@ export function TaskManager() {
                           <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
                             <div
                               className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: `${task.progress}%` }}
+                              style={{ width: `${task.progress || 0}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600">{task.progress}%</span>
+                          <span className="text-sm text-gray-600">{task.progress || 0}%</span>
                         </div>
                         <Button 
                           variant="ghost" 
@@ -565,8 +569,8 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
         unitId: editingTask.unitId || '',
         lessonId: editingTask.lessonId || '',
         status: editingTask.status,
-        assignees: editingTask.assignees,
-        skills: editingTask.skills,
+        assignees: editingTask.assignees || [],
+        skills: editingTask.skills || [],
         priority: editingTask.priority,
         estimatedHours: editingTask.estimatedHours,
         actualHours: editingTask.actualHours || 0,

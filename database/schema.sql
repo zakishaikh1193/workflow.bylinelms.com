@@ -414,6 +414,113 @@ CREATE TABLE functional_unit_skills (
     FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
 );
 
+-- =====================================================
+-- 10. TEAM MANAGEMENT SYSTEM
+-- =====================================================
+
+-- Teams (specific teams like "Developers", "Animators", "QA Team")
+CREATE TABLE teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    functional_unit_id INT,
+    team_lead_id INT,
+    team_lead_type ENUM('admin', 'team'),
+    max_capacity INT DEFAULT 10,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (functional_unit_id) REFERENCES functional_units(id) ON DELETE SET NULL,
+    INDEX idx_functional_unit (functional_unit_id),
+    INDEX idx_team_lead (team_lead_id, team_lead_type),
+    INDEX idx_active (is_active)
+);
+
+-- Team members (many-to-many relationship)
+CREATE TABLE team_members_teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_id INT NOT NULL,
+    team_member_id INT NOT NULL,
+    role ENUM('lead', 'senior', 'member', 'junior') DEFAULT 'member',
+    joined_date DATE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_team_member (team_id, team_member_id),
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_member_id) REFERENCES team_members(id) ON DELETE CASCADE,
+    INDEX idx_team (team_id),
+    INDEX idx_member (team_member_id),
+    INDEX idx_active (is_active)
+);
+
+-- Team skills (skills that the team specializes in)
+CREATE TABLE team_skills (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_id INT NOT NULL,
+    skill_id INT NOT NULL,
+    proficiency_level ENUM('beginner', 'intermediate', 'advanced', 'expert') DEFAULT 'intermediate',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_team_skill (team_id, skill_id),
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+    INDEX idx_team (team_id),
+    INDEX idx_skill (skill_id)
+);
+
+-- Project team assignments (assign teams to projects)
+CREATE TABLE project_teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    project_id INT NOT NULL,
+    team_id INT NOT NULL,
+    role ENUM('primary', 'secondary', 'support') DEFAULT 'primary',
+    start_date DATE NOT NULL,
+    end_date DATE,
+    hours_per_day DECIMAL(4,2) DEFAULT 8.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_project_team (project_id, team_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    INDEX idx_project (project_id),
+    INDEX idx_team (team_id),
+    INDEX idx_dates (start_date, end_date)
+);
+
+-- Task team assignments (assign teams to tasks)
+CREATE TABLE task_teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id INT NOT NULL,
+    team_id INT NOT NULL,
+    role ENUM('primary', 'secondary', 'support') DEFAULT 'primary',
+    estimated_hours DECIMAL(8,2) DEFAULT 0.00,
+    actual_hours DECIMAL(8,2) DEFAULT 0.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_task_team (task_id, team_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    INDEX idx_task (task_id),
+    INDEX idx_team (team_id)
+);
+
+-- Team performance metrics
+CREATE TABLE team_performance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_id INT NOT NULL,
+    project_id INT,
+    metric_type ENUM('productivity', 'quality', 'timeliness', 'collaboration') NOT NULL,
+    metric_value DECIMAL(5,2) NOT NULL,
+    metric_date DATE NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+    INDEX idx_team (team_id),
+    INDEX idx_project (project_id),
+    INDEX idx_metric_date (metric_date)
+);
+
 -- Stage templates for different project categories
 CREATE TABLE stage_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -502,7 +609,72 @@ INSERT INTO functional_units (name, description, is_default) VALUES
 ('Content Development Unit', 'Responsible for creating and developing educational content', TRUE);
 
 -- =====================================================
--- 11. INDEXES FOR PERFORMANCE
+-- 11. INSERT SAMPLE TEAM DATA
+-- =====================================================
+
+-- Insert sample teams
+INSERT INTO teams (name, description, functional_unit_id, team_lead_id, team_lead_type, max_capacity) VALUES
+('Content Writers Team', 'Specialized team for creating educational content and copywriting', 1, 1, 'team', 8),
+('Instructional Design Team', 'Team focused on instructional design and learning experience creation', 1, 2, 'team', 6),
+('Graphic Design Team', 'Visual design and creative assets team', 1, 3, 'team', 5),
+('Development Team', 'Software development and programming team', 1, 4, 'team', 10),
+('Animation Team', 'Animation and motion graphics team', 1, 5, 'team', 4),
+('QA Team', 'Quality assurance and testing team', 1, 6, 'team', 6);
+
+-- Insert team members into teams
+INSERT INTO team_members_teams (team_id, team_member_id, role, joined_date) VALUES
+-- Content Writers Team
+(1, 1, 'lead', '2024-01-01'),
+(1, 2, 'senior', '2024-01-15'),
+
+-- Instructional Design Team  
+(2, 2, 'lead', '2024-01-01'),
+(2, 1, 'senior', '2024-01-10'),
+
+-- Graphic Design Team
+(3, 3, 'lead', '2024-01-01'),
+(3, 4, 'member', '2024-02-01'),
+
+-- Development Team
+(4, 4, 'lead', '2024-01-01'),
+(4, 5, 'senior', '2024-01-20'),
+
+-- Animation Team
+(5, 5, 'lead', '2024-01-01'),
+(5, 3, 'member', '2024-01-15'),
+
+-- QA Team
+(6, 6, 'lead', '2024-01-01'),
+(6, 4, 'member', '2024-02-15');
+
+-- Insert team skills
+INSERT INTO team_skills (team_id, skill_id, proficiency_level) VALUES
+-- Content Writers Team skills
+(1, 1, 'expert'), -- Content Writers
+(1, 2, 'advanced'), -- Instructional Designers
+
+-- Instructional Design Team skills
+(2, 2, 'expert'), -- Instructional Designers
+(2, 1, 'advanced'), -- Content Writers
+
+-- Graphic Design Team skills
+(3, 3, 'expert'), -- Graphic Designers
+(3, 5, 'advanced'), -- Animators
+
+-- Development Team skills
+(4, 4, 'expert'), -- Developers
+(4, 6, 'advanced'), -- Tech
+
+-- Animation Team skills
+(5, 5, 'expert'), -- Animators
+(5, 3, 'advanced'), -- Graphic Designers
+
+-- QA Team skills
+(6, 9, 'expert'), -- QA
+(6, 4, 'intermediate'); -- Developers
+
+-- =====================================================
+-- 12. INDEXES FOR PERFORMANCE
 -- =====================================================
 
 -- Additional composite indexes for complex queries
@@ -512,6 +684,14 @@ CREATE INDEX idx_projects_category_status ON projects(category_id, status);
 CREATE INDEX idx_performance_flags_member_type ON performance_flags(team_member_id, type);
 CREATE INDEX idx_stages_project_status ON stages(project_id, status);
 CREATE INDEX idx_allocations_user_dates ON team_allocations(user_id, user_type, start_date, end_date);
+
+-- Team management indexes
+CREATE INDEX idx_teams_functional_unit_active ON teams(functional_unit_id, is_active);
+CREATE INDEX idx_team_members_teams_active ON team_members_teams(team_id, is_active);
+CREATE INDEX idx_team_members_teams_member_active ON team_members_teams(team_member_id, is_active);
+CREATE INDEX idx_project_teams_dates ON project_teams(project_id, start_date, end_date);
+CREATE INDEX idx_task_teams_role ON task_teams(task_id, role);
+CREATE INDEX idx_team_performance_team_date ON team_performance(team_id, metric_date);
 
 -- Full-text search indexes
 ALTER TABLE projects ADD FULLTEXT(name, description);

@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   Layers,
   UserPlus,
-  X
+  X,
+  GraduationCap
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -27,6 +28,7 @@ import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
 import { ProjectComponents } from './ProjectComponents';
+import EducationalHierarchy from './EducationalHierarchy';
 import { projectService, teamService } from '../services/apiService';
 
 interface ProjectDetailsProps {
@@ -36,7 +38,7 @@ interface ProjectDetailsProps {
 
 export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const { state, dispatch } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'components'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'components' | 'educational-hierarchy'>('overview');
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
   const [projectMembers, setProjectMembers] = useState<any[]>([]);
@@ -170,6 +172,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     { key: 'overview', label: 'Overview', icon: BarChart3 },
     { key: 'stages', label: 'Stages', icon: Flag },
     { key: 'components', label: 'Components', icon: Layers },
+    { key: 'educational-hierarchy', label: 'Educational Hierarchy', icon: GraduationCap },
     { key: 'tasks', label: 'Tasks', icon: CheckSquare },
     { key: 'timeline', label: 'Timeline', icon: Calendar },
     { key: 'team', label: 'Team', icon: Users },
@@ -403,17 +406,17 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                           <div className="flex-1">
                             <div className="flex items-center space-x-2">
                               <h4 className="font-semibold text-gray-900">{item.title}</h4>
-                              {item.type === 'stage' && (
+                              {item.type === 'stage' && (item as any).weight && (
                                 <Badge variant="secondary" size="sm">
-                                  {item.weight}% weight
+                                  {(item as any).weight}% weight
                                 </Badge>
                               )}
-                              {item.priority && (
+                              {(item as any).priority && (
                                 <Badge variant={
-                                  item.priority === 'urgent' ? 'danger' :
-                                  item.priority === 'high' ? 'warning' : 'primary'
+                                  (item as any).priority === 'urgent' ? 'danger' :
+                                  (item as any).priority === 'high' ? 'warning' : 'primary'
                                 } size="sm">
-                                  {item.priority}
+                                  {(item as any).priority}
                                 </Badge>
                               )}
                               {isOverdue(item) && (
@@ -430,13 +433,13 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                               <div className="flex items-center">
                                 <Calendar className="w-4 h-4 mr-1" />
                                 {item.date.toLocaleDateString()}
-                                {item.endDate && ` - ${item.endDate.toLocaleDateString()}`}
+                                {(item as any).endDate && ` - ${(item as any).endDate.toLocaleDateString()}`}
                               </div>
                               
-                              {item.assignees && item.assignees.length > 0 && (
+                              {(item as any).assignees && (item as any).assignees.length > 0 && (
                                 <div className="flex items-center">
                                   <Users className="w-4 h-4 mr-1" />
-                                  {item.assignees.length} assigned
+                                  {(item as any).assignees.length} assigned
                                 </div>
                               )}
                             </div>
@@ -446,9 +449,9 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                               <div className="mt-3">
                                 <div className="flex items-center justify-between text-sm mb-1">
                                   <span className="text-gray-600">Progress</span>
-                                  <span className="font-medium">{item.progress}%</span>
+                                  <span className="font-medium">{(item as any).progress}%</span>
                                 </div>
-                                <ProgressBar value={item.progress} showLabel={false} />
+                                <ProgressBar value={(item as any).progress} showLabel={false} />
                               </div>
                             )}
                           </div>
@@ -612,7 +615,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       {projectTasks.length > 0 ? (
         <div className="space-y-4">
           {projectTasks.map((task) => {
-            const assignedUsers = state.users.filter(u => task.assignees.includes(u.id));
+            const assignedUsers = state.users.filter(u => task.assignees && task.assignees.includes(u.id));
             const stage = project.stages?.find(s => s.id === task.stageId);
             
             return (
@@ -651,7 +654,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                               {user.name}
                               <br />
-                              <span className="text-gray-300">{user.skills[0]}</span>
+                                                              <span className="text-gray-300">{user.skills?.[0] || 'No skills'}</span>
                             </div>
                           </div>
                         ))}
@@ -742,7 +745,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                       <div>
                         <h4 className="font-medium text-gray-900">{member.name || 'Unknown User'}</h4>
                         <div className="flex items-center space-x-2">
-                          <Badge variant="outline">{member.role || 'member'}</Badge>
+                          <Badge variant="secondary">{member.role || 'member'}</Badge>
                           {member.skills && (
                             <p className="text-sm text-gray-600">{member.skills.join?.(', ') || member.skills}</p>
                           )}
@@ -870,7 +873,8 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       <div>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'stages' && renderStages()}
-        {activeTab === 'components' && <ProjectComponents project={project} />}
+        {activeTab === 'components' && <ProjectComponents project={project} onBack={onBack} />}
+        {activeTab === 'educational-hierarchy' && <EducationalHierarchy projectId={Number(project.id)} />}
         {activeTab === 'tasks' && renderTasks()}
         {activeTab === 'timeline' && renderTimeline()}
         {activeTab === 'team' && renderTeam()}
@@ -884,6 +888,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         users={state.users}
         skills={state.skills}
         projects={state.projects}
+        stages={[]}
       />
 
       {/* Edit Project Modal */}

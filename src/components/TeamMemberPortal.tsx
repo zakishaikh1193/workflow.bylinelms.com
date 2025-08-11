@@ -34,7 +34,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [extensionDays, setExtensionDays] = useState(1);
 
   // Get user's tasks
-  const userTasks = state.tasks.filter(task => task.assignees.includes(user.id));
+  const userTasks = state.tasks.filter(task => task.assignees && task.assignees.includes(user.id));
   const activeTasks = userTasks.filter(task => task.status !== 'completed');
   const completedTasks = userTasks.filter(task => task.status === 'completed');
   const overdueTasks = userTasks.filter(task => 
@@ -116,7 +116,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">Welcome, {user.name}</h1>
-                <p className="text-sm text-gray-600">{user.skills.join(', ')}</p>
+                <p className="text-sm text-gray-600">{(user.skills || []).join(', ')}</p>
               </div>
             </div>
             <Button variant="ghost" onClick={onLogout}>

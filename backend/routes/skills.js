@@ -7,7 +7,7 @@ const {
   updateSkill,
   deleteSkill
 } = require('../controllers/skillController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAdminAuth } = require('../middleware/auth');
 const { body, param, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -80,13 +80,13 @@ const idValidation = [
 
 // Get all skills
 router.get('/', 
-  authenticateToken,
+  requireAdminAuth,
   getSkills
 );
 
 // Get skill by ID
 router.get('/:id',
-  authenticateToken,
+  requireAdminAuth,
   idValidation,
   handleValidationErrors,
   getSkill
@@ -94,7 +94,7 @@ router.get('/:id',
 
 // Create new skill
 router.post('/',
-  authenticateToken,
+  requireAdminAuth,
   skillValidation,
   handleValidationErrors,
   createSkill
@@ -102,7 +102,7 @@ router.post('/',
 
 // Update skill
 router.put('/:id',
-  authenticateToken,
+  requireAdminAuth,
   idValidation,
   skillUpdateValidation,
   handleValidationErrors,
@@ -111,7 +111,7 @@ router.put('/:id',
 
 // Delete skill
 router.delete('/:id',
-  authenticateToken,
+  requireAdminAuth,
   idValidation,
   handleValidationErrors,
   deleteSkill

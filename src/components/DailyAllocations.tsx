@@ -32,21 +32,23 @@ export function DailyAllocations() {
     const allocations: TeamAllocation[] = [];
     
     state.tasks.forEach(task => {
-      task.assignees.forEach(userId => {
-        const startDate = new Date(task.startDate);
-        const endDate = new Date(task.endDate);
-        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const hoursPerDay = Math.min(task.estimatedHours / Math.max(daysDiff, 1), 8);
-        
-        allocations.push({
-          userId,
-          projectId: task.projectId,
-          taskId: task.id,
-          hoursPerDay: Math.round(hoursPerDay * 100) / 100,
-          startDate: startDate,
-          endDate: endDate,
+      if (task.assignees) {
+        task.assignees.forEach(userId => {
+          const startDate = new Date(task.startDate);
+          const endDate = new Date(task.endDate);
+          const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          const hoursPerDay = Math.min(task.estimatedHours / Math.max(daysDiff, 1), 8);
+          
+          allocations.push({
+            userId,
+            projectId: task.projectId,
+            taskId: task.id,
+            hoursPerDay: Math.round(hoursPerDay * 100) / 100,
+            startDate: startDate,
+            endDate: endDate,
+          });
         });
-      });
+      }
     });
     
     return allocations;
@@ -189,7 +191,7 @@ export function DailyAllocations() {
                   </div>
                   <div>
                     <div className="font-medium text-gray-900">{user.name}</div>
-                    <div className="text-sm text-gray-600">{user.skills[0]}</div>
+                                                <div className="text-sm text-gray-600">{user.skills?.[0] || 'No skills'}</div>
                   </div>
                 </div>
 

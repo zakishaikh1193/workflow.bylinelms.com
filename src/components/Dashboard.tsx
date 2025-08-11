@@ -26,24 +26,36 @@ export function Dashboard() {
 
   // Fetch dashboard data on component mount
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
         
         const data = await dashboardService.getOverview();
-        setDashboardData(data);
         
-        console.log('📊 Dashboard data loaded:', data);
+        if (isMounted) {
+          setDashboardData(data);
+          console.log('📊 Dashboard data loaded:', data);
+        }
       } catch (err: any) {
-        console.error('Dashboard fetch error:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        if (isMounted) {
+          console.error('Dashboard fetch error:', err);
+          setError(err.message || 'Failed to load dashboard data');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleStatClick = (view: string, filter?: any) => {
@@ -256,7 +268,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state.projects.slice(0, 5).map((project) => (
+            {projects.slice(0, 5).map((project: any) => (
               <div 
                 key={project.id} 
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
@@ -264,8 +276,8 @@ export function Dashboard() {
               >
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{project.name}</h4>
-                  <p className="text-sm text-gray-600">{project.category}</p>
-                  <ProgressBar value={calculateProjectProgress(project, allTasks).progress} className="mt-2" />
+                  <p className="text-sm text-gray-600">{project.category_name || project.category}</p>
+                  <ProgressBar value={project.progress || 0} className="mt-2" />
                 </div>
                 <div className="flex items-center space-x-2">
                   <Badge variant={
@@ -297,28 +309,28 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state.users.slice(0, 6).map((user) => {
-              const userTasks = allTasks.filter(t => t.assignees.includes(user.id));
-              const completedTasks = userTasks.filter(t => t.status === 'completed').length;
-              const workloadPercentage = userTasks.length > 0 ? (completedTasks / userTasks.length) * 100 : 0;
+            {teamMembers.slice(0, 6).map((member: any) => {
+              const memberTasks = allTasks.filter(t => t.assignees && t.assignees.includes(member.id));
+              const completedTasks = memberTasks.filter(t => t.status === 'completed').length;
+              const workloadPercentage = memberTasks.length > 0 ? (completedTasks / memberTasks.length) * 100 : 0;
               
               return (
                 <div 
-                  key={user.id} 
+                  key={member.id} 
                   className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => handleUserClick(user.id)}
+                  onClick={() => handleUserClick(member.id)}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {user.name.charAt(0)}
+                      {member.name.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-sm text-gray-600">{user.skills[0]}</p>
+                      <p className="font-medium text-gray-900">{member.name}</p>
+                      <p className="text-sm text-gray-600">{member.skills?.[0] || 'No skills'}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">{userTasks.length} tasks</span>
+                    <span className="text-sm text-gray-600">{memberTasks.length} tasks</span>
                     <ProgressBar 
                       value={workloadPercentage} 
                       className="w-20" 
