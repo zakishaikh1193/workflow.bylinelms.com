@@ -29,7 +29,7 @@ import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
 import { ProjectComponents } from './ProjectComponents';
 import EducationalHierarchy from './EducationalHierarchy';
-import { projectService, teamService } from '../services/apiService';
+import { projectService, teamService, taskService, skillService, stageService, categoryService } from '../services/apiService';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -45,11 +45,16 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const [projectTeams, setProjectTeams] = useState<any[]>([]);
   const [availableTeamMembers, setAvailableTeamMembers] = useState<any[]>([]);
   const [availableTeams, setAvailableTeams] = useState<any[]>([]);
+  const [allTeams, setAllTeams] = useState<any[]>([]);
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const projectTasks = state.tasks.filter(task => task.projectId === project.id);
   const projectProgress = calculateProjectProgress(project, projectTasks);
 
   // Fetch project members, teams, and available team members
@@ -57,16 +62,29 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [members, teams, teamMembers, availableTeamsData] = await Promise.all([
+        const [members, teams, teamMembers, availableTeamsData, allTeamsData, tasksData, skillsData, projectsData, stagesData, categoriesData] = await Promise.all([
           projectService.getMembers(project.id),
           projectService.getTeams(project.id),
           teamService.getMembers(),
-          teamService.getTeams()
+          teamService.getTeams(),
+          teamService.getTeams(),
+          taskService.getAll(),
+          skillService.getAll(),
+          projectService.getAll(),
+          stageService.getAll(),
+          categoryService.getAll()
         ]);
         setProjectMembers(members);
         setProjectTeams(teams);
         setAvailableTeamMembers(teamMembers);
         setAvailableTeams(availableTeamsData);
+        setAllTeams(allTeamsData);
+        setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+        setTeamMembers(teamMembers);
+        setSkills(skillsData);
+        setProjects(projectsData);
+        setStages(stagesData);
+        setCategories(categoriesData);
       } catch (error) {
         console.error('Failed to fetch project data:', error);
       } finally {
@@ -142,28 +160,30 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     }
   };
 
-  const handleCreateTask = (taskData: Partial<Task>) => {
-    // Auto-calculate progress based on status
-    const autoProgress = taskData.status ? calculateTaskProgress(taskData.status) : 0;
-    
-    // Build component path for display
-    let componentPath = '';
-    if (taskData.gradeId) {
-      const grade = project.grades?.find(g => g.id === taskData.gradeId);
-      if (grade) {
-        componentPath = grade.name;
-        if (taskData.bookId) {
-          const book = grade.books.find(b => b.id === taskData.bookId);
-          if (book) {
-            componentPath += ` > ${book.name}`;
-            if (taskData.unitId) {
-              const unit = book.units.find(u => u.id === taskData.unitId);
-              if (unit) {
-                componentPath += ` > ${unit.name}`;
-                if (taskData.lessonId) {
-                  const lesson = unit.lessons.find(l => l.id === taskData.lessonId);
-                  if (lesson) {
-                    componentPath += ` > ${lesson.name}`;
+  const handleCreateTask = async (taskData: Partial<Task>) => {
+    try {
+      // Auto-calculate progress based on status
+      const autoProgress = taskData.status ? calculateTaskProgress(taskData.status) : 0;
+      
+      // Build component path for display
+      let componentPath = '';
+      if (taskData.gradeId) {
+        const grade = project.grades?.find(g => g.id === taskData.gradeId);
+        if (grade) {
+          componentPath = grade.name;
+          if (taskData.bookId) {
+            const book = grade.books.find(b => b.id === taskData.bookId);
+            if (book) {
+              componentPath += ` > ${book.name}`;
+              if (taskData.unitId) {
+                const unit = book.units.find(u => u.id === taskData.unitId);
+                if (unit) {
+                  componentPath += ` > ${unit.name}`;
+                  if (taskData.lessonId) {
+                    const lesson = unit.lessons.find(l => l.id === taskData.lessonId);
+                    if (lesson) {
+                      componentPath += ` > ${lesson.name}`;
+                    }
                   }
                 }
               }
@@ -171,32 +191,43 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           }
         }
       }
+      
+      // Convert skill names to skill IDs
+      const skillIds = (taskData.skills || []).map((skillName: string) => {
+        const skill = skills.find(s => s.name === skillName);
+        return skill ? skill.id : null;
+      }).filter(id => id !== null);
+
+      // Create new task via API
+      const createData = {
+        name: taskData.name || '',
+        description: taskData.description || '',
+        project_id: parseInt(project.id),
+        stage_id: parseInt(taskData.stageId || '1'), 
+        status: taskData.status || 'not-started',
+        priority: taskData.priority || 'medium',
+        start_date: taskData.startDate || new Date().toISOString().split('T')[0],
+        end_date: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        estimated_hours: taskData.estimatedHours || 8,
+        assignees: taskData.assignees || [],
+        teamAssignees: taskData.teamAssignees || [],
+        skills: skillIds,
+        component_path: componentPath
+      };
+      
+      console.log('🚀 Creating task from ProjectDetails:', createData);
+      
+      const newTask = await taskService.create(createData);
+      
+      // Refresh project tasks
+      const tasksData = await taskService.getAll();
+      setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+      
+      console.log('✅ Task created successfully from ProjectDetails:', newTask);
+      setIsCreateTaskModalOpen(false);
+    } catch (error) {
+      console.error('❌ Failed to create task from ProjectDetails:', error);
     }
-    
-    const newTask: Task = {
-      id: Date.now().toString(),
-      name: taskData.name || '',
-      description: taskData.description || '',
-      projectId: project.id,
-      stageId: taskData.stageId || '',
-      gradeId: taskData.gradeId,
-      bookId: taskData.bookId,
-      unitId: taskData.unitId,
-      lessonId: taskData.lessonId,
-      componentPath,
-      assignees: taskData.assignees || [],
-      skills: taskData.skills || [],
-      status: taskData.status || 'not-started',
-      priority: taskData.priority || 'medium',
-      startDate: taskData.startDate || new Date(),
-      endDate: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      progress: autoProgress,
-      estimatedHours: taskData.estimatedHours || 8,
-      actualHours: taskData.actualHours || 0,
-    };
-    
-    dispatch({ type: 'ADD_TASK', payload: newTask });
-    setIsCreateTaskModalOpen(false);
   };
 
   const handleEditProject = (projectData: Partial<Project>) => {
@@ -658,7 +689,8 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       {projectTasks.length > 0 ? (
         <div className="space-y-4">
           {projectTasks.map((task) => {
-            const assignedUsers = state.users.filter(u => task.assignees && task.assignees.includes(u.id));
+            const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
+            const assignedTeams = allTeams.filter((t: any) => task.teamAssignees && task.teamAssignees.includes(t.id));
             const stage = project.stages?.find(s => s.id === task.stageId);
             
             return (
@@ -686,25 +718,32 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 mt-2">
-                        {assignedUsers.slice(0, 3).map(user => (
-                          <div 
-                            key={user.id}
-                            className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
-                            title={user.name}
-                          >
-                            {user.name.charAt(0)}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              {user.name}
-                              <br />
-                                                              <span className="text-gray-300">{user.skills?.[0] || 'No skills'}</span>
-                            </div>
+                      <div className="space-y-2 mt-2">
+                        {/* All Assignees (Individuals + Team Members) */}
+                        {assignedUsers.length > 0 && (
+                          <div className="flex items-center space-x-2">
+                            {assignedUsers.slice(0, 5).map(user => (
+                              <div 
+                                key={user.id}
+                                className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
+                                title={user.name}
+                              >
+                                {user.name.charAt(0)}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                  {user.name}
+                                </div>
+                              </div>
+                            ))}
+                            {assignedUsers.length > 5 && (
+                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+                                +{assignedUsers.length - 5}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                        {assignedUsers.length > 3 && (
-                          <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
-                            +{assignedUsers.length - 3}
-                          </div>
+                        )}
+                        
+                        {assignedUsers.length === 0 && (
+                          <span className="text-xs text-gray-400">No assignees</span>
                         )}
                       </div>
                     </div>
@@ -994,10 +1033,11 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         isOpen={isCreateTaskModalOpen}
         onClose={() => setIsCreateTaskModalOpen(false)}
         onSubmit={handleCreateTask}
-        users={state.users}
-        skills={state.skills}
-        projects={state.projects}
-        stages={[]}
+        users={teamMembers}
+        teams={allTeams}
+        skills={skills}
+        projects={projects}
+        stages={stages}
       />
 
       {/* Edit Project Modal */}
@@ -1006,8 +1046,8 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         onClose={() => setIsEditProjectModalOpen(false)}
         onSubmit={handleEditProject}
         project={project}
-        categories={state.categories}
-        users={state.users}
+        categories={categories.map(c => c.name)}
+        users={teamMembers}
       />
 
              {/* Add Member Modal */}

@@ -64,8 +64,18 @@ const getTasks = async (req, res) => {
     const countResult = await db.query('SELECT COUNT(*) as total FROM tasks', []);
     const total = countResult[0].total;
 
-    // For now, return tasks as-is (we'll add assignees and skills later if needed)
-    const processedTasks = tasks;
+    // Process tasks to include assignees and skills
+    const processedTasks = await Promise.all(tasks.map(async (task) => {
+      const taskWithDetails = await getTaskById(task.id);
+      return taskWithDetails;
+    }));
+
+    console.log('📋 Processed tasks with assignees:', processedTasks.map(t => ({
+      id: t.id,
+      name: t.name,
+      assignees: t.assignees,
+      teamAssignees: t.teamAssignees
+    })));
 
     res.json({
       success: true,
@@ -219,12 +229,22 @@ const createTask = async (req, res) => {
     const result = await db.insert(insertQuery, insertParams);
     const taskId = result.insertId;
 
-    // Add assignees if provided
+    // Add individual assignees if provided
     if (assignees && assignees.length > 0) {
-      for (const assignee of assignees) {
+      for (const assigneeId of assignees) {
         await db.insert(
           'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-          [taskId, assignee.id, assignee.type]
+          [taskId, assigneeId, 'admin']
+        );
+      }
+    }
+
+    // Add team assignees if provided
+    if (req.body.teamAssignees && req.body.teamAssignees.length > 0) {
+      for (const teamId of req.body.teamAssignees) {
+        await db.insert(
+          'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
+          [taskId, teamId, 'team']
         );
       }
     }
@@ -344,16 +364,26 @@ const updateTask = async (req, res) => {
     await db.query(updateQuery, updateParams);
 
     // Update assignees if provided
-    if (assignees !== undefined) {
+    if (assignees !== undefined || req.body.teamAssignees !== undefined) {
       // Remove existing assignees
       await db.query('DELETE FROM task_assignees WHERE task_id = ?', [id]);
       
-      // Add new assignees
-      if (assignees.length > 0) {
-        for (const assignee of assignees) {
+      // Add new individual assignees
+      if (assignees && assignees.length > 0) {
+        for (const assigneeId of assignees) {
           await db.insert(
             'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-            [id, assignee.id, assignee.type]
+            [id, assigneeId, 'admin']
+          );
+        }
+      }
+
+      // Add new team assignees
+      if (req.body.teamAssignees && req.body.teamAssignees.length > 0) {
+        for (const teamId of req.body.teamAssignees) {
+          await db.insert(
+            'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
+            [id, teamId, 'team']
           );
         }
       }
@@ -468,12 +498,35 @@ const getTaskById = async (taskId) => {
   `;
   const skills = await db.query(skillsQuery, [taskId]);
 
-  task.assignees = assignees.map(a => ({
-    id: a.assignee_id,
-    type: a.assignee_type,
-    name: a.team_name || a.admin_name,
-    email: a.team_email || a.admin_email
-  }));
+  // Get all individual assignees (both direct and from teams)
+  const individualAssignees = assignees
+    .filter(a => a.assignee_type === 'admin')
+    .map(a => a.assignee_id);
+  
+  // Get team assignees and expand them to individual members
+  const teamAssignees = assignees
+    .filter(a => a.assignee_type === 'team')
+    .map(a => a.assignee_id);
+  
+  // Get all team members from assigned teams
+  let teamMemberIds = [];
+  if (teamAssignees.length > 0) {
+    const teamMembersQuery = `
+      SELECT DISTINCT tmt.team_member_id
+      FROM team_members_teams tmt
+      WHERE tmt.team_id IN (${teamAssignees.map(() => '?').join(',')})
+      AND tmt.is_active = 1
+    `;
+    const teamMembersResult = await db.query(teamMembersQuery, teamAssignees);
+    teamMemberIds = teamMembersResult.map(tm => tm.team_member_id);
+  }
+  
+  // Combine individual assignees with team member assignees
+  task.assignees = [...individualAssignees, ...teamMemberIds];
+  
+  // Keep teamAssignees for reference (but frontend will show individual members)
+  task.teamAssignees = teamAssignees;
+  
   task.skills = skills;
 
   return task;

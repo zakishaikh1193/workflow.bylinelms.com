@@ -128,6 +128,7 @@ export interface Task {
   lessonId?: string;
   componentPath?: string; // Human readable path
   assignees: string[]; // User IDs
+  teamAssignees?: string[]; // Team IDs
   skills: string[];
   status: TaskStatus;
   priority: Priority;

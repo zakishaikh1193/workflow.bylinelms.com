@@ -25,8 +25,10 @@ export function TaskManager() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>('all');
   const [tasks, setTasks] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
@@ -38,16 +40,18 @@ export function TaskManager() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [tasksData, teamData, stagesData, projectsData, skillsData] = await Promise.all([
+        const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData] = await Promise.all([
           taskService.getAll(),
-          teamService.getAll(),
+          teamService.getMembers(),
+          teamService.getTeams(),
           stageService.getAll(),
           projectService.getAll(),
           skillService.getAll()
         ]);
         
         setTasks(tasksData);
-        setTeamMembers(teamData);
+        setTeamMembers(teamMembersData);
+        setTeams(teamsData);
         setStages(stagesData);
         setProjects(projectsData);
         setSkills(skillsData);
@@ -112,6 +116,7 @@ export function TaskManager() {
     }
     if (selectedStatus !== 'all' && task.status !== selectedStatus) return false;
     if (selectedPriority !== 'all' && task.priority !== selectedPriority) return false;
+    if (selectedProject !== 'all' && task.project_id !== parseInt(selectedProject)) return false;
     if (selectedAssignee !== 'all' && (!task.assignees || !task.assignees.includes(selectedAssignee))) return false;
     
     // Apply dashboard filters
@@ -135,7 +140,8 @@ export function TaskManager() {
           start_date: taskData.startDate,
           end_date: taskData.endDate,
           estimated_hours: taskData.estimatedHours,
-          assignees: taskData.assignees?.map(id => ({ id, type: 'team' })),
+          assignees: taskData.assignees || [],
+          teamAssignees: taskData.teamAssignees || [],
           skills: taskData.skills
         };
         
@@ -162,7 +168,8 @@ export function TaskManager() {
           start_date: taskData.startDate || new Date().toISOString().split('T')[0],
           end_date: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           estimated_hours: taskData.estimatedHours || 8,
-          assignees: taskData.assignees?.map(id => ({ id, type: 'team' })) || [],
+          assignees: taskData.assignees || [],
+          teamAssignees: taskData.teamAssignees || [],
           skills: skillIds,
           component_path: taskData.componentPath
         };
@@ -376,12 +383,23 @@ export function TaskManager() {
           </select>
 
           <select
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">All Projects</option>
+            {projects.map(project => (
+              <option key={project.id} value={project.id}>{project.name}</option>
+            ))}
+          </select>
+
+          <select
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
           >
             <option value="all">All Assignees</option>
-            {state.users.map(user => (
+            {teamMembers.map(user => (
               <option key={user.id} value={user.id}>{user.name}</option>
             ))}
           </select>
@@ -417,7 +435,8 @@ export function TaskManager() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredTasks.map((task) => {
-                  const assignedUsers = state.users.filter(u => task.assignees && task.assignees.includes(u.id));
+                  const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
+                  const assignedTeams = teams.filter(t => task.teamAssignees && task.teamAssignees.includes(t.id));
                   const overdue = isOverdue(task);
                   const project = state.projects.find(p => p.id === task.projectId);
                   const stage = project?.stages?.find(s => s.id === task.stageId);
@@ -431,10 +450,15 @@ export function TaskManager() {
                             {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {project && <span className="font-medium">{project.name}</span>}
-                            {stage && <span> → {stage.name}</span>}
-                            {task.componentPath && <div className="text-xs text-blue-600">{task.componentPath}</div>}
-                            {task.description && <div>{task.description}</div>}
+                            {project && (
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-blue-600">{project.name}</span>
+                                {stage && <span className="text-gray-400">→</span>}
+                                {stage && <span className="text-gray-600">{stage.name}</span>}
+                              </div>
+                            )}
+                            {task.componentPath && <div className="text-xs text-purple-600 mt-1">{task.componentPath}</div>}
+                            {task.description && <div className="mt-1">{task.description}</div>}
                           </div>
                         </div>
                       </td>
@@ -449,25 +473,32 @@ export function TaskManager() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          {assignedUsers.slice(0, 3).map(user => (
-                            <div 
-                              key={user.id}
-                              className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
-                              title={user.name}
-                            >
-                              {user.name.charAt(0)}
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                {user.name}
-                                <br />
-                                <span className="text-gray-300">{user.skills?.[0] || 'No skills'}</span>
-                              </div>
+                        <div className="space-y-1">
+                          {/* All Assignees (Individuals + Team Members) */}
+                          {assignedUsers.length > 0 && (
+                            <div className="flex items-center space-x-2">
+                              {assignedUsers.slice(0, 5).map(user => (
+                                <div 
+                                  key={user.id}
+                                  className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
+                                  title={user.name}
+                                >
+                                  {user.name.charAt(0)}
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                    {user.name}
+                                  </div>
+                                </div>
+                              ))}
+                              {assignedUsers.length > 5 && (
+                                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+                                  +{assignedUsers.length - 5}
+                                </div>
+                              )}
                             </div>
-                          ))}
-                          {assignedUsers.length > 3 && (
-                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
-                              +{assignedUsers.length - 3}
-                            </div>
+                          )}
+                          
+                          {assignedUsers.length === 0 && (
+                            <span className="text-xs text-gray-400">No assignees</span>
                           )}
                         </div>
                       </td>
@@ -517,6 +548,7 @@ export function TaskManager() {
         }}
         onSubmit={handleCreateTask}
         users={teamMembers}
+        teams={teams}
         skills={skills}
         projects={projects}
         stages={stages}
@@ -531,13 +563,14 @@ export interface CreateTaskModalProps {
   onClose: () => void;
   onSubmit: (task: Partial<Task>) => void;
   users: any[];
+  teams: any[];
   skills: any[];
   projects: any[];
   stages: any[];
   editingTask?: Task | null;
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, projects, editingTask }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skills, projects, editingTask }: CreateTaskModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -549,6 +582,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     lessonId: '',
     status: 'not-started' as TaskStatus,
     assignees: [] as string[],
+    teamAssignees: [] as string[],
     skills: [] as string[],
     priority: 'medium' as Priority,
     estimatedHours: 8,
@@ -570,6 +604,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
         lessonId: editingTask.lessonId || '',
         status: editingTask.status,
         assignees: editingTask.assignees || [],
+        teamAssignees: editingTask.teamAssignees || [],
         skills: editingTask.skills || [],
         priority: editingTask.priority,
         estimatedHours: editingTask.estimatedHours,
@@ -589,6 +624,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
         lessonId: '',
         status: 'not-started',
         assignees: [],
+        teamAssignees: [],
         skills: [],
         priority: 'medium',
         estimatedHours: 8,
@@ -648,6 +684,15 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
       assignees: prev.assignees.includes(userId)
         ? prev.assignees.filter(id => id !== userId)
         : [...prev.assignees, userId]
+    }));
+  };
+
+  const toggleTeamAssignee = (teamId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      teamAssignees: prev.teamAssignees.includes(teamId)
+        ? prev.teamAssignees.filter(id => id !== teamId)
+        : [...prev.teamAssignees, teamId]
     }));
   };
 
@@ -927,7 +972,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Assignees
+            Individual Assignees
           </label>
           <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
             {users.map(user => (
@@ -942,6 +987,28 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
               </label>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Team Assignees (Will show all team members)
+          </label>
+          <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
+            {teams.map(team => (
+              <label key={team.id} className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.teamAssignees.includes(team.id)}
+                  onChange={() => toggleTeamAssignee(team.id)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">{team.name}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            When you assign a task to a team, all individual team members will be shown as assignees
+          </p>
         </div>
 
         <div>
