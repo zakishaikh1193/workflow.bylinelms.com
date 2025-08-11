@@ -380,7 +380,13 @@ const getProjectMembers = async (req, res) => {
 
     const query = `
       SELECT 
-        pm.*,
+        pm.id as project_member_id,
+        pm.project_id,
+        pm.user_id,
+        pm.user_type,
+        pm.role,
+        pm.created_at,
+        tm.id as team_member_id,
         tm.name,
         tm.email,
         tm.is_active,
@@ -419,18 +425,64 @@ const getProjectMembers = async (req, res) => {
   }
 };
 
+// Get project teams
+const getProjectTeams = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT 
+        pt.id as project_team_id,
+        pt.team_id as id,
+        pt.role,
+        pt.start_date,
+        pt.end_date,
+        pt.hours_per_day,
+        pt.created_at,
+        pt.updated_at,
+        t.name as team_name,
+        t.description as team_description,
+        t.max_capacity,
+        COUNT(DISTINCT tmt.team_member_id) as member_count
+      FROM project_teams pt
+      JOIN teams t ON pt.team_id = t.id
+      LEFT JOIN team_members_teams tmt ON t.id = tmt.team_id AND tmt.is_active = 1
+      WHERE pt.project_id = ?
+      GROUP BY pt.id, t.id
+      ORDER BY pt.created_at DESC
+    `;
+
+    const rows = await db.query(query, [id]);
+
+    res.json({
+      success: true,
+      data: rows
+    });
+
+  } catch (error) {
+    console.error('Get project teams error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch project teams'
+      }
+    });
+  }
+};
+
 // Add member to project
 const addProjectMember = async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, role = 'member' } = req.body;
+    const { user_id, team_id, role = 'member' } = req.body;
 
-    if (!user_id) {
+    if (!user_id && !team_id) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'User ID is required'
+          message: 'Either user_id or team_id is required'
         }
       });
     }
@@ -447,57 +499,148 @@ const addProjectMember = async (req, res) => {
       });
     }
 
-    // Check if user exists
-    const user = await db.query('SELECT id FROM team_members WHERE id = ?', [user_id]);
-    if (user.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: 'Team member not found'
+    // If team_id is provided, assign the entire team
+    if (team_id) {
+      // Check if team exists
+      const team = await db.query('SELECT id FROM teams WHERE id = ?', [team_id]);
+      if (team.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Team not found'
+          }
+        });
+      }
+
+      // Check if team is already assigned to project
+      const existingTeam = await db.query(
+        'SELECT id FROM project_teams WHERE project_id = ? AND team_id = ?',
+        [id, team_id]
+      );
+
+      if (existingTeam.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'DUPLICATE_ENTRY',
+            message: 'Team is already assigned to this project'
+          }
+        });
+      }
+
+      // Add team to project
+      await db.insert(
+        'INSERT INTO project_teams (project_id, team_id, role, start_date) VALUES (?, ?, ?, CURDATE())',
+        [id, team_id, role]
+      );
+
+      // Get all team members and add them to project_members
+      const teamMembers = await db.query(`
+        SELECT tm.id 
+        FROM team_members tm
+        JOIN team_members_teams tmt ON tm.id = tmt.team_member_id
+        WHERE tmt.team_id = ? AND tmt.is_active = 1
+      `, [team_id]);
+
+      const addedMembers = [];
+      for (const member of teamMembers) {
+        // Check if member is already in project
+        const existingMember = await db.query(
+          'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
+          [id, member.id]
+        );
+
+        if (existingMember.length === 0) {
+          // Add member to project
+          await db.insert(
+            'INSERT INTO project_members (project_id, user_id, user_type, role) VALUES (?, ?, ?, ?)',
+            [id, member.id, 'team', role]
+          );
+
+          // Get member details
+          const memberDetails = await db.query(`
+            SELECT 
+              pm.*,
+              tm.name,
+              tm.email,
+              tm.is_active
+            FROM project_members pm
+            JOIN team_members tm ON pm.user_id = tm.id
+            WHERE pm.project_id = ? AND pm.user_id = ?
+          `, [id, member.id]);
+
+          addedMembers.push(memberDetails[0]);
         }
+      }
+
+      res.status(201).json({
+        success: true,
+        data: {
+          team_id,
+          added_members: addedMembers,
+          total_members_added: addedMembers.length
+        },
+        message: `Team assigned to project successfully. ${addedMembers.length} members added.`
       });
+
+      return;
     }
 
-    // Check if member is already in project
-    const existing = await db.query(
-      'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
-      [id, user_id]
-    );
+    // If user_id is provided, assign individual member
+    if (user_id) {
+      // Check if user exists
+      const user = await db.query('SELECT id FROM team_members WHERE id = ?', [user_id]);
+      if (user.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Team member not found'
+          }
+        });
+      }
 
-    if (existing.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: {
-          code: 'DUPLICATE_ENTRY',
-          message: 'User is already a member of this project'
-        }
+      // Check if member is already in project
+      const existing = await db.query(
+        'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
+        [id, user_id]
+      );
+
+      if (existing.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'DUPLICATE_ENTRY',
+            message: 'User is already a member of this project'
+          }
+        });
+      }
+
+      // Add member to project
+      const result = await db.insert(
+        'INSERT INTO project_members (project_id, user_id, user_type, role) VALUES (?, ?, ?, ?)',
+        [id, user_id, 'team', role]
+      );
+
+      // Get the created project member with user details
+      const newMember = await db.query(`
+        SELECT 
+          pm.*,
+          tm.name,
+          tm.email,
+          tm.is_active
+        FROM project_members pm
+        JOIN team_members tm ON pm.user_id = tm.id
+        WHERE pm.id = ?
+      `, [result.insertId]);
+
+      res.status(201).json({
+        success: true,
+        data: newMember[0],
+        message: 'Member added to project successfully'
       });
     }
-
-    // Add member to project
-    const result = await db.insert(
-      'INSERT INTO project_members (project_id, user_id, user_type, role) VALUES (?, ?, ?, ?)',
-      [id, user_id, 'team', role]
-    );
-
-    // Get the created project member with user details
-    const newMember = await db.query(`
-      SELECT 
-        pm.*,
-        tm.name,
-        tm.email,
-        tm.is_active
-      FROM project_members pm
-      JOIN team_members tm ON pm.user_id = tm.id
-      WHERE pm.id = ?
-    `, [result.insertId]);
-
-    res.status(201).json({
-      success: true,
-      data: newMember[0],
-      message: 'Member added to project successfully'
-    });
 
   } catch (error) {
     console.error('Add project member error:', error);
@@ -516,10 +659,10 @@ const removeProjectMember = async (req, res) => {
   try {
     const { id, memberId } = req.params;
 
-    // Check if membership exists
+    // Check if membership exists (using project_members.id as primary key)
     const existing = await db.query(
-      'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
-      [id, memberId]
+      'SELECT id FROM project_members WHERE id = ? AND project_id = ?',
+      [memberId, id]
     );
 
     if (existing.length === 0) {
@@ -534,8 +677,8 @@ const removeProjectMember = async (req, res) => {
 
     // Remove member from project
     await db.query(
-      'DELETE FROM project_members WHERE project_id = ? AND user_id = ?',
-      [id, memberId]
+      'DELETE FROM project_members WHERE id = ? AND project_id = ?',
+      [memberId, id]
     );
 
     res.json({
@@ -555,6 +698,58 @@ const removeProjectMember = async (req, res) => {
   }
 };
 
+// Remove team from project
+const removeProjectTeam = async (req, res) => {
+  try {
+    const { id, teamId } = req.params;
+
+    // Check if team is assigned to project
+    const existing = await db.query(
+      'SELECT id FROM project_teams WHERE project_id = ? AND team_id = ?',
+      [id, teamId]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Team is not assigned to this project'
+        }
+      });
+    }
+
+    // Remove all team members from project_members
+    await db.query(
+      'DELETE pm FROM project_members pm ' +
+      'JOIN team_members_teams tmt ON pm.user_id = tmt.team_member_id ' +
+      'WHERE tmt.team_id = ? AND pm.project_id = ?',
+      [teamId, id]
+    );
+
+    // Remove team from project_teams
+    await db.query(
+      'DELETE FROM project_teams WHERE project_id = ? AND team_id = ?',
+      [id, teamId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Team removed from project successfully'
+    });
+
+  } catch (error) {
+    console.error('Remove project team error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to remove team from project'
+      }
+    });
+  }
+};
+
 module.exports = {
   getProjects,
   getProject,
@@ -562,6 +757,8 @@ module.exports = {
   updateProject,
   deleteProject,
   getProjectMembers,
+  getProjectTeams,
   addProjectMember,
-  removeProjectMember
+  removeProjectMember,
+  removeProjectTeam
 };

@@ -42,24 +42,31 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
   const [projectMembers, setProjectMembers] = useState<any[]>([]);
+  const [projectTeams, setProjectTeams] = useState<any[]>([]);
   const [availableTeamMembers, setAvailableTeamMembers] = useState<any[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<any[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const projectTasks = state.tasks.filter(task => task.projectId === project.id);
   const projectProgress = calculateProjectProgress(project, projectTasks);
 
-  // Fetch project members and available team members
+  // Fetch project members, teams, and available team members
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [members, teamMembers] = await Promise.all([
+        const [members, teams, teamMembers, availableTeamsData] = await Promise.all([
           projectService.getMembers(project.id),
-          teamService.getAll()
+          projectService.getTeams(project.id),
+          teamService.getMembers(),
+          teamService.getTeams()
         ]);
         setProjectMembers(members);
+        setProjectTeams(teams);
         setAvailableTeamMembers(teamMembers);
+        setAvailableTeams(availableTeamsData);
       } catch (error) {
         console.error('Failed to fetch project data:', error);
       } finally {
@@ -87,6 +94,26 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     }
   };
 
+  const handleAddTeam = async (teamId: number, role: string = 'member') => {
+    try {
+      await projectService.addTeam(project.id, { 
+        team_id: teamId, 
+        role 
+      });
+      
+      // Refresh project members and teams
+      const [members, teams] = await Promise.all([
+        projectService.getMembers(project.id),
+        projectService.getTeams(project.id)
+      ]);
+      setProjectMembers(members);
+      setProjectTeams(teams);
+      setIsAddTeamModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add team:', error);
+    }
+  };
+
   const handleRemoveMember = async (memberId: number) => {
     try {
       await projectService.removeMember(project.id, memberId);
@@ -96,6 +123,22 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       setProjectMembers(members);
     } catch (error) {
       console.error('Failed to remove member:', error);
+    }
+  };
+
+  const handleRemoveTeam = async (teamId: number) => {
+    try {
+      await projectService.removeTeam(project.id, teamId);
+      
+      // Refresh project members and teams
+      const [members, teams] = await Promise.all([
+        projectService.getMembers(project.id),
+        projectService.getTeams(project.id)
+      ]);
+      setProjectMembers(members);
+      setProjectTeams(teams);
+    } catch (error) {
+      console.error('Failed to remove team:', error);
     }
   };
 
@@ -714,14 +757,79 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">Project Team</h3>
-        <Button 
-          onClick={() => setIsAddMemberModalOpen(true)}
-          className="flex items-center space-x-2"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Add Member</span>
-        </Button>
+        <div className="flex space-x-2">
+          <Button 
+            onClick={() => setIsAddTeamModalOpen(true)}
+            className="flex items-center space-x-2"
+            variant="outline"
+          >
+            <Users className="w-4 h-4" />
+            <span>Add Team</span>
+          </Button>
+          <Button 
+            onClick={() => setIsAddMemberModalOpen(true)}
+            className="flex items-center space-x-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Add Member</span>
+          </Button>
+        </div>
       </div>
+      
+      {/* Teams Section */}
+      <div className="space-y-4">
+        <h4 className="text-md font-medium text-gray-900">Assigned Teams</h4>
+        {projectTeams.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {projectTeams.map((team) => (
+               <Card key={team.id}>
+                 <CardContent className="p-4">
+                   <div className="flex items-center justify-between mb-3">
+                     <div className="flex items-center space-x-3">
+                       <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white">
+                         <Users className="w-5 h-5" />
+                       </div>
+                       <div>
+                         <h5 className="font-medium text-gray-900">{team.team_name}</h5>
+                         <Badge variant="secondary" className="text-xs">{team.role}</Badge>
+                       </div>
+                     </div>
+                     <Button
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => handleRemoveTeam(team.id)}
+                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                     >
+                       <X className="w-4 h-4" />
+                     </Button>
+                   </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Members</span>
+                      <span className="font-medium">{team.member_count} / {team.max_capacity}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full"
+                        style={{ width: `${Math.min((team.member_count / team.max_capacity) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 bg-gray-50 rounded-lg">
+            <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-gray-500">No teams assigned to this project</p>
+          </div>
+        )}
+      </div>
+
+      {/* Individual Members Section */}
+      <div className="space-y-4">
+        <h4 className="text-md font-medium text-gray-900">Individual Members</h4>
       
       {loading ? (
         <div className="text-center py-8">
@@ -730,12 +838,12 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       ) : projectMembers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projectMembers.map((member) => {
-            const memberTasks = projectTasks.filter(task => task.assignees && task.assignees.includes(member.user_id || member.id));
+            const memberTasks = projectTasks.filter(task => task.assignees && task.assignees.includes(member.user_id || member.team_member_id));
             const completedTasks = memberTasks.filter(task => task.status === 'completed');
             const completionRate = memberTasks.length > 0 ? Math.round((completedTasks.length / memberTasks.length) * 100) : 0;
             
             return (
-              <Card key={member.id}>
+              <Card key={member.project_member_id}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
@@ -755,7 +863,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRemoveMember(member.id)}
+                      onClick={() => handleRemoveMember(member.project_member_id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       <X className="w-4 h-4" />
@@ -785,23 +893,24 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           })}
         </div>
       ) : (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Members</h3>
-            <p className="text-gray-600 mb-4">No team members have been assigned to this project yet.</p>
-            <Button 
-              onClick={() => setIsAddMemberModalOpen(true)}
-              className="flex items-center space-x-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add First Member</span>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+                 <Card>
+           <CardContent className="p-8 text-center">
+             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+             <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Members</h3>
+             <p className="text-gray-600 mb-4">No team members have been assigned to this project yet.</p>
+             <Button 
+               onClick={() => setIsAddMemberModalOpen(true)}
+               className="flex items-center space-x-2"
+             >
+               <UserPlus className="w-4 h-4" />
+               <span>Add First Member</span>
+             </Button>
+           </CardContent>
+         </Card>
+       )}
+       </div>
+     </div>
+   );
 
   return (
     <div className="p-6 space-y-6">
@@ -901,17 +1010,118 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         users={state.users}
       />
 
-      {/* Add Member Modal */}
-      <AddMemberModal
-        isOpen={isAddMemberModalOpen}
-        onClose={() => setIsAddMemberModalOpen(false)}
-        onSubmit={handleAddMember}
-        availableMembers={availableTeamMembers}
-        projectMembers={projectMembers}
-      />
-    </div>
-  );
+             {/* Add Member Modal */}
+       <AddMemberModal
+         isOpen={isAddMemberModalOpen}
+         onClose={() => setIsAddMemberModalOpen(false)}
+         onSubmit={handleAddMember}
+         availableMembers={availableTeamMembers}
+         projectMembers={projectMembers}
+       />
+       
+       {/* Add Team Modal */}
+       <AddTeamModal
+         isOpen={isAddTeamModalOpen}
+         onClose={() => setIsAddTeamModalOpen(false)}
+         onSubmit={handleAddTeam}
+         availableTeams={availableTeams}
+         projectTeams={projectTeams}
+       />
+     </div>
+   );
+ }
+
+// Add Team Modal Component
+interface AddTeamModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (teamId: number, role: string) => void;
+  availableTeams: any[];
+  projectTeams: any[];
 }
+
+function AddTeamModal({ isOpen, onClose, onSubmit, availableTeams, projectTeams }: AddTeamModalProps) {
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [selectedRole, setSelectedRole] = useState('member');
+
+  const assignedTeamIds = projectTeams.map(pt => pt.team_id);
+  const unassignedTeams = availableTeams.filter(team => 
+    !assignedTeamIds.includes(team.id)
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedTeamId) {
+      onSubmit(selectedTeamId, selectedRole);
+      setSelectedTeamId(null);
+      setSelectedRole('member');
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Team to Project">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Team
+          </label>
+          <select
+            value={selectedTeamId || ''}
+            onChange={(e) => setSelectedTeamId(Number(e.target.value))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          >
+            <option value="">Choose a team...</option>
+            {unassignedTeams.map(team => (
+              <option key={team.id} value={team.id}>
+                {team.name} - {team.member_count || 0} members
+              </option>
+            ))}
+          </select>
+          {unassignedTeams.length === 0 && (
+            <p className="text-sm text-gray-500 mt-1">
+              All teams are already assigned to this project.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Role
+          </label>
+                     <select
+             value={selectedRole}
+             onChange={(e) => setSelectedRole(e.target.value)}
+             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+           >
+             <option value="member">Member</option>
+             <option value="admin">Admin</option>
+             <option value="owner">Owner</option>
+             <option value="viewer">Viewer</option>
+           </select>
+        </div>
+
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Note:</strong> When you assign a team to this project, all team members will automatically be added as individual project members.
+          </p>
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={!selectedTeamId || unassignedTeams.length === 0}
+          >
+            Add Team
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+ }
 
 // Add Member Modal Component
 interface AddMemberModalProps {
@@ -926,7 +1136,7 @@ function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMe
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedRole, setSelectedRole] = useState('member');
 
-  const assignedMemberIds = projectMembers.map(pm => pm.user_id || pm.id);
+  const assignedMemberIds = projectMembers.map(pm => pm.user_id || pm.team_member_id);
   const unassignedMembers = availableMembers.filter(member => 
     !assignedMemberIds.includes(member.id)
   );
@@ -977,8 +1187,9 @@ function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMe
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="member">Member</option>
-            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
             <option value="owner">Owner</option>
+            <option value="viewer">Viewer</option>
           </select>
         </div>
 

@@ -8,7 +8,7 @@ import {
   Users, 
   Plus, 
   Edit, 
-  Trash2, 
+  Trash2,
   Search, 
   Filter, 
   MoreVertical,
@@ -135,9 +135,9 @@ export function TeamManager() {
     fetchSkills();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
       setError(null);
       
       if (activeTab === 'members') {
@@ -153,13 +153,13 @@ export function TeamManager() {
         setTeams(teamsData || []);
         setFilteredTeams(teamsData || []);
       }
-    } catch (error) {
-      console.error('❌ Fetch team data error:', error);
-      setError('Failed to load team data');
-    } finally {
-      setLoading(false);
-    }
-  };
+      } catch (error) {
+        console.error('❌ Fetch team data error:', error);
+        setError('Failed to load team data');
+      } finally {
+        setLoading(false);
+      }
+    };
 
   // Always fetch teams for the dropdown, regardless of active tab
   useEffect(() => {
@@ -184,7 +184,7 @@ export function TeamManager() {
         (member.skills && member.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase())))
       );
       setFilteredMembers(filtered);
-    } else {
+      } else {
       const filtered = teams.filter(team =>
         team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (team.description && team.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -295,7 +295,7 @@ export function TeamManager() {
     try {
       await teamService.deleteTeam(id.toString());
       setTeams(teams.filter(t => t.id !== id));
-    } catch (error) {
+      } catch (error) {
       console.error('Error deleting team:', error);
       setError('Failed to delete team');
     }
@@ -344,7 +344,7 @@ export function TeamManager() {
       const result = await teamService.getTeamById(team.id.toString());
       setSelectedTeam(result);  
       setShowTeamDetailsModal(true);
-    } catch (error) {
+      } catch (error) {
       console.error('Error fetching team details:', error);
       setError('Failed to fetch team details');
     }
@@ -364,7 +364,7 @@ export function TeamManager() {
       setAvailableMembersForTeam(availableMembers);
       setSelectedTeam(team);
       setShowAddMemberToTeamModal(true);
-    } catch (error) {
+      } catch (error) {
       console.error('Error fetching available members:', error);
       setError('Failed to fetch available members');
     }
@@ -397,22 +397,22 @@ export function TeamManager() {
       </div>
     );
   }
-
-  return (
+        
+        return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+              <div className="flex items-center justify-between">
+                  <div>
           <h1 className="text-3xl font-bold text-gray-900">Team Management</h1>
           <p className="text-gray-600">Manage team members and teams</p>
-        </div>
-      </div>
+                  </div>
+                </div>
 
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">{error}</p>
-        </div>
+                </div>
       )}
 
       {/* Tabs */}
@@ -441,10 +441,10 @@ export function TeamManager() {
             <span>Teams</span>
           </button>
         </nav>
-      </div>
+              </div>
 
       {/* Search and Actions */}
-      <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -455,10 +455,10 @@ export function TeamManager() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
             />
-          </div>
-        </div>
-        
-        <Button
+                </div>
+              </div>
+
+                    <Button
           onClick={() => {
             if (activeTab === 'members') {
               setEditingMember(null);
@@ -474,8 +474,8 @@ export function TeamManager() {
         >
           <Plus className="w-4 h-4" />
           <span>Add {activeTab === 'members' ? 'Member' : 'Team'}</span>
-        </Button>
-      </div>
+                    </Button>
+                </div>
 
       {/* Content */}
       {activeTab === 'members' ? (
@@ -515,7 +515,7 @@ export function TeamManager() {
                 placeholder="Enter full name"
                 required
               />
-            </div>
+                            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
@@ -526,8 +526,8 @@ export function TeamManager() {
                 placeholder="Enter email address"
                 required
               />
-            </div>
-          </div>
+                        </div>
+                      </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -544,8 +544,8 @@ export function TeamManager() {
               />
               {!editingMember && (
                 <p className="text-xs text-gray-500 mt-1">Passcode is required for new team members</p>
-              )}
-            </div>
+                    )}
+                  </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Team</label>
               <select
@@ -560,8 +560,8 @@ export function TeamManager() {
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
+              </div>
+    </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">Skills</label>
@@ -594,25 +594,25 @@ export function TeamManager() {
               ) : (
                 <div className="col-span-3 text-center text-gray-500 py-4">
                   No skills available. Please add skills first.
-                </div>
+                        </div>
               )}
-            </div>
+                        </div>
             {memberFormData.skills.length > 0 && (
               <div className="mt-3">
                 <p className="text-sm text-gray-600 mb-2">Selected skills:</p>
                 <div className="flex flex-wrap gap-2">
                   {memberFormData.skills.map((skill) => (
                     <Badge key={skill} variant="secondary" className="text-xs">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                      </div>
             )}
-          </div>
+                          </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t">
-            <Button 
+                        <Button
               type="button" 
               variant="outline" 
               onClick={() => {
@@ -623,11 +623,11 @@ export function TeamManager() {
               className="px-6"
             >
               Cancel
-            </Button>
+                        </Button>
             <Button type="submit" className="px-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
               {editingMember ? 'Update Member' : 'Create Member'}
-            </Button>
-          </div>
+                        </Button>
+                      </div>
         </form>
       </Modal>
 
@@ -653,7 +653,7 @@ export function TeamManager() {
                 placeholder="Enter team name"
                 required
               />
-            </div>
+              </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Max Capacity</label>
               <input
@@ -665,8 +665,8 @@ export function TeamManager() {
                 max="50"
                 placeholder="10"
               />
+              </div>
             </div>
-          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
@@ -677,7 +677,7 @@ export function TeamManager() {
               rows={3}
               placeholder="Enter team description"
             />
-          </div>
+              </div>
 
 
 
@@ -697,7 +697,7 @@ export function TeamManager() {
             <Button type="submit" className="px-6 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700">
               {editingTeam ? 'Update Team' : 'Create Team'}
             </Button>
-          </div>
+              </div>
         </form>
       </Modal>
 
@@ -715,32 +715,32 @@ export function TeamManager() {
             <div>
               <h3 className="text-lg font-medium text-gray-900">Team Information</h3>
               <p className="text-gray-600">{selectedTeam.description}</p>
-            </div>
-            
+      </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Functional Unit</label>
                 <p className="text-gray-900">{selectedTeam.functional_unit_name || 'Not assigned'}</p>
-              </div>
-              <div>
+                    </div>
+                    <div>
                 <label className="block text-sm font-medium text-gray-700">Team Lead</label>
                 <p className="text-gray-900">{selectedTeam.team_lead_name}</p>
-              </div>
+                    </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Members</label>
                 <p className="text-gray-900">{selectedTeam.member_count} / {selectedTeam.max_capacity}</p>
-              </div>
-            </div>
-
+                  </div>
+                </div>
+              
             {selectedTeam.skills && selectedTeam.skills.length > 0 && (
-              <div>
+                <div>
                 <label className="block text-sm font-medium text-gray-700">Team Skills</label>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {selectedTeam.skills.map((skill, index) => (
                     <Badge key={index} variant="secondary">{skill}</Badge>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
             )}
 
             <div>
@@ -755,7 +755,7 @@ export function TeamManager() {
                   <UserPlus className="w-3 h-3 mr-1" />
                   Add Member
                 </Button>
-              </div>
+                  </div>
               
               {selectedTeam.members && selectedTeam.members.length > 0 ? (
                 <div className="space-y-2 mt-1">
@@ -764,19 +764,19 @@ export function TeamManager() {
                       <div>
                         <p className="font-medium text-gray-900">{member.name}</p>
                         <p className="text-sm text-gray-600">{member.team_role}</p>
-                      </div>
+                  </div>
                       <Badge variant="secondary">{member.skills?.length || 0} skills</Badge>
-                    </div>
+                  </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-4 text-gray-500">
                   <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p>No members assigned to this team</p>
-                </div>
+                  </div>
               )}
-            </div>
-          </div>
+                  </div>
+                </div>
         </Modal>
       )}
 
@@ -804,8 +804,8 @@ export function TeamManager() {
             {availableMembersForTeam.length > 0 ? (
               <div className="max-h-64 overflow-y-auto space-y-2">
                 {availableMembersForTeam.map((member) => (
-                  <div
-                    key={member.id}
+                        <div 
+                          key={member.id}
                     className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
                     onClick={() => handleAddMemberToTeam(member.id)}
                   >
@@ -814,11 +814,11 @@ export function TeamManager() {
                         <span className="text-white font-semibold text-xs">
                           {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                         </span>
-                      </div>
+                        </div>
                       <div>
                         <p className="font-medium text-gray-900">{member.name}</p>
                         <p className="text-sm text-gray-600">{member.email}</p>
-                      </div>
+                        </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Badge variant="secondary" className="text-xs">
@@ -830,33 +830,33 @@ export function TeamManager() {
                     </div>
                   </div>
                 ))}
-              </div>
+      </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">No available members</p>
                 <p className="text-sm">All team members are already assigned to this team or other teams.</p>
-              </div>
+    </div>
             )}
 
             <div className="flex justify-end pt-4 border-t">
-              <Button
+            <Button 
                 variant="outline"
-                onClick={() => {
+              onClick={() => {
                   setShowAddMemberToTeamModal(false);
                   setSelectedTeam(null);
                   setAvailableMembersForTeam([]);
-                }}
-              >
+              }}
+            >
                 Cancel
-              </Button>
-            </div>
+            </Button>
           </div>
+        </div>
         </Modal>
       )}
-    </div>
-  );
-}
+      </div>
+    );
+  }
 
 // Team Members Tab Component
 interface TeamMembersTabProps {
@@ -879,7 +879,7 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                       {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                     </span>
                   </div>
-                  <div>
+        <div>
                     <h3 className="font-semibold text-gray-900 text-lg">{member.name}</h3>
                     <p className="text-sm text-gray-600 flex items-center">
                       <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
@@ -890,8 +890,8 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                         Passcode: <span className="font-mono bg-gray-100 px-1 rounded">{member.passcode}</span>
                       </p>
                     )}
-                  </div>
-                </div>
+        </div>
+          </div>
                 
                 <div className="mb-4 space-y-3">
                   <div>
@@ -900,8 +900,8 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                         {member.skills.length} skills
                       </span>
-                    </div>
-                    
+      </div>
+
                     {member.skills.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {member.skills.slice(0, 3).map((skill, index) => (
@@ -914,9 +914,9 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                             +{member.skills.length - 3} more
                           </Badge>
                         )}
-                      </div>
+              </div>
                     )}
-                  </div>
+              </div>
 
                   {member.team_names && member.team_names.length > 0 && (
                     <div>
@@ -925,7 +925,7 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                         <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
                           {member.team_names.length} team{member.team_names.length > 1 ? 's' : ''}
                         </span>
-                      </div>
+              </div>
                       
                       <div className="flex flex-wrap gap-1">
                         {member.team_names.map((teamName, index) => (
@@ -933,10 +933,10 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                             {teamName}
                           </Badge>
                         ))}
-                      </div>
-                    </div>
+              </div>
+              </div>
                   )}
-                </div>
+            </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -949,17 +949,17 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                         {member.performance_flags_count} flags
                       </Badge>
                     )}
-                  </div>
-                  
+      </div>
+
                   <div className="flex space-x-1">
-                    <Button 
+            <Button 
                       size="sm" 
                       variant="outline" 
                       onClick={() => onEdit(member)}
                       className="hover:bg-blue-50 hover:border-blue-300 transition-colors"
                     >
                       <Edit className="w-3 h-3" />
-                    </Button>
+            </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
@@ -1015,23 +1015,23 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
                   <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-600 rounded-lg flex items-center justify-center">
                     <Building2 className="w-6 h-6 text-white" />
                   </div>
-                  <div>
+          <div>
                     <h3 className="font-semibold text-gray-900 text-lg">{team.name}</h3>
                     <p className="text-sm text-gray-600">{team.description || 'No description'}</p>
                   </div>
-                </div>
-                
+          </div>
+
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Building2 className="w-4 h-4 text-gray-400" />
                       <span className="text-sm text-gray-600">{team.functional_unit_name || 'No unit'}</span>
-                    </div>
+          </div>
                     <Badge variant={team.is_active ? "default" : "secondary"} className="px-2 py-1 text-xs">
                       {team.is_active ? 'Active' : 'Inactive'}
                     </Badge>
-                  </div>
-                  
+        </div>
+
                   <div className="flex items-center space-x-2">
                     <Users2 className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-600">
@@ -1044,14 +1044,14 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
                           style={{ width: `${Math.min(((team.member_count || 0) / (team.max_capacity || 10)) * 100, 100)}%` }}
                         ></div>
                       </div>
-                    </div>
-                  </div>
+          </div>
+        </div>
 
-                  <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2">
                     <Star className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-600">{team.team_lead_name || 'No team lead'}</span>
                   </div>
-                </div>
+        </div>
 
                 {team.skills && team.skills.length > 0 && (
                   <div className="mb-4">
@@ -1085,7 +1085,7 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
                       className="hover:bg-blue-50 hover:border-blue-300 transition-colors"
                     >
                       <Users className="w-3 h-3" />
-                    </Button>
+          </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
@@ -1101,8 +1101,8 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
                       className="hover:bg-red-50 hover:border-red-300 transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
+          </Button>
+        </div>
                 </div>
               </div>
             </div>

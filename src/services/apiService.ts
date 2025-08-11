@@ -202,15 +202,33 @@ export const projectService = {
     return result.data;
   },
 
+  // Get project teams
+  getTeams: async (id: string | number) => {
+    const result = await apiService.get(`/projects/${id}/teams`);
+    return result.data;
+  },
+
   // Add member to project
   addMember: async (projectId: string | number, memberData: any) => {
     const result = await apiService.post(`/projects/${projectId}/members`, memberData);
     return result.data;
   },
 
+  // Add team to project
+  addTeam: async (projectId: string | number, teamData: any) => {
+    const result = await apiService.post(`/projects/${projectId}/members`, teamData);
+    return result.data;
+  },
+
   // Remove member from project
   removeMember: async (projectId: string | number, memberId: string | number) => {
     const result = await apiService.delete(`/projects/${projectId}/members/${memberId}`);
+    return result.data;
+  },
+
+  // Remove team from project
+  removeTeam: async (projectId: string | number, teamId: string | number) => {
+    const result = await apiService.delete(`/projects/${projectId}/teams/${teamId}`);
     return result.data;
   },
 };
