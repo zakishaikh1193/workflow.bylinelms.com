@@ -34,9 +34,11 @@ import { projectService, teamService, taskService, skillService, stageService, c
 interface ProjectDetailsProps {
   project: Project;
   onBack: () => void;
+  onUpdate?: (updatedProject: Project) => void;
+  categories?: any[];
 }
 
-export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
+export function ProjectDetails({ project, onBack, onUpdate, categories }: ProjectDetailsProps) {
   const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'components' | 'educational-hierarchy'>('overview');
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
@@ -51,7 +53,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const [skills, setSkills] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [localCategories, setLocalCategories] = useState<any[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -84,7 +86,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         setSkills(skillsData);
         setProjects(projectsData);
         setStages(stagesData);
-        setCategories(categoriesData);
+        setLocalCategories(categoriesData);
       } catch (error) {
         console.error('Failed to fetch project data:', error);
       } finally {
@@ -230,16 +232,36 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     }
   };
 
-  const handleEditProject = (projectData: Partial<Project>) => {
-    const updatedProject: Project = {
-      ...project,
-      ...projectData,
-      startDate: projectData.startDate || project.startDate,
-      endDate: projectData.endDate || project.endDate,
-    };
-    
-    dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
-    setIsEditProjectModalOpen(false);
+  const handleEditProject = async (projectData: Partial<Project>) => {
+    try {
+      setLoading(true);
+      
+      // Call the API to update the project
+      const updatedProjectData = await projectService.update(project.id, projectData);
+      
+      // Update the local state with the response from the API
+      const updatedProject: Project = {
+        ...project,
+        ...updatedProjectData,
+        start_date: projectData.start_date || project.start_date,
+        end_date: projectData.end_date || project.end_date,
+      };
+      
+      // Call the onUpdate callback to update the parent component
+      if (onUpdate) {
+        onUpdate(updatedProject);
+      }
+      
+      dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
+      setIsEditProjectModalOpen(false);
+      
+      console.log('✅ Project updated successfully:', updatedProjectData);
+    } catch (error) {
+      console.error('❌ Failed to update project:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setLoading(false);
+    }
   };
 
   const tabs = [
@@ -307,7 +329,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Days Left</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Math.ceil((new Date(project.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+                  {Math.ceil((new Date(project.end_date || project.endDate || '').getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
                 </p>
               </div>
             </div>
@@ -325,11 +347,11 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           <div className="mt-4 flex items-center space-x-4">
             <div className="flex items-center text-sm text-gray-600">
               <Calendar className="w-4 h-4 mr-1" />
-              Start: {new Date(project.startDate).toLocaleDateString()}
+              Start: {new Date(project.start_date || project.startDate || '').toLocaleDateString()}
             </div>
             <div className="flex items-center text-sm text-gray-600">
               <Calendar className="w-4 h-4 mr-1" />
-              End: {new Date(project.endDate).toLocaleDateString()}
+              End: {new Date(project.end_date || project.endDate || '').toLocaleDateString()}
             </div>
             <Badge variant={
               project.status === 'active' ? 'primary' :
@@ -353,7 +375,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       id: 'project-start',
       type: 'milestone',
       title: 'Project Start',
-      date: new Date(project.startDate),
+      date: new Date(project.start_date || project.startDate || ''),
       status: 'completed',
       description: 'Project officially started'
     });
@@ -395,7 +417,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       id: 'project-end',
       type: 'milestone',
       title: 'Project Completion',
-      date: new Date(project.endDate),
+      date: new Date(project.end_date || project.endDate || ''),
       status: project.status === 'completed' ? 'completed' : 'pending',
       description: 'Planned project completion date'
     });
@@ -1046,8 +1068,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         onClose={() => setIsEditProjectModalOpen(false)}
         onSubmit={handleEditProject}
         project={project}
-        categories={categories.map(c => c.name)}
-        users={teamMembers}
+        categories={categories || localCategories}
       />
 
              {/* Add Member Modal */}

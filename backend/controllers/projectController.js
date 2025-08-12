@@ -275,36 +275,63 @@ const updateProject = async (req, res) => {
       });
     }
 
+    // Build dynamic query based on provided fields
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (name !== undefined) {
+      updateFields.push('name = ?');
+      updateValues.push(name);
+    }
+    if (description !== undefined) {
+      updateFields.push('description = ?');
+      updateValues.push(description);
+    }
+    if (category_id !== undefined) {
+      updateFields.push('category_id = ?');
+      updateValues.push(category_id);
+    }
+    if (start_date !== undefined) {
+      updateFields.push('start_date = ?');
+      updateValues.push(start_date);
+    }
+    if (end_date !== undefined) {
+      updateFields.push('end_date = ?');
+      updateValues.push(end_date);
+    }
+    if (status !== undefined) {
+      updateFields.push('status = ?');
+      updateValues.push(status);
+    }
+    if (progress !== undefined) {
+      updateFields.push('progress = ?');
+      updateValues.push(progress);
+    }
+    if (parent_id !== undefined) {
+      updateFields.push('parent_id = ?');
+      updateValues.push(parent_id);
+    }
+    
+    // Always update the updated_at timestamp
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    
     const query = `
       UPDATE projects SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        category_id = COALESCE(?, category_id),
-        start_date = COALESCE(?, start_date),
-        end_date = COALESCE(?, end_date),
-        status = COALESCE(?, status),
-        progress = COALESCE(?, progress),
-        parent_id = COALESCE(?, parent_id),
-        updated_at = CURRENT_TIMESTAMP
+        ${updateFields.join(', ')}
       WHERE id = ?
     `;
+
+    // Add the project ID to the update values
+    updateValues.push(id);
 
     console.log('🔄 Updating project with values:', {
       name, description, category_id, start_date, end_date, 
       status, progress, parent_id, id
     });
+    console.log('🔍 Database query:', query);
+    console.log('🔍 Database parameters:', updateValues);
 
-    await db.query(query, [
-      name,
-      description,
-      category_id,
-      start_date,
-      end_date,
-      status,
-      progress,
-      parent_id,
-      id
-    ]);
+    await db.query(query, updateValues);
 
     // Get updated project
     const updatedProject = await db.query(

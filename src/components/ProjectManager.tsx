@@ -58,7 +58,6 @@ const stageTemplates = {
 };
 
 export function ProjectManager() {
-  const { state, dispatch } = useApp();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -88,6 +87,7 @@ export function ProjectManager() {
         
         console.log('📋 Projects loaded:', projectsData);
         console.log('📂 Categories loaded:', categoriesData);
+
       } catch (err: any) {
         console.error('ProjectManager fetch error:', err);
         setError(err.message || 'Failed to load projects data');
@@ -100,7 +100,7 @@ export function ProjectManager() {
   }, []);
 
   const filteredProjects = projects.filter(project => {
-    if (selectedCategory !== 'all' && project.category_name !== selectedCategory) return false;
+    if (selectedCategory !== 'all' && project.category !== selectedCategory) return false;
     if (selectedStatus !== 'all' && project.status !== selectedStatus) return false;
     return true;
   });
@@ -109,16 +109,13 @@ export function ProjectManager() {
     try {
       setError(null);
       
-      // Find the category ID from the name
-      const category = categories.find(c => c.name === projectData.category);
-      
       // Prepare project data for backend
       const backendProjectData = {
         name: projectData.name || '',
         description: projectData.description || '',
-        category_id: category?.id || categories[0]?.id,
-        start_date: projectData.startDate || new Date().toISOString().split('T')[0],
-        end_date: projectData.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        category_id: projectData.category_id || categories[0]?.id,
+        start_date: projectData.start_date || new Date().toISOString().split('T')[0],
+        end_date: projectData.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: 'planning',
         progress: 0
       };
@@ -216,9 +213,12 @@ export function ProjectManager() {
       <ProjectDetails 
         project={selectedProject} 
         onBack={() => setSelectedProject(null)}
-        onUpdate={handleUpdateProject}
-        onDelete={handleDeleteProject}
-        categories={categories.map(c => c.name)}
+        onUpdate={(updatedProject) => {
+          setSelectedProject(updatedProject);
+          // Also update the project in the projects list
+          setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+        }}
+        categories={categories}
       />
     );
   }
@@ -337,7 +337,7 @@ export function ProjectManager() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{project.category_name || project.category}</p>
+                    <p className="text-sm text-gray-600 mt-1">{project.category}</p>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Button 
@@ -389,7 +389,7 @@ export function ProjectManager() {
 
                 <div className="flex items-center text-sm text-gray-600">
                   <Calendar className="w-4 h-4 mr-2" />
-                  {project.end_date ? new Date(project.end_date).toLocaleDateString() : 'No due date'}
+                  {project.end_date || project.endDate ? new Date(project.end_date || project.endDate || '').toLocaleDateString() : 'No due date'}
                 </div>
               </CardContent>
             </Card>
@@ -439,7 +439,7 @@ export function ProjectManager() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {project.category_name || project.category}
+                        {project.category}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={getStatusVariant(project.status)}>
@@ -459,7 +459,7 @@ export function ProjectManager() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {project.end_date ? new Date(project.end_date).toLocaleDateString() : 'No due date'}
+                        {project.end_date || project.endDate ? new Date(project.end_date || project.endDate || '').toLocaleDateString() : 'No due date'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-1">
@@ -502,7 +502,7 @@ export function ProjectManager() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateProject}
-        categories={categories.map(c => c.name)}
+        categories={categories}
       />
     </div>
   );
@@ -512,31 +512,31 @@ interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (project: Partial<Project>) => void;
-  categories: string[];
+  categories: any[];
 }
 
 function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreateProjectModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: categories[0] || '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    category_id: null as number | null,
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
-      startDate: new Date(formData.startDate),
-      endDate: new Date(formData.endDate),
+      start_date: formData.start_date,
+      end_date: formData.end_date,
     });
     setFormData({
       name: '',
       description: '',
-      category: categories[0] || '',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      category_id: null,
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     });
   };
 
@@ -575,13 +575,18 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
             Category
           </label>
           <select
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            value={formData.category_id || ''}
+            onChange={(e) => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) : null })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
+            <option value="">Select a category</option>
+            {categories && categories.length > 0 ? (
+              categories.map(category => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))
+            ) : (
+              <option value="" disabled>No categories available</option>
+            )}
           </select>
         </div>
 
@@ -592,8 +597,8 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
             </label>
             <input
               type="date"
-              value={formData.startDate}
-              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              value={formData.start_date}
+              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -603,8 +608,8 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
             </label>
             <input
               type="date"
-              value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              value={formData.end_date}
+              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
