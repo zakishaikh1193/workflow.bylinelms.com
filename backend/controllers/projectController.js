@@ -1,5 +1,58 @@
 const db = require('../db');
 
+// Helper function to calculate project progress based on tasks
+const calculateProjectProgress = async (projectId) => {
+  try {
+    console.log(`🔍 Calculating progress for project ${projectId}`);
+    
+    const progressQuery = `
+      SELECT 
+        COUNT(*) as total_tasks,
+        AVG(progress) as avg_progress
+      FROM tasks 
+      WHERE project_id = ?
+    `;
+    
+    const result = await db.query(progressQuery, [projectId]);
+    console.log(`📊 Project ${projectId} progress result:`, result[0]);
+    
+    if (result.length > 0 && result[0].total_tasks > 0) {
+      const calculatedProgress = Math.round(result[0].avg_progress || 0);
+      console.log(`✅ Project ${projectId} calculated progress: ${calculatedProgress}%`);
+      return calculatedProgress;
+    }
+    
+    console.log(`❌ Project ${projectId} has no tasks or no progress`);
+    return 0; // No tasks or no progress
+  } catch (error) {
+    console.error('Error calculating project progress:', error);
+    return 0;
+  }
+};
+
+// Helper function to calculate unique users assigned to project tasks
+const calculateProjectUserCount = async (projectId) => {
+  try {
+    console.log(`🔍 Calculating user count for project ${projectId}`);
+    
+    const userCountQuery = `
+      SELECT COUNT(DISTINCT ta.assignee_id) as unique_users
+      FROM task_assignees ta
+      JOIN tasks t ON ta.task_id = t.id
+      WHERE t.project_id = ? AND ta.assignee_type = 'admin'
+    `;
+    
+    const result = await db.query(userCountQuery, [projectId]);
+    const userCount = result[0]?.unique_users || 0;
+    
+    console.log(`👥 Project ${projectId} has ${userCount} unique users assigned`);
+    return userCount;
+  } catch (error) {
+    console.error('Error calculating project user count:', error);
+    return 0;
+  }
+};
+
 // Get all projects with filters
 const getProjects = async (req, res) => {
   try {
@@ -30,12 +83,38 @@ const getProjects = async (req, res) => {
       });
     }
 
-    // Simple query without any parameters first
-    let query = 'SELECT * FROM projects ORDER BY created_at DESC LIMIT 20';
+    // Enhanced query with category information
+    let query = `
+      SELECT 
+        p.*,
+        c.name as category_name,
+        c.description as category_description
+      FROM projects p
+      LEFT JOIN categories c ON p.category_id = c.id
+      ORDER BY p.created_at DESC 
+      LIMIT 20
+    `;
     console.log('🔍 Project Query:', query);
 
     // Execute query
     const rows = await db.query(query);
+    
+    // Calculate progress and user count for each project
+    console.log('🔄 Calculating progress and user count for all projects...');
+    const projectsWithDetails = await Promise.all(rows.map(async (project) => {
+      console.log(`🔄 Processing project: ${project.name} (ID: ${project.id})`);
+      const [calculatedProgress, userCount] = await Promise.all([
+        calculateProjectProgress(project.id),
+        calculateProjectUserCount(project.id)
+      ]);
+      console.log(`📈 Project ${project.name} final progress: ${calculatedProgress}%, users: ${userCount}`);
+      return {
+        ...project,
+        progress: calculatedProgress,
+        userCount: userCount
+      };
+    }));
+    console.log('✅ All project calculations completed');
 
     // Get total count for pagination
     let countQuery = `
@@ -68,7 +147,7 @@ const getProjects = async (req, res) => {
 
     res.json({
       success: true,
-      data: rows,
+      data: projectsWithDetails,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -118,9 +197,23 @@ const getProject = async (req, res) => {
       });
     }
 
+    const project = rows[0];
+    
+    // Calculate progress and user count for this project
+    const [calculatedProgress, userCount] = await Promise.all([
+      calculateProjectProgress(id),
+      calculateProjectUserCount(id)
+    ]);
+    
+    const projectWithDetails = {
+      ...project,
+      progress: calculatedProgress,
+      userCount: userCount
+    };
+
     res.json({
       success: true,
-      data: rows[0]
+      data: projectWithDetails
     });
 
   } catch (error) {
@@ -345,9 +438,18 @@ const updateProject = async (req, res) => {
       [id]
     );
 
+    // Recalculate progress based on tasks
+    const calculatedProgress = await calculateProjectProgress(id);
+    
+    // Update the project with calculated progress
+    const projectWithProgress = {
+      ...updatedProject[0],
+      progress: calculatedProgress
+    };
+
     res.json({
       success: true,
-      data: updatedProject[0],
+      data: projectWithProgress,
       message: 'Project updated successfully'
     });
 

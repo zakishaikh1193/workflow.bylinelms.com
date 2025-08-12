@@ -844,7 +844,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     onSubmit({
       ...formData,
       skills: skillIds, // Use skill IDs instead of names
-      progress: autoProgress,
+      // progress will be auto-calculated by backend based on status
       componentPath,
       startDate: new Date(formData.startDate),
       endDate: new Date(formData.endDate),

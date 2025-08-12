@@ -383,7 +383,7 @@ export function ProjectManager() {
                   </Badge>
                   <div className="flex items-center text-sm text-gray-600">
                     <Users className="w-4 h-4 mr-1" />
-                    {project.teamMembers?.length || 0}
+                    {project.userCount || 0}
                   </div>
                 </div>
 
@@ -455,7 +455,7 @@ export function ProjectManager() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
                           <Users className="w-4 h-4 mr-1 text-gray-400" />
-                          {project.teamMembers?.length || 0}
+                          {project.userCount || 0}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

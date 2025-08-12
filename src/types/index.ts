@@ -33,6 +33,7 @@ export interface Project {
   start_date?: string; // Backend field for start date (primary)
   end_date?: string; // Backend field for end date (primary)
   progress: number;
+  userCount?: number; // Number of unique users assigned to project tasks
   stages: Stage[];
   teamMembers: string[]; // User IDs
   subProjects?: Project[];

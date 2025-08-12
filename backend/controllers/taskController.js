@@ -1,5 +1,53 @@
 const db = require('../db');
 
+// Helper function to calculate task progress based on status
+const calculateTaskProgress = (status) => {
+  switch (status) {
+    case 'not-started':
+      return 0;
+    case 'in-progress':
+      return 50; // Default to 50% for in-progress tasks
+    case 'under-review':
+      return 90; // 90% when under review
+    case 'completed':
+      return 100;
+    case 'blocked':
+      return 25; // 25% for blocked tasks (some work done)
+    default:
+      return 0;
+  }
+};
+
+// Helper function to recalculate project progress
+const recalculateProjectProgress = async (projectId) => {
+  try {
+    const progressQuery = `
+      SELECT 
+        COUNT(*) as total_tasks,
+        AVG(progress) as avg_progress
+      FROM tasks 
+      WHERE project_id = ?
+    `;
+    
+    const result = await db.query(progressQuery, [projectId]);
+    
+    let calculatedProgress = 0;
+    if (result.length > 0 && result[0].total_tasks > 0) {
+      calculatedProgress = Math.round(result[0].avg_progress || 0);
+    }
+    
+    // Update project progress
+    await db.query('UPDATE projects SET progress = ? WHERE id = ?', [calculatedProgress, projectId]);
+    
+    console.log(`🔄 Updated project ${projectId} progress to ${calculatedProgress}%`);
+    
+    return calculatedProgress;
+  } catch (error) {
+    console.error('Error recalculating project progress:', error);
+    return 0;
+  }
+};
+
 // Get all tasks with filters and pagination
 const getTasks = async (req, res) => {
   try {
@@ -234,9 +282,12 @@ const createTask = async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
+    // Auto-calculate progress based on status
+    const calculatedProgress = calculateTaskProgress(status);
+    
     const insertParams = [
       name, description, project_id, stage_id, status, priority,
-      formattedStartDate, formattedEndDate, progress, parseInt(estimated_hours) || 0, component_path, created_by
+      formattedStartDate, formattedEndDate, calculatedProgress, parseInt(estimated_hours) || 0, component_path, created_by
     ];
 
     console.log('🚀 Creating task with params:', insertParams);
@@ -268,6 +319,9 @@ const createTask = async (req, res) => {
 
     // Get the created task with all related data
     const createdTask = await getTaskById(taskId);
+
+    // Recalculate project progress
+    await recalculateProjectProgress(project_id);
 
     console.log('✅ Task created with ID:', taskId);
 
@@ -348,7 +402,14 @@ const updateTask = async (req, res) => {
       updateQuery += ', end_date = ?';
       updateParams.push(new Date(end_date).toISOString().split('T')[0]);
     }
-    if (progress !== undefined) {
+    // Auto-calculate progress based on status if status is being updated
+    if (status !== undefined) {
+      const calculatedProgress = calculateTaskProgress(status);
+      updateQuery += ', progress = ?';
+      updateParams.push(calculatedProgress);
+      console.log(`🔄 Auto-calculated progress for status '${status}': ${calculatedProgress}%`);
+    } else if (progress !== undefined) {
+      // If progress is explicitly provided, use it
       updateQuery += ', progress = ?';
       updateParams.push(progress);
     }
@@ -422,6 +483,9 @@ const updateTask = async (req, res) => {
     // Get updated task
     const updatedTask = await getTaskById(id);
 
+    // Recalculate project progress
+    await recalculateProjectProgress(updatedTask.project_id);
+
     res.json({
       success: true,
       data: updatedTask,
@@ -445,8 +509,8 @@ const deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if task exists
-    const existing = await db.query('SELECT id FROM tasks WHERE id = ?', [id]);
+    // Check if task exists and get project_id
+    const existing = await db.query('SELECT id, project_id FROM tasks WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -457,8 +521,13 @@ const deleteTask = async (req, res) => {
       });
     }
 
+    const projectId = existing[0].project_id;
+
     // Delete task (CASCADE will handle related records)
     await db.query('DELETE FROM tasks WHERE id = ?', [id]);
+
+    // Recalculate project progress
+    await recalculateProjectProgress(projectId);
 
     res.json({
       success: true,
