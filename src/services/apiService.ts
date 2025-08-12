@@ -159,6 +159,10 @@ export const teamService = {
   removeMemberFromTeam: async (teamId: string, memberId: string) => {
     const result = await apiService.delete(`/team/teams/${teamId}/members/${memberId}`);
     return result.data;
+  },
+  getTeamMembers: async (teamId: string) => {
+    const result = await apiService.get(`/team/teams/${teamId}`);
+    return result.data.members || [];
   }
 };
 

@@ -123,8 +123,10 @@ export interface Task {
   id: string;
   name: string;
   description: string;
-  stageId: string; // Required - tasks must be tied to stages
-  projectId: string;
+  stageId?: string; // Frontend field (optional for backward compatibility)
+  projectId?: string; // Frontend field (optional for backward compatibility)
+  stage_id?: string; // Backend field for stage ID
+  project_id?: string; // Backend field for project ID
   gradeId?: string;
   bookId?: string;
   unitId?: string;
@@ -132,14 +134,18 @@ export interface Task {
   componentPath?: string; // Human readable path
   assignees: string[]; // User IDs
   teamAssignees?: string[]; // Team IDs
-  skills: string[];
+  skills: string[] | any[]; // Can be array of strings or skill objects
   status: TaskStatus;
   priority: Priority;
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date; // Frontend field (optional for backward compatibility)
+  endDate?: Date; // Frontend field (optional for backward compatibility)
+  start_date?: string; // Backend field for start date
+  end_date?: string; // Backend field for end date
   progress: number;
-  estimatedHours: number;
-  actualHours?: number;
+  estimatedHours?: number; // Frontend field (optional for backward compatibility)
+  actualHours?: number; // Frontend field (optional for backward compatibility)
+  estimated_hours?: number; // Backend field for estimated hours
+  actual_hours?: number; // Backend field for actual hours
 }
 
 export interface TeamAllocation {

@@ -16,9 +16,16 @@ const getTasks = async (req, res) => {
       search
     } = req.query;
 
-    // Simple approach first - just get tasks without complex JOINs
-    let query = 'SELECT * FROM tasks WHERE 1=1';
+    // Build query with optional JOIN for assignee sorting and filtering
+    let query = 'SELECT DISTINCT t.* FROM tasks t';
     const queryParams = [];
+    
+    // Add JOIN for assignee sorting or filtering if needed
+    if (sort === 'assignees' || assignee_id) {
+      query += ' LEFT JOIN task_assignees ta ON t.id = ta.task_id LEFT JOIN admin_users au ON ta.assignee_id = au.id AND ta.assignee_type = "admin"';
+    }
+    
+    query += ' WHERE 1=1';
 
     // Add filters
     if (project_id) {
@@ -41,14 +48,22 @@ const getTasks = async (req, res) => {
       queryParams.push(`%${search}%`, `%${search}%`);
     }
 
+    if (assignee_id) {
+      query += ' AND ta.assignee_id = ?';
+      queryParams.push(assignee_id);
+    }
+
     // Add sorting
     const validSortFields = ['name', 'created_at', 'updated_at', 'start_date', 'end_date', 'priority', 'status', 'progress'];
     const validOrders = ['asc', 'desc'];
     
-    if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
-      query += ` ORDER BY ${sort} ${order.toUpperCase()}`;
+    if (sort === 'assignees') {
+      // Special handling for assignee sorting
+      query += ` ORDER BY COALESCE(au.name, '') ${order.toUpperCase()}, t.created_at DESC`;
+    } else if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
+      query += ` ORDER BY t.${sort} ${order.toUpperCase()}`;
     } else {
-      query += ' ORDER BY created_at DESC';
+      query += ' ORDER BY t.created_at DESC';
     }
 
     // Add pagination - use hardcoded values first to test
@@ -221,7 +236,7 @@ const createTask = async (req, res) => {
 
     const insertParams = [
       name, description, project_id, stage_id, status, priority,
-      formattedStartDate, formattedEndDate, progress, estimated_hours, component_path, created_by
+      formattedStartDate, formattedEndDate, progress, parseInt(estimated_hours) || 0, component_path, created_by
     ];
 
     console.log('🚀 Creating task with params:', insertParams);
@@ -239,15 +254,7 @@ const createTask = async (req, res) => {
       }
     }
 
-    // Add team assignees if provided
-    if (req.body.teamAssignees && req.body.teamAssignees.length > 0) {
-      for (const teamId of req.body.teamAssignees) {
-        await db.insert(
-          'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-          [taskId, teamId, 'team']
-        );
-      }
-    }
+    // No team logic needed - all assignees are already individual users
 
     // Add skills if provided
     if (skills && skills.length > 0) {
@@ -347,11 +354,11 @@ const updateTask = async (req, res) => {
     }
     if (estimated_hours !== undefined) {
       updateQuery += ', estimated_hours = ?';
-      updateParams.push(estimated_hours);
+      updateParams.push(parseInt(estimated_hours) || 0);
     }
     if (actual_hours !== undefined) {
       updateQuery += ', actual_hours = ?';
-      updateParams.push(actual_hours);
+      updateParams.push(parseInt(actual_hours) || 0);
     }
     if (component_path !== undefined) {
       updateQuery += ', component_path = ?';
@@ -365,27 +372,34 @@ const updateTask = async (req, res) => {
 
     // Update assignees if provided
     if (assignees !== undefined || req.body.teamAssignees !== undefined) {
-      // Remove existing assignees
-      await db.query('DELETE FROM task_assignees WHERE task_id = ?', [id]);
-      
-      // Add new individual assignees
-      if (assignees && assignees.length > 0) {
-        for (const assigneeId of assignees) {
-          await db.insert(
-            'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-            [id, assigneeId, 'admin']
-          );
+      console.log('🔄 Updating assignees for task', id, ':', { assignees, teamAssignees: req.body.teamAssignees });
+      try {
+        // Remove existing assignees first
+        await db.query('DELETE FROM task_assignees WHERE task_id = ?', [id]);
+        
+        // Prepare all assignee insertions
+        const assigneeInserts = [];
+        
+        // Add individual assignees
+        if (assignees && assignees.length > 0) {
+          for (const assigneeId of assignees) {
+            assigneeInserts.push([id, assigneeId, 'admin']);
+          }
         }
-      }
 
-      // Add new team assignees
-      if (req.body.teamAssignees && req.body.teamAssignees.length > 0) {
-        for (const teamId of req.body.teamAssignees) {
-          await db.insert(
-            'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-            [id, teamId, 'team']
-          );
+        // No team logic needed - all assignees are already individual users
+        
+        // Insert all assignees in batch if any exist
+        if (assigneeInserts.length > 0) {
+          console.log('📝 Inserting assignees:', assigneeInserts);
+          const insertQuery = 'INSERT IGNORE INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)';
+          for (const insertParams of assigneeInserts) {
+            await db.insert(insertQuery, insertParams);
+          }
         }
+      } catch (assigneeError) {
+        console.error('Error updating assignees:', assigneeError);
+        // Continue with the update even if assignee update fails
       }
     }
 
@@ -498,34 +512,13 @@ const getTaskById = async (taskId) => {
   `;
   const skills = await db.query(skillsQuery, [taskId]);
 
-  // Get all individual assignees (both direct and from teams)
-  const individualAssignees = assignees
+  // Get all assignees (all are now individual)
+  task.assignees = assignees
     .filter(a => a.assignee_type === 'admin')
     .map(a => a.assignee_id);
   
-  // Get team assignees and expand them to individual members
-  const teamAssignees = assignees
-    .filter(a => a.assignee_type === 'team')
-    .map(a => a.assignee_id);
-  
-  // Get all team members from assigned teams
-  let teamMemberIds = [];
-  if (teamAssignees.length > 0) {
-    const teamMembersQuery = `
-      SELECT DISTINCT tmt.team_member_id
-      FROM team_members_teams tmt
-      WHERE tmt.team_id IN (${teamAssignees.map(() => '?').join(',')})
-      AND tmt.is_active = 1
-    `;
-    const teamMembersResult = await db.query(teamMembersQuery, teamAssignees);
-    teamMemberIds = teamMembersResult.map(tm => tm.team_member_id);
-  }
-  
-  // Combine individual assignees with team member assignees
-  task.assignees = [...individualAssignees, ...teamMemberIds];
-  
-  // Keep teamAssignees for reference (but frontend will show individual members)
-  task.teamAssignees = teamAssignees;
+  // No team assignees since we expand them to individuals
+  task.teamAssignees = [];
   
   task.skills = skills;
 

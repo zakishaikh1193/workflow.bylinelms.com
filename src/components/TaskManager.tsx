@@ -6,7 +6,8 @@ import {
   AlertTriangle, 
   Calendar,
   Search,
-  Edit2
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
@@ -26,6 +27,8 @@ export function TaskManager() {
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
   const [tasks, setTasks] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -40,8 +43,34 @@ export function TaskManager() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Build filters object
+        const filters: any = {
+          sort: sortField,
+          order: sortOrder
+        };
+        
+        // Add filter parameters
+        if (selectedStatus !== 'all') {
+          filters.status = selectedStatus;
+        }
+        if (selectedPriority !== 'all') {
+          filters.priority = selectedPriority;
+        }
+        if (selectedProject !== 'all') {
+          filters.project_id = selectedProject;
+        }
+        if (selectedAssignee !== 'all') {
+          filters.assignee_id = selectedAssignee;
+          filters.assignee_type = 'admin'; // Default to admin type
+        }
+        if (searchTerm) {
+          filters.search = searchTerm;
+        }
+        
+        console.log('🔍 Sending filters to API:', filters);
+        
         const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData] = await Promise.all([
-          taskService.getAll(),
+          taskService.getAll(filters),
           teamService.getMembers(),
           teamService.getTeams(),
           stageService.getAll(),
@@ -65,61 +94,59 @@ export function TaskManager() {
     };
 
     fetchData();
-  }, []);
+  }, [sortField, sortOrder, selectedStatus, selectedPriority, selectedProject, selectedAssignee, searchTerm]);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
-    if (state.filters) {
+    if (state.filters && Object.keys(state.filters).length > 0) {
       if (state.filters.statuses) {
         setSelectedStatus(state.filters.statuses.length === 1 ? state.filters.statuses[0] : 'all');
       }
       if (state.filters.teamMembers) {
         setSelectedAssignee(state.filters.teamMembers.length === 1 ? state.filters.teamMembers[0] : 'all');
       }
-      // Clear filters after applying
-      dispatch({ type: 'SET_FILTERS', payload: {} });
+      // Clear filters after applying - use setTimeout to avoid infinite loop
+      setTimeout(() => {
+        dispatch({ type: 'SET_FILTERS', payload: {} });
+      }, 0);
     }
   }, [state.filters, dispatch]);
 
   const isOverdue = (task: Task) => {
-    if (!task.endDate) return false;
-    return new Date(task.endDate) < new Date() && task.status !== 'completed';
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
+    return new Date(endDate) < new Date() && task.status !== 'completed';
   };
 
   const isDueToday = (task: Task) => {
-    if (!task.endDate) return false;
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
     const today = new Date();
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(endDate);
     return today.toDateString() === dueDate.toDateString() && task.status !== 'completed';
   };
 
   const isDueTomorrow = (task: Task) => {
-    if (!task.endDate) return false;
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(endDate);
     return tomorrow.toDateString() === dueDate.toDateString() && task.status !== 'completed';
   };
 
   const isDueThisWeek = (task: Task) => {
-    if (!task.endDate) return false;
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
     const today = new Date();
     const weekFromNow = new Date();
     weekFromNow.setDate(today.getDate() + 7);
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(endDate);
     return dueDate >= today && dueDate <= weekFromNow && task.status !== 'completed';
   };
 
   const filteredTasks = tasks.filter((task: any) => {
-    if (searchTerm && !task.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    if (selectedStatus !== 'all' && task.status !== selectedStatus) return false;
-    if (selectedPriority !== 'all' && task.priority !== selectedPriority) return false;
-    if (selectedProject !== 'all' && task.project_id !== parseInt(selectedProject)) return false;
-    if (selectedAssignee !== 'all' && (!task.assignees || !task.assignees.includes(selectedAssignee))) return false;
-    
-    // Apply dashboard filters
+    // Apply dashboard filters only (other filters are handled by backend)
     if (state.filters?.overdue && !isOverdue(task)) return false;
     if (state.filters?.dueToday && !isDueToday(task)) return false;
     if (state.filters?.dueTomorrow && !isDueTomorrow(task)) return false;
@@ -128,6 +155,8 @@ export function TaskManager() {
     return true;
   });
 
+
+
   const handleCreateTask = async (taskData: Partial<Task>) => {
     try {
       if (editingTask) {
@@ -135,13 +164,15 @@ export function TaskManager() {
         const updateData = {
           name: taskData.name,
           description: taskData.description,
+          project_id: parseInt(taskData.projectId || '1'),
+          stage_id: parseInt(taskData.stageId || '1'),
           status: taskData.status,
           priority: taskData.priority,
           start_date: taskData.startDate,
           end_date: taskData.endDate,
-          estimated_hours: taskData.estimatedHours,
+          estimated_hours: parseInt(String(taskData.estimatedHours || 0)),
+          actual_hours: parseInt(String(taskData.actualHours || 0)),
           assignees: taskData.assignees || [],
-          teamAssignees: taskData.teamAssignees || [],
           skills: taskData.skills
         };
         
@@ -169,7 +200,6 @@ export function TaskManager() {
           end_date: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           estimated_hours: taskData.estimatedHours || 8,
           assignees: taskData.assignees || [],
-          teamAssignees: taskData.teamAssignees || [],
           skills: skillIds,
           component_path: taskData.componentPath
         };
@@ -219,12 +249,48 @@ export function TaskManager() {
     setIsCreateModalOpen(true);
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle order if same field
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with default desc order
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    if (!confirm(`Are you sure you want to delete the task "${task.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setError(null);
+      
+      // Delete the task
+      await taskService.delete(task.id);
+      
+      // Refresh tasks list
+      const tasksData = await taskService.getAll();
+      setTasks(tasksData);
+      
+      console.log('✅ Task deleted successfully:', task.name);
+    } catch (err: any) {
+      console.error('❌ Delete task error:', err);
+      setError(err.message || 'Failed to delete task');
+    }
+  };
+
   const taskStats = {
     total: tasks.length,
     notStarted: tasks.filter((t: any) => t.status === 'not-started').length,
     inProgress: tasks.filter((t: any) => t.status === 'in-progress').length,
     completed: tasks.filter((t: any) => t.status === 'completed').length,
-    overdue: tasks.filter((t: any) => new Date(t.end_date) < new Date() && t.status !== 'completed').length,
+    overdue: tasks.filter((t: any) => {
+      const endDate = t.end_date || t.endDate;
+      return endDate && new Date(endDate) < new Date() && t.status !== 'completed';
+    }).length,
   };
 
   if (loading) {
@@ -413,23 +479,86 @@ export function TaskManager() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Task Name
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center">
+                      Task Name
+                      {sortField === 'name' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    Project
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Priority
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {sortField === 'status' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assignees
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('priority')}
+                  >
+                    <div className="flex items-center">
+                      Priority
+                      {sortField === 'priority' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Due Date
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('assignees')}
+                  >
+                    <div className="flex items-center">
+                      Assignees
+                      {sortField === 'assignees' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Progress
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('end_date')}
+                  >
+                    <div className="flex items-center">
+                      Due Date
+                      {sortField === 'end_date' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('progress')}
+                  >
+                    <div className="flex items-center">
+                      Progress
+                      {sortField === 'progress' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
                 </tr>
               </thead>
@@ -438,8 +567,21 @@ export function TaskManager() {
                   const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
                   const assignedTeams = teams.filter(t => task.teamAssignees && task.teamAssignees.includes(t.id));
                   const overdue = isOverdue(task);
-                  const project = state.projects.find(p => p.id === task.projectId);
-                  const stage = project?.stages?.find(s => s.id === task.stageId);
+                  // Find project by ID - handle both string and number types
+                  const taskProjectId = task.project_id || task.projectId;
+                  const project = projects.find(p => {
+                    const projectId = typeof p.id === 'string' ? parseInt(p.id) : p.id;
+                    const taskId = typeof taskProjectId === 'string' ? parseInt(taskProjectId) : taskProjectId;
+                    return projectId === taskId;
+                  });
+                  
+                  // Find stage by ID - handle both string and number types
+                  const taskStageId = task.stage_id || task.stageId;
+                  const stage = project?.stages?.find((s: any) => {
+                    const stageId = typeof s.id === 'string' ? parseInt(s.id) : s.id;
+                    const taskStage = typeof taskStageId === 'string' ? parseInt(taskStageId) : taskStageId;
+                    return stageId === taskStage;
+                  });
                   
                   return (
                     <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
@@ -450,16 +592,21 @@ export function TaskManager() {
                             {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {project && (
-                              <div className="flex items-center space-x-2">
-                                <span className="font-medium text-blue-600">{project.name}</span>
-                                {stage && <span className="text-gray-400">→</span>}
-                                {stage && <span className="text-gray-600">{stage.name}</span>}
-                              </div>
-                            )}
                             {task.componentPath && <div className="text-xs text-purple-600 mt-1">{task.componentPath}</div>}
                             {task.description && <div className="mt-1">{task.description}</div>}
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {project ? (
+                            <div>
+                              <div className="font-medium text-blue-600">{project.name}</div>
+                              {stage && <div className="text-xs text-gray-500">{stage.name}</div>}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">Unknown Project</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -505,7 +652,7 @@ export function TaskManager() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1 text-gray-400" />
-                          {task.endDate ? new Date(task.endDate).toLocaleDateString() : 'No due date'}
+                          {task.end_date || task.endDate ? new Date(task.end_date || task.endDate || '').toLocaleDateString() : 'No due date'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -513,22 +660,36 @@ export function TaskManager() {
                           <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
                             <div
                               className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: `${task.progress || 0}%` }}
+                              style={{ width: `${calculateTaskProgress(task.status)}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600">{task.progress || 0}%</span>
+                          <span className="text-sm text-gray-600">{calculateTaskProgress(task.status)}%</span>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditTask(task);
-                          }}
-                          title="Edit Task"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center space-x-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTask(task);
+                            }}
+                            title="Edit Task"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTask(task);
+                            }}
+                            title="Delete Task"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -583,7 +744,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     status: 'not-started' as TaskStatus,
     assignees: [] as string[],
     teamAssignees: [] as string[],
-    skills: [] as string[],
+    skills: [] as string[] | any[],
     priority: 'medium' as Priority,
     estimatedHours: 8,
     actualHours: 0,
@@ -593,11 +754,16 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
 
   useEffect(() => {
     if (editingTask) {
+      // Convert skills from objects to names if needed
+      const skillNames = Array.isArray(editingTask.skills) 
+        ? editingTask.skills.map((skill: any) => skill.name || skill)
+        : [];
+      
       setFormData({
         name: editingTask.name,
         description: editingTask.description || '',
-        projectId: editingTask.projectId,
-        stageId: editingTask.stageId,
+        projectId: editingTask.project_id || editingTask.projectId || '',
+        stageId: editingTask.stage_id || editingTask.stageId || '',
         gradeId: editingTask.gradeId || '',
         bookId: editingTask.bookId || '',
         unitId: editingTask.unitId || '',
@@ -605,12 +771,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         status: editingTask.status,
         assignees: editingTask.assignees || [],
         teamAssignees: editingTask.teamAssignees || [],
-        skills: editingTask.skills || [],
+        skills: skillNames,
         priority: editingTask.priority,
-        estimatedHours: editingTask.estimatedHours,
-        actualHours: editingTask.actualHours || 0,
-        startDate: new Date(editingTask.startDate).toISOString().split('T')[0],
-        endDate: new Date(editingTask.endDate).toISOString().split('T')[0],
+        estimatedHours: editingTask.estimated_hours || editingTask.estimatedHours || 8,
+        actualHours: editingTask.actual_hours || editingTask.actualHours || 0,
+        startDate: editingTask.start_date || editingTask.startDate ? new Date(editingTask.start_date || editingTask.startDate || '').toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        endDate: editingTask.end_date || editingTask.endDate ? new Date(editingTask.end_date || editingTask.endDate || '').toISOString().split('T')[0] : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       });
     } else {
       setFormData({
@@ -643,7 +809,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     
     // Build component path for display
     let componentPath = '';
-    const selectedProject = projects.find(p => p.id === formData.projectId);
+    const selectedProject = projects.find(p => p.id === parseInt(formData.projectId) || p.id === formData.projectId);
     if (selectedProject && formData.gradeId) {
       const grade = selectedProject.grades?.find((g: any) => g.id === formData.gradeId);
       if (grade) {
@@ -669,8 +835,15 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
       }
     }
     
+    // Convert skill names back to skill IDs
+    const skillIds = formData.skills.map(skillName => {
+      const skill = skills.find(s => s.name === skillName);
+      return skill ? skill.id : null;
+    }).filter(id => id !== null);
+    
     onSubmit({
       ...formData,
+      skills: skillIds, // Use skill IDs instead of names
       progress: autoProgress,
       componentPath,
       startDate: new Date(formData.startDate),
@@ -687,13 +860,70 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     }));
   };
 
-  const toggleTeamAssignee = (teamId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      teamAssignees: prev.teamAssignees.includes(teamId)
-        ? prev.teamAssignees.filter(id => id !== teamId)
-        : [...prev.teamAssignees, teamId]
-    }));
+  const toggleTeamAssignee = async (teamId: string) => {
+    console.log('🔍 Toggling team:', teamId);
+    console.log('🔍 Available teams:', teams);
+    console.log('🔍 Available users:', users);
+    
+    try {
+      // Fetch team members from API
+      const teamMembers = await teamService.getTeamMembers(teamId);
+      console.log('🔍 Team members from API:', teamMembers);
+      
+      setFormData(prev => {
+        const isTeamSelected = prev.teamAssignees.includes(teamId);
+        console.log('🔍 Is team selected:', isTeamSelected);
+        
+        // Find the team
+        const team = teams.find(t => t.id === parseInt(teamId));
+        console.log('🔍 Found team:', team);
+        
+        if (!team) {
+          console.log('❌ Team not found');
+          return prev;
+        }
+        
+        // Get team member IDs from the API response
+        const teamMemberIds = teamMembers.map((member: any) => member.id.toString());
+        console.log('🔍 Team member IDs from API:', teamMemberIds);
+        
+        let newAssignees = [...prev.assignees];
+        
+        if (isTeamSelected) {
+          // Remove team - uncheck all team members
+          newAssignees = newAssignees.filter(id => !teamMemberIds.includes(id));
+        } else {
+          // Add team - check all team members (avoid duplicates)
+          teamMemberIds.forEach((memberId: string) => {
+            if (!newAssignees.includes(memberId)) {
+              newAssignees.push(memberId);
+            }
+          });
+        }
+        
+        console.log('🔍 New assignees:', newAssignees);
+        
+        return {
+          ...prev,
+          assignees: newAssignees,
+          teamAssignees: isTeamSelected
+            ? prev.teamAssignees.filter(id => id !== teamId)
+            : [...prev.teamAssignees, teamId]
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error fetching team members:', error);
+      // Fallback to simple toggle without member expansion
+      setFormData(prev => {
+        const isTeamSelected = prev.teamAssignees.includes(teamId);
+        return {
+          ...prev,
+          teamAssignees: isTeamSelected
+            ? prev.teamAssignees.filter(id => id !== teamId)
+            : [...prev.teamAssignees, teamId]
+        };
+      });
+    }
   };
 
   const toggleSkill = (skillName: string) => {
@@ -705,7 +935,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     }));
   };
 
-  const selectedProject = projects.find(p => p.id === formData.projectId);
+  const selectedProject = projects.find(p => p.id === parseInt(formData.projectId) || p.id === formData.projectId);
   // const availableStages = selectedProject?.stages || [];
   // const availableGrades = selectedProject?.grades || [];
   // const selectedGrade = availableGrades.find((g: any) => g.id === formData.gradeId);
@@ -825,7 +1055,16 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
               Component (Optional)
             </label>
             <select
-              value={`${formData.gradeId}-${formData.bookId}-${formData.unitId}-${formData.lessonId}`.replace(/^-+|-+$/g, '')}
+              value={(() => {
+                // Find the matching component based on current form data
+                const matchingComponent = availableComponents.find(c => 
+                  c.gradeId === formData.gradeId &&
+                  c.bookId === formData.bookId &&
+                  c.unitId === formData.unitId &&
+                  c.lessonId === formData.lessonId
+                );
+                return matchingComponent ? matchingComponent.id : '';
+              })()}
               onChange={(e) => {
                 const selectedComponent = availableComponents.find(c => c.id === e.target.value);
                 if (selectedComponent) {
@@ -925,7 +1164,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
               type="number"
               min="1"
               value={formData.estimatedHours}
-              onChange={(e) => setFormData({ ...formData, estimatedHours: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, estimatedHours: parseInt(e.target.value) || 0 })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -975,23 +1214,29 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             Individual Assignees
           </label>
           <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
-            {users.map(user => (
-              <label key={user.id} className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.assignees.includes(user.id)}
-                  onChange={() => toggleAssignee(user.id)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">{user.name}</span>
-              </label>
-            ))}
+            {users && users.length > 0 ? users.map((user: any) => {
+              const isChecked = formData.assignees.includes(user.id.toString());
+              console.log(`🔍 User ${user.name} (ID: ${user.id}) - checked: ${isChecked}, assignees:`, formData.assignees);
+              return (
+                <label key={user.id} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleAssignee(user.id.toString())}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{user.name}</span>
+                </label>
+              );
+            }) : (
+              <p className="text-gray-500 text-sm">No team members available</p>
+            )}
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Team Assignees (Will show all team members)
+            Team Assignees (Auto-selects all team members)
           </label>
           <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
             {teams.map(team => (
@@ -1007,7 +1252,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            When you assign a task to a team, all individual team members will be shown as assignees
+            Selecting a team will automatically check all its members in the Individual Assignees list above
           </p>
         </div>
 
