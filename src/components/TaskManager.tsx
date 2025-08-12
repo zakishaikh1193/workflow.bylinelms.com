@@ -16,7 +16,7 @@ import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import { Task, TaskStatus, Priority } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
-import { taskService, stageService, teamService, projectService, skillService } from '../services/apiService';
+import { taskService, stageService, teamService, projectService, skillService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
 export function TaskManager() {
   const { state, dispatch } = useApp();
@@ -35,6 +35,10 @@ export function TaskManager() {
   const [stages, setStages] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,13 +73,17 @@ export function TaskManager() {
         
         console.log('🔍 Sending filters to API:', filters);
         
-        const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData] = await Promise.all([
+        const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
           taskService.getAll(filters),
           teamService.getMembers(),
           teamService.getTeams(),
           stageService.getAll(),
           projectService.getAll(),
-          skillService.getAll()
+          skillService.getAll(),
+          gradeService.getAll(),
+          bookService.getAll(),
+          unitService.getAll(),
+          lessonService.getAll()
         ]);
         
         setTasks(tasksData);
@@ -84,6 +92,10 @@ export function TaskManager() {
         setStages(stagesData);
         setProjects(projectsData);
         setSkills(skillsData);
+        setGrades(gradesData);
+        setBooks(booksData);
+        setUnits(unitsData);
+        setLessons(lessonsData);
         setError(null);
       } catch (err: any) {
         console.error('Failed to fetch task data:', err);
@@ -173,7 +185,13 @@ export function TaskManager() {
           estimated_hours: parseInt(String(taskData.estimatedHours || 0)),
           actual_hours: parseInt(String(taskData.actualHours || 0)),
           assignees: taskData.assignees || [],
-          skills: taskData.skills
+          skills: taskData.skills,
+          // Add educational hierarchy IDs
+          grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+          book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+          unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+          lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
+          component_path: taskData.componentPath
         };
         
         await taskService.update(editingTask.id, updateData);
@@ -201,10 +219,22 @@ export function TaskManager() {
           estimated_hours: taskData.estimatedHours || 8,
           assignees: taskData.assignees || [],
           skills: skillIds,
-          component_path: taskData.componentPath
+          component_path: taskData.componentPath,
+          // Add educational hierarchy IDs
+          grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+          book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+          unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+          lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null
         };
         
         console.log('🚀 Creating task with data:', createData);
+        console.log('📚 Educational hierarchy IDs being sent:', {
+          grade_id: createData.grade_id,
+          book_id: createData.book_id,
+          unit_id: createData.unit_id,
+          lesson_id: createData.lesson_id,
+          component_path: createData.component_path
+        });
         
         const newTask = await taskService.create(createData);
         
@@ -592,7 +622,7 @@ export function TaskManager() {
                             {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {task.componentPath && <div className="text-xs text-purple-600 mt-1">{task.componentPath}</div>}
+                            {task.componentPath && <div className="text-xs text-purple-600 mt-1">📚 {task.componentPath}</div>}
                             {task.description && <div className="mt-1">{task.description}</div>}
                           </div>
                         </div>
@@ -713,6 +743,10 @@ export function TaskManager() {
         skills={skills}
         projects={projects}
         stages={stages}
+        grades={grades}
+        books={books}
+        units={units}
+        lessons={lessons}
         editingTask={editingTask}
       />
     </div>
@@ -728,10 +762,14 @@ export interface CreateTaskModalProps {
   skills: any[];
   projects: any[];
   stages: any[];
+  grades: any[];
+  books: any[];
+  units: any[];
+  lessons: any[];
   editingTask?: Task | null;
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skills, projects, editingTask }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skills, projects, stages, grades, books, units, lessons, editingTask }: CreateTaskModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -807,25 +845,25 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     // Auto-calculate progress based on status
     const autoProgress = calculateTaskProgress(formData.status);
     
-    // Build component path for display
-    let componentPath = '';
+    // Build educational hierarchy path for display
+    let educationalPath = '';
     const selectedProject = projects.find(p => p.id === parseInt(formData.projectId) || p.id === formData.projectId);
     if (selectedProject && formData.gradeId) {
       const grade = selectedProject.grades?.find((g: any) => g.id === formData.gradeId);
       if (grade) {
-        componentPath = grade.name;
+        educationalPath = grade.name;
         if (formData.bookId) {
           const book = grade.books.find((b: any) => b.id === formData.bookId);
           if (book) {
-            componentPath += ` > ${book.name}`;
+            educationalPath += ` > ${book.name}`;
             if (formData.unitId) {
               const unit = book.units.find((u: any) => u.id === formData.unitId);
               if (unit) {
-                componentPath += ` > ${unit.name}`;
+                educationalPath += ` > ${unit.name}`;
                 if (formData.lessonId) {
                   const lesson = unit.lessons.find((l: any) => l.id === formData.lessonId);
                   if (lesson) {
-                    componentPath += ` > ${lesson.name}`;
+                    educationalPath += ` > ${lesson.name}`;
                   }
                 }
               }
@@ -845,7 +883,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
       ...formData,
       skills: skillIds, // Use skill IDs instead of names
       // progress will be auto-calculated by backend based on status
-      componentPath,
+      componentPath: educationalPath, // Keep componentPath for backend compatibility
       startDate: new Date(formData.startDate),
       endDate: new Date(formData.endDate),
     });
@@ -945,13 +983,16 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
   // const selectedUnit = availableUnits.find((u: any) => u.id === formData.unitId);
   // const availableLessons = selectedUnit?.lessons || [];
 
-  // Build availableComponents array for the component selector
-  const availableComponents: any[] = [];
+  // Build availableEducationalHierarchy array for the educational hierarchy selector
+  const availableEducationalHierarchy: any[] = [];
   
   if (selectedProject) {
+    // Get grades for this project
+    const projectGrades = grades.filter((grade: any) => grade.project_id === parseInt(selectedProject.id));
+    
     // Add grades
-    selectedProject.grades?.forEach((grade: any) => {
-      availableComponents.push({
+    projectGrades.forEach((grade: any) => {
+      availableEducationalHierarchy.push({
         id: grade.id,
         name: grade.name,
         type: 'grade',
@@ -961,9 +1002,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         lessonId: null
       });
       
+      // Get books for this grade
+      const gradeBooks = books.filter((book: any) => book.grade_id === grade.id);
+      
       // Add books within this grade
-      grade.books?.forEach((book: any) => {
-        availableComponents.push({
+      gradeBooks.forEach((book: any) => {
+        availableEducationalHierarchy.push({
           id: `${grade.id}-${book.id}`,
           name: `${grade.name} > ${book.name}`,
           type: 'book',
@@ -973,9 +1017,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
           lessonId: null
         });
         
+        // Get units for this book
+        const bookUnits = units.filter((unit: any) => unit.book_id === book.id);
+        
         // Add units within this book
-        book.units?.forEach((unit: any) => {
-          availableComponents.push({
+        bookUnits.forEach((unit: any) => {
+          availableEducationalHierarchy.push({
             id: `${grade.id}-${book.id}-${unit.id}`,
             name: `${grade.name} > ${book.name} > ${unit.name}`,
             type: 'unit',
@@ -985,9 +1032,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             lessonId: null
           });
           
+          // Get lessons for this unit
+          const unitLessons = lessons.filter((lesson: any) => lesson.unit_id === unit.id);
+          
           // Add lessons within this unit
-          unit.lessons?.forEach((lesson: any) => {
-            availableComponents.push({
+          unitLessons.forEach((lesson: any) => {
+            availableEducationalHierarchy.push({
               id: `${grade.id}-${book.id}-${unit.id}-${lesson.id}`,
               name: `${grade.name} > ${book.name} > ${unit.name} > ${lesson.name}`,
               type: 'lesson',
@@ -1052,28 +1102,28 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Component (Optional)
+              Educational Hierarchy (Optional)
             </label>
             <select
               value={(() => {
-                // Find the matching component based on current form data
-                const matchingComponent = availableComponents.find(c => 
+                // Find the matching educational hierarchy item based on current form data
+                const matchingHierarchyItem = availableEducationalHierarchy.find(c => 
                   c.gradeId === formData.gradeId &&
                   c.bookId === formData.bookId &&
                   c.unitId === formData.unitId &&
                   c.lessonId === formData.lessonId
                 );
-                return matchingComponent ? matchingComponent.id : '';
+                return matchingHierarchyItem ? matchingHierarchyItem.id : '';
               })()}
               onChange={(e) => {
-                const selectedComponent = availableComponents.find(c => c.id === e.target.value);
-                if (selectedComponent) {
+                const selectedHierarchyItem = availableEducationalHierarchy.find(c => c.id === e.target.value);
+                if (selectedHierarchyItem) {
                   setFormData({ 
                     ...formData, 
-                    gradeId: selectedComponent.gradeId || '',
-                    bookId: selectedComponent.bookId || '',
-                    unitId: selectedComponent.unitId || '',
-                    lessonId: selectedComponent.lessonId || ''
+                    gradeId: selectedHierarchyItem.gradeId || '',
+                    bookId: selectedHierarchyItem.bookId || '',
+                    unitId: selectedHierarchyItem.unitId || '',
+                    lessonId: selectedHierarchyItem.lessonId || ''
                   });
                 } else {
                   setFormData({ 
@@ -1089,14 +1139,14 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
               disabled={!formData.projectId}
             >
               <option value="">Project Level Task</option>
-              {availableComponents.map(component => (
+              {availableEducationalHierarchy.map(component => (
                 <option key={component.id} value={component.id}>
                   {component.name} ({component.type})
                 </option>
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Select a specific component to assign this task to a particular grade, book, unit, or lesson
+              Select a specific educational hierarchy item to assign this task to a particular grade, book, unit, or lesson
             </p>
           </div>
 

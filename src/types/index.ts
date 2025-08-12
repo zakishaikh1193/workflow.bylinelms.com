@@ -150,12 +150,28 @@ export interface Task {
 }
 
 export interface TeamAllocation {
-  userId: string;
-  projectId: string;
-  taskId: string;
-  hoursPerDay: number;
-  startDate: Date;
-  endDate: Date;
+  id?: string | number;
+  user_id: string | number;
+  user_type: 'admin' | 'team';
+  project_id: string | number;
+  task_id?: string | number;
+  hours_per_day: number;
+  start_date: string;
+  end_date: string;
+  created_at?: string;
+  updated_at?: string;
+  // Frontend compatibility fields
+  userId?: string;
+  projectId?: string;
+  taskId?: string;
+  hoursPerDay?: number;
+  startDate?: Date;
+  endDate?: Date;
+  // Related data from joins
+  project_name?: string;
+  task_name?: string;
+  user_name?: string;
+  user_email?: string;
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed' | 'cancelled';

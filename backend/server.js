@@ -69,6 +69,7 @@ const gradeRoutes = require('./routes/grades');
 const bookRoutes = require('./routes/books');
 const unitRoutes = require('./routes/units');
 const lessonRoutes = require('./routes/lessons');
+const allocationRoutes = require('./routes/allocations');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -82,6 +83,7 @@ app.use('/api/grades', gradeRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/units', unitRoutes);
 app.use('/api/lessons', lessonRoutes);
+app.use('/api/allocations', allocationRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {

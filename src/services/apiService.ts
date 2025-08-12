@@ -366,6 +366,47 @@ export const taskService = {
   },
 };
 
+// Allocation Service
+export const allocationService = {
+  // Get all allocations with filters
+  getAll: async (filters?: any) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/allocations?${queryParams}` : '/allocations';
+    const result = await apiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get allocation by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/allocations/${id}`);
+    return result.data;
+  },
+
+  // Create new allocation
+  create: async (allocationData: any) => {
+    const result = await apiService.post('/allocations', allocationData);
+    return result.data;
+  },
+
+  // Update allocation
+  update: async (id: string | number, allocationData: any) => {
+    const result = await apiService.put(`/allocations/${id}`, allocationData);
+    return result.data;
+  },
+
+  // Delete allocation
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/allocations/${id}`);
+    return result.data;
+  },
+
+  // Get workload summary for a specific date
+  getWorkloadSummary: async (date: string) => {
+    const result = await apiService.get(`/allocations/workload-summary?date=${date}`);
+    return result.data;
+  },
+};
+
 // Stage Service
 export const stageService = {
   // Get all stages

@@ -253,6 +253,10 @@ const createTask = async (req, res) => {
       progress = 0,
       estimated_hours = 0,
       component_path,
+      grade_id,
+      book_id,
+      unit_id,
+      lesson_id,
       assignees = [],
       skills = []
     } = req.body;
@@ -278,8 +282,9 @@ const createTask = async (req, res) => {
     const insertQuery = `
       INSERT INTO tasks (
         name, description, project_id, stage_id, status, priority, 
-        start_date, end_date, progress, estimated_hours, component_path, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        start_date, end_date, progress, estimated_hours, component_path, 
+        grade_id, book_id, unit_id, lesson_id, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // Auto-calculate progress based on status
@@ -287,10 +292,12 @@ const createTask = async (req, res) => {
     
     const insertParams = [
       name, description, project_id, stage_id, status, priority,
-      formattedStartDate, formattedEndDate, calculatedProgress, parseInt(estimated_hours) || 0, component_path, created_by
+      formattedStartDate, formattedEndDate, calculatedProgress, parseInt(estimated_hours) || 0, component_path,
+      grade_id || null, book_id || null, unit_id || null, lesson_id || null, created_by
     ];
 
     console.log('🚀 Creating task with params:', insertParams);
+    console.log('📚 Educational hierarchy data:', { grade_id, book_id, unit_id, lesson_id, component_path });
 
     const result = await db.insert(insertQuery, insertParams);
     const taskId = result.insertId;
@@ -358,6 +365,10 @@ const updateTask = async (req, res) => {
       estimated_hours,
       actual_hours,
       component_path,
+      grade_id,
+      book_id,
+      unit_id,
+      lesson_id,
       assignees,
       skills
     } = req.body;
@@ -424,6 +435,22 @@ const updateTask = async (req, res) => {
     if (component_path !== undefined) {
       updateQuery += ', component_path = ?';
       updateParams.push(component_path);
+    }
+    if (grade_id !== undefined) {
+      updateQuery += ', grade_id = ?';
+      updateParams.push(grade_id);
+    }
+    if (book_id !== undefined) {
+      updateQuery += ', book_id = ?';
+      updateParams.push(book_id);
+    }
+    if (unit_id !== undefined) {
+      updateQuery += ', unit_id = ?';
+      updateParams.push(unit_id);
+    }
+    if (lesson_id !== undefined) {
+      updateQuery += ', lesson_id = ?';
+      updateParams.push(lesson_id);
     }
 
     updateQuery += ' WHERE id = ?';

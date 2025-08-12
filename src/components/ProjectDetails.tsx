@@ -27,7 +27,6 @@ import { calculateProjectProgress, calculateStageProgress } from '../utils/progr
 import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
-import { ProjectComponents } from './ProjectComponents';
 import EducationalHierarchy from './EducationalHierarchy';
 import { projectService, teamService, taskService, skillService, stageService, categoryService } from '../services/apiService';
 
@@ -40,7 +39,7 @@ interface ProjectDetailsProps {
 
 export function ProjectDetails({ project, onBack, onUpdate, categories }: ProjectDetailsProps) {
   const { state, dispatch } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'components' | 'educational-hierarchy'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'educational-hierarchy'>('overview');
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
   const [projectMembers, setProjectMembers] = useState<any[]>([]);
@@ -267,7 +266,6 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const tabs = [
     { key: 'overview', label: 'Overview', icon: BarChart3 },
     { key: 'stages', label: 'Stages', icon: Flag },
-    { key: 'components', label: 'Components', icon: Layers },
     { key: 'educational-hierarchy', label: 'Educational Hierarchy', icon: GraduationCap },
     { key: 'tasks', label: 'Tasks', icon: CheckSquare },
     { key: 'timeline', label: 'Timeline', icon: Calendar },
@@ -1043,7 +1041,6 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       <div>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'stages' && renderStages()}
-        {activeTab === 'components' && <ProjectComponents project={project} onBack={onBack} />}
         {activeTab === 'educational-hierarchy' && <EducationalHierarchy projectId={Number(project.id)} />}
         {activeTab === 'tasks' && renderTasks()}
         {activeTab === 'timeline' && renderTimeline()}
