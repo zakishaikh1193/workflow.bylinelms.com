@@ -47,7 +47,7 @@ const getCategory = async (req, res) => {
       GROUP BY c.id
     `;
 
-    const [rows] = await db.query(query, [id]);
+    const rows = await db.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -79,10 +79,11 @@ const getCategory = async (req, res) => {
 // Create new category
 const createCategory = async (req, res) => {
   try {
+    console.log('🔍 Create category request body:', req.body);
+    
     const {
       name,
-      description,
-      color = '#3B82F6'
+      description = null
     } = req.body;
 
     // Validate required fields
@@ -97,7 +98,7 @@ const createCategory = async (req, res) => {
     }
 
     // Check if category name already exists
-    const [existing] = await db.query(
+    const existing = await db.query(
       'SELECT id FROM categories WHERE name = ?',
       [name]
     );
@@ -113,14 +114,17 @@ const createCategory = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO categories (name, description, color)
-      VALUES (?, ?, ?)
+      INSERT INTO categories (name, description)
+      VALUES (?, ?)
     `;
 
-    const [result] = await db.query(query, [name, description, color]);
+    console.log('🔍 Create query:', query);
+    console.log('🔍 Create parameters:', [name, description]);
+
+    const result = await db.insert(query, [name, description]);
 
     // Get the created category
-    const [createdCategory] = await db.query(
+    const createdCategory = await db.query(
       'SELECT * FROM categories WHERE id = ?',
       [result.insertId]
     );
@@ -146,11 +150,14 @@ const createCategory = async (req, res) => {
 // Update category
 const updateCategory = async (req, res) => {
   try {
+    console.log('🔍 Update category request body:', req.body);
+    console.log('🔍 Update category ID:', req.params.id);
+    
     const { id } = req.params;
-    const { name, description, color } = req.body;
+    const { name = null, description = null } = req.body;
 
     // Check if category exists
-    const [existing] = await db.query('SELECT id FROM categories WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM categories WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -163,7 +170,7 @@ const updateCategory = async (req, res) => {
 
     // If name is being updated, check for duplicates
     if (name) {
-      const [duplicate] = await db.query(
+      const duplicate = await db.query(
         'SELECT id FROM categories WHERE name = ? AND id != ?',
         [name, id]
       );
@@ -179,19 +186,50 @@ const updateCategory = async (req, res) => {
       }
     }
 
+    // Build dynamic query based on provided fields
+    let updateFields = [];
+    let updateParams = [];
+    
+    console.log('🔍 Building update query with:', { name, description });
+    
+    if (name !== null && name !== undefined) {
+      updateFields.push('name = ?');
+      updateParams.push(name);
+    }
+    
+    if (description !== null && description !== undefined) {
+      updateFields.push('description = ?');
+      updateParams.push(description);
+    }
+    
+    // Always update the timestamp
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No fields to update'
+        }
+      });
+    }
+    
     const query = `
       UPDATE categories SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        color = COALESCE(?, color),
-        updated_at = CURRENT_TIMESTAMP
+        ${updateFields.join(', ')}
       WHERE id = ?
     `;
-
-    await db.query(query, [name, description, color, id]);
+    
+    updateParams.push(id);
+    
+    console.log('🔍 Final update query:', query);
+    console.log('🔍 Update parameters:', updateParams);
+    
+    await db.query(query, updateParams);
 
     // Get updated category
-    const [updatedCategory] = await db.query(
+    const updatedCategory = await db.query(
       'SELECT * FROM categories WHERE id = ?',
       [id]
     );
@@ -220,7 +258,7 @@ const deleteCategory = async (req, res) => {
     const { id } = req.params;
 
     // Check if category exists
-    const [existing] = await db.query('SELECT id FROM categories WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM categories WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -232,7 +270,7 @@ const deleteCategory = async (req, res) => {
     }
 
     // Check if category is being used by any projects
-    const [projects] = await db.query(
+    const projects = await db.query(
       'SELECT COUNT(*) as count FROM projects WHERE category_id = ?',
       [id]
     );

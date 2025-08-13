@@ -17,11 +17,13 @@ import { useApp } from '../contexts/AppContext';
 import { Task, TaskStatus, Priority } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
 import { taskService, stageService, teamService, projectService, skillService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
+import { TaskDetails } from './TaskDetails';
 
 export function TaskManager() {
   const { state, dispatch } = useApp();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
@@ -322,6 +324,16 @@ export function TaskManager() {
       return endDate && new Date(endDate) < new Date() && t.status !== 'completed';
     }).length,
   };
+
+  // Show task details if a task is selected
+  if (selectedTaskId) {
+    return (
+      <TaskDetails 
+        taskId={selectedTaskId} 
+        onBack={() => setSelectedTaskId(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -701,6 +713,17 @@ export function TaskManager() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setSelectedTaskId(task.id);
+                            }}
+                            title="View Details"
+                          >
+                            👁️
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleEditTask(task);
                             }}
                             title="Edit Task"
@@ -797,6 +820,20 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         ? editingTask.skills.map((skill: any) => skill.name || skill)
         : [];
       
+      // Convert assignees to array of string IDs
+      const assigneeIds = Array.isArray(editingTask.assignees) 
+        ? editingTask.assignees.map((assignee: any) => {
+            if (typeof assignee === 'object' && assignee.id) {
+              return assignee.id.toString();
+            } else {
+              return assignee.toString();
+            }
+          })
+        : [];
+      
+      console.log('🔍 Editing task assignees:', editingTask.assignees);
+      console.log('🔍 Converted assignee IDs:', assigneeIds);
+      
       setFormData({
         name: editingTask.name,
         description: editingTask.description || '',
@@ -807,7 +844,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         unitId: editingTask.unitId || '',
         lessonId: editingTask.lessonId || '',
         status: editingTask.status,
-        assignees: editingTask.assignees || [],
+        assignees: assigneeIds,
         teamAssignees: editingTask.teamAssignees || [],
         skills: skillNames,
         priority: editingTask.priority,
@@ -1090,7 +1127,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             <select
               required
               value={formData.projectId}
-              onChange={(e) => setFormData({ ...formData, projectId: e.target.value, gradeId: '', bookId: '', unitId: '', lessonId: '' })}
+              onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Select Project</option>
