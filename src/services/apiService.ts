@@ -17,6 +17,22 @@ const getAuthHeaders = () => {
   return headers;
 };
 
+// Helper function to get team auth headers
+const getTeamAuthHeaders = () => {
+  const token = localStorage.getItem('teamToken');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+  
+  // Debug logging for team auth headers
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔑 Team auth headers:', { hasToken: !!token, headers });
+  }
+  
+  return headers;
+};
+
 // Helper function to handle API responses
 const handleResponse = async (response: Response) => {
   const data = await response.json();
@@ -86,10 +102,79 @@ export const apiService = {
   },
 };
 
+// Team API service for team member specific calls
+const teamApiService = {
+  // GET request with team auth
+  get: async (endpoint: string) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'GET',
+      headers: getTeamAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // POST request with team auth
+  post: async (endpoint: string, data: any) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: getTeamAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // PUT request with team auth
+  put: async (endpoint: string, data: any) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: getTeamAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // DELETE request with team auth
+  delete: async (endpoint: string) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: getTeamAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
+// Team-specific project service
+export const teamProjectService = {
+  // Get all projects (team member access)
+  getAll: async (filters?: any) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/projects?${queryParams}` : '/projects';
+    const result = await teamApiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get project by ID (team member access)
+  getById: async (id: string | number) => {
+    const result = await teamApiService.get(`/projects/${id}`);
+    return result.data;
+  },
+};
+
 // Team service (existing)
 export const teamService = {
   getAll: async () => {
     const result = await apiService.get('/team');
+    return result.data;
+  },
+  
+  // Team member specific methods (uses team auth)
+  getMyTasks: async () => {
+    const result = await teamApiService.get('/team/my-tasks');
+    return result.data;
+  },
+  
+  getMyProfile: async () => {
+    const result = await teamApiService.get('/team/my-profile');
     return result.data;
   },
   getById: async (id: string) => {
@@ -163,6 +248,12 @@ export const teamService = {
   getTeamMembers: async (teamId: string) => {
     const result = await apiService.get(`/team/teams/${teamId}`);
     return result.data.members || [];
+  },
+  
+  // Team member authentication
+  authenticate: async (credentials: { email: string; passcode: string }) => {
+    const result = await apiService.post('/team/authenticate', credentials);
+    return result;
   }
 };
 
@@ -362,6 +453,31 @@ export const taskService = {
   // Update task progress
   updateProgress: async (id: string | number, progress: number) => {
     const result = await apiService.put(`/tasks/${id}`, { progress });
+    return result.data;
+  },
+};
+
+// Team-specific task service
+export const teamTaskService = {
+  // Update task (team member access)
+  update: async (id: string | number, taskData: any) => {
+    const result = await teamApiService.put(`/tasks/${id}`, taskData);
+    return result.data;
+  },
+
+  // Update task status (team member access)
+  updateStatus: async (id: string | number, status: string, progress?: number) => {
+    const data: any = { status };
+    if (progress !== undefined) {
+      data.progress = progress;
+    }
+    const result = await teamApiService.put(`/tasks/${id}`, data);
+    return result.data;
+  },
+
+  // Update task progress (team member access)
+  updateProgress: async (id: string | number, progress: number) => {
+    const result = await teamApiService.put(`/tasks/${id}`, { progress });
     return result.data;
   },
 };

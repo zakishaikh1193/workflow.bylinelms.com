@@ -117,7 +117,7 @@ const requireTeamAuth = async (req, res, next) => {
     
     // Get team member
     const teamMemberRows = await db.query(
-      'SELECT id, email, name, status FROM team_members WHERE id = ? AND status = "active"',
+      'SELECT id, email, name, is_active FROM team_members WHERE id = ? AND is_active = true',
       [decoded.id]
     );
 
@@ -218,7 +218,7 @@ const requireAuth = async (req, res, next) => {
     } else if (decoded.type === 'team') {
       // Team member authentication (skip session validation for now)
       const teamMemberRows = await db.query(
-        'SELECT id, email, name, status FROM team_members WHERE id = ? AND status = "active"',
+        'SELECT id, email, name, is_active FROM team_members WHERE id = ? AND is_active = true',
         [decoded.id]
       );
 
@@ -293,7 +293,7 @@ const optionalAuth = async (req, res, next) => {
       }
     } else if (decoded.type === 'team') {
       const teamMemberRows = await db.query(
-        'SELECT id, email, name FROM team_members WHERE id = ? AND status = "active"',
+        'SELECT id, email, name FROM team_members WHERE id = ? AND is_active = true',
         [decoded.id]
       );
       

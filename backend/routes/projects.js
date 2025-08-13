@@ -12,7 +12,7 @@ const {
   removeProjectMember,
   removeProjectTeam
 } = require('../controllers/projectController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -232,7 +232,7 @@ const queryValidation = [
 
 // Get all projects
 router.get('/', 
-  authenticateToken,
+  requireAuth,
   queryValidation,
   handleValidationErrors,
   getProjects
@@ -240,7 +240,7 @@ router.get('/',
 
 // Get project by ID
 router.get('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getProject
@@ -248,7 +248,7 @@ router.get('/:id',
 
 // Create new project
 router.post('/',
-  authenticateToken,
+  requireAuth,
   projectValidation,
   handleValidationErrors,
   createProject
@@ -256,7 +256,7 @@ router.post('/',
 
 // Update project
 router.put('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   projectUpdateValidation,
   handleValidationErrors,
@@ -265,7 +265,7 @@ router.put('/:id',
 
 // Delete project
 router.delete('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   deleteProject
@@ -273,7 +273,7 @@ router.delete('/:id',
 
 // Get project members
 router.get('/:id/members',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getProjectMembers
@@ -281,7 +281,7 @@ router.get('/:id/members',
 
 // Get project teams
 router.get('/:id/teams',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getProjectTeams
@@ -289,7 +289,7 @@ router.get('/:id/teams',
 
 // Add member to project
 router.post('/:id/members',
-  authenticateToken,
+  requireAuth,
   idValidation,
   memberValidation,
   handleValidationErrors,
@@ -298,7 +298,7 @@ router.post('/:id/members',
 
 // Remove member from project
 router.delete('/:id/members/:memberId',
-  authenticateToken,
+  requireAuth,
   memberIdValidation,
   handleValidationErrors,
   removeProjectMember
@@ -306,7 +306,7 @@ router.delete('/:id/members/:memberId',
 
 // Remove team from project
 router.delete('/:id/teams/:teamId',
-  authenticateToken,
+  requireAuth,
   teamIdValidation,
   handleValidationErrors,
   removeProjectTeam

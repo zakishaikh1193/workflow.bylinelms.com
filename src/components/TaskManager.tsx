@@ -67,7 +67,7 @@ export function TaskManager() {
         }
         if (selectedAssignee !== 'all') {
           filters.assignee_id = selectedAssignee;
-          filters.assignee_type = 'admin'; // Default to admin type
+          // Don't filter by assignee_type - let the backend handle both admin and team assignees
         }
         if (searchTerm) {
           filters.search = searchTerm;

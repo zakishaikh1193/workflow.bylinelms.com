@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { requireAdminAuth } = require('../middleware/auth');
+const { requireAdminAuth, requireTeamAuth } = require('../middleware/auth');
 const {
   // Team member functions (existing)
+  authenticateTeamMember,
+  getMyTasks,
+  getMyProfile,
   getAllTeamMembers,
   getTeamMemberById,
   createTeamMember,
@@ -23,7 +26,14 @@ const {
 // TEAM MEMBER ROUTES (existing functionality)
 // =====================================================
 
-// Get all team members
+// Team member authentication (no auth required)
+router.post('/authenticate', authenticateTeamMember);
+
+// Team member specific routes (requires team auth)
+router.get('/my-tasks', requireTeamAuth, getMyTasks);
+router.get('/my-profile', requireTeamAuth, getMyProfile);
+
+// Get all team members (admin only)
 router.get('/members', requireAdminAuth, getAllTeamMembers);
 
 // Get team member by ID

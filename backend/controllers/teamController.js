@@ -1,5 +1,227 @@
 const db = require('../db');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// Team member authentication
+const authenticateTeamMember = async (req, res) => {
+  try {
+    const { email, passcode } = req.body;
+
+    // Validate required fields
+    if (!email || !passcode) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Email and passcode are required' }
+      });
+    }
+
+    // Find team member by email
+    const teamMembers = await db.query(`
+      SELECT 
+        tm.*,
+        GROUP_CONCAT(DISTINCT s.name) as skills,
+        GROUP_CONCAT(DISTINCT t.name) as team_names,
+        GROUP_CONCAT(DISTINCT t.id) as team_ids
+      FROM team_members tm
+      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
+      LEFT JOIN skills s ON tms.skill_id = s.id
+      LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
+      LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
+      WHERE tm.email = ? AND tm.is_active = true
+      GROUP BY tm.id
+    `, [email]);
+
+    if (teamMembers.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid email or passcode' }
+      });
+    }
+
+    const member = teamMembers[0];
+
+    // Verify passcode
+    if (member.passcode !== passcode) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid email or passcode' }
+      });
+    }
+
+    // Format response data
+    const userData = {
+      ...member,
+      skills: member.skills ? member.skills.split(',') : [],
+      team_names: member.team_names ? member.team_names.split(',') : [],
+      team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : []
+    };
+
+    // Update last login
+    await db.query(
+      'UPDATE team_members SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [member.id]
+    );
+
+    // Generate JWT token for team member
+    const token = jwt.sign(
+      { 
+        id: member.id, 
+        email: member.email, 
+        name: member.name,
+        type: 'team'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      data: userData,
+      token: token,
+      message: 'Authentication successful'
+    });
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Authentication failed' }
+    });
+  }
+};
+
+// Get team member's own tasks
+const getMyTasks = async (req, res) => {
+  try {
+    const teamMemberId = req.user.id;
+    
+    const tasks = await db.query(`
+      SELECT 
+        t.*,
+        p.name as project_name,
+        p.status as project_status,
+        p.description as project_description,
+        s.name as stage_name,
+        s.description as stage_description,
+        c.name as category_name,
+        c.description as category_description,
+        GROUP_CONCAT(DISTINCT sk.name) as required_skills,
+        GROUP_CONCAT(DISTINCT g.name) as grade_name,
+        GROUP_CONCAT(DISTINCT b.name) as book_name,
+        GROUP_CONCAT(DISTINCT u.name) as unit_name,
+        GROUP_CONCAT(DISTINCT l.name) as lesson_name
+      FROM tasks t
+      LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN stages s ON t.stage_id = s.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN task_skills ts ON t.id = ts.task_id
+      LEFT JOIN skills sk ON ts.skill_id = sk.id
+      LEFT JOIN grades g ON t.grade_id = g.id
+      LEFT JOIN books b ON t.book_id = b.id
+      LEFT JOIN units u ON t.unit_id = u.id
+      LEFT JOIN lessons l ON t.lesson_id = l.id
+      LEFT JOIN task_assignees ta ON t.id = ta.task_id
+      WHERE ta.assignee_id = ? AND ta.assignee_type = 'team'
+      GROUP BY t.id
+      ORDER BY 
+        CASE 
+          WHEN t.status = 'in-progress' THEN 1
+          WHEN t.status = 'under-review' THEN 2
+          WHEN t.status = 'not-started' THEN 3
+          WHEN t.status = 'blocked' THEN 4
+          WHEN t.status = 'completed' THEN 5
+        END,
+        t.end_date ASC,
+        t.created_at DESC
+    `, [teamMemberId]);
+
+    // Process the tasks to format arrays and add computed fields
+    const processedTasks = tasks.map(task => ({
+      ...task,
+      required_skills: task.required_skills ? task.required_skills.split(',') : [],
+      grade_name: task.grade_name || null,
+      book_name: task.book_name || null,
+      unit_name: task.unit_name || null,
+      lesson_name: task.lesson_name || null,
+      // Add computed fields
+      is_overdue: task.end_date && new Date(task.end_date) < new Date() && task.status !== 'completed',
+      days_until_due: task.end_date ? Math.ceil((new Date(task.end_date) - new Date()) / (1000 * 60 * 60 * 24)) : null,
+      priority_color: task.priority === 'urgent' ? 'red' : task.priority === 'high' ? 'orange' : task.priority === 'medium' ? 'blue' : 'gray',
+      status_color: task.status === 'completed' ? 'green' : task.status === 'in-progress' ? 'blue' : task.status === 'under-review' ? 'yellow' : task.status === 'blocked' ? 'red' : 'gray'
+    }));
+
+    res.json({
+      success: true,
+      data: processedTasks
+    });
+  } catch (error) {
+    console.error('Error fetching team member tasks:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch tasks' }
+    });
+  }
+};
+
+// Get team member's own profile
+const getMyProfile = async (req, res) => {
+  try {
+    const teamMemberId = req.user.id;
+    
+    const teamMembers = await db.query(`
+      SELECT 
+        tm.*,
+        GROUP_CONCAT(DISTINCT s.name) as skills,
+        GROUP_CONCAT(DISTINCT t.name) as team_names,
+        GROUP_CONCAT(DISTINCT t.id) as team_ids,
+        GROUP_CONCAT(DISTINCT pf.type) as performance_flags,
+        GROUP_CONCAT(DISTINCT pf.reason) as flag_reasons,
+        COUNT(DISTINCT ta.task_id) as total_assigned_tasks,
+        COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN ta.task_id END) as completed_tasks,
+        COUNT(DISTINCT CASE WHEN t.status = 'in-progress' THEN ta.task_id END) as in_progress_tasks,
+        COUNT(DISTINCT CASE WHEN t.status = 'under-review' THEN ta.task_id END) as under_review_tasks
+      FROM team_members tm
+      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
+      LEFT JOIN skills s ON tms.skill_id = s.id
+      LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
+      LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
+      LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
+      LEFT JOIN tasks t ON ta.task_id = t.id
+      WHERE tm.id = ? AND tm.is_active = true
+      GROUP BY tm.id
+    `, [teamMemberId]);
+
+    if (teamMembers.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Team member not found' }
+      });
+    }
+
+    const member = teamMembers[0];
+    member.skills = member.skills ? member.skills.split(',') : [];
+    member.team_names = member.team_names ? member.team_names.split(',') : [];
+    member.team_ids = member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [];
+    member.performance_flags = member.performance_flags ? member.performance_flags.split(',') : [];
+    member.flag_reasons = member.flag_reasons ? member.flag_reasons.split(',') : [];
+    
+    // Calculate completion rate
+    member.completion_rate = member.total_assigned_tasks > 0 
+      ? Math.round((member.completed_tasks / member.total_assigned_tasks) * 100) 
+      : 0;
+
+    res.json({
+      success: true,
+      data: member
+    });
+  } catch (error) {
+    console.error('Error fetching team member profile:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch profile' }
+    });
+  }
+};
 
 // Get all team members (existing functionality)
 const getAllTeamMembers = async (req, res) => {
@@ -855,6 +1077,9 @@ const removeMemberFromTeam = async (req, res) => {
 
 module.exports = {
   // Team member functions (existing)
+  authenticateTeamMember,
+  getMyTasks,
+  getMyProfile,
   getAllTeamMembers,
   getTeamMemberById,
   createTeamMember,

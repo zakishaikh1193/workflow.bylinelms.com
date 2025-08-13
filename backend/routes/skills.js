@@ -7,7 +7,7 @@ const {
   updateSkill,
   deleteSkill
 } = require('../controllers/skillController');
-const { requireAdminAuth } = require('../middleware/auth');
+const { requireAdminAuth, requireAuth } = require('../middleware/auth');
 const { body, param, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -80,13 +80,13 @@ const idValidation = [
 
 // Get all skills
 router.get('/', 
-  requireAdminAuth,
+  requireAuth,
   getSkills
 );
 
 // Get skill by ID
 router.get('/:id',
-  requireAdminAuth,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getSkill

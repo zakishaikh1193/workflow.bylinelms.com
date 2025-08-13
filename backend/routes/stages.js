@@ -5,7 +5,7 @@ const {
   getStage,
   createStage
 } = require('../controllers/stageController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -80,7 +80,7 @@ const queryValidation = [
 
 // Get all stages
 router.get('/', 
-  authenticateToken,
+  requireAuth,
   queryValidation,
   handleValidationErrors,
   getStages
@@ -88,7 +88,7 @@ router.get('/',
 
 // Get stage by ID
 router.get('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getStage
@@ -96,7 +96,7 @@ router.get('/:id',
 
 // Create new stage
 router.post('/',
-  authenticateToken,
+  requireAuth,
   stageValidation,
   handleValidationErrors,
   createStage

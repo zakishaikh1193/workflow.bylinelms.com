@@ -302,17 +302,25 @@ const createTask = async (req, res) => {
     const result = await db.insert(insertQuery, insertParams);
     const taskId = result.insertId;
 
-    // Add individual assignees if provided
+    // Add assignees if provided
     if (assignees && assignees.length > 0) {
       for (const assigneeId of assignees) {
+        // Determine assignee type by checking if it's a team member or admin
+        const teamMemberCheck = await db.query(
+          'SELECT id FROM team_members WHERE id = ? AND is_active = true',
+          [assigneeId]
+        );
+        
+        const assigneeType = teamMemberCheck.length > 0 ? 'team' : 'admin';
+        
         await db.insert(
           'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-          [taskId, assigneeId, 'admin']
+          [taskId, assigneeId, assigneeType]
         );
+        
+        console.log(`👤 Assigned task ${taskId} to ${assigneeType} user ${assigneeId}`);
       }
     }
-
-    // No team logic needed - all assignees are already individual users
 
     // Add skills if provided
     if (skills && skills.length > 0) {
@@ -468,14 +476,21 @@ const updateTask = async (req, res) => {
         // Prepare all assignee insertions
         const assigneeInserts = [];
         
-        // Add individual assignees
+        // Add assignees
         if (assignees && assignees.length > 0) {
           for (const assigneeId of assignees) {
-            assigneeInserts.push([id, assigneeId, 'admin']);
+            // Determine assignee type by checking if it's a team member or admin
+            const teamMemberCheck = await db.query(
+              'SELECT id FROM team_members WHERE id = ? AND is_active = true',
+              [assigneeId]
+            );
+            
+            const assigneeType = teamMemberCheck.length > 0 ? 'team' : 'admin';
+            assigneeInserts.push([id, assigneeId, assigneeType]);
+            
+            console.log(`👤 Updated task ${id} assignment to ${assigneeType} user ${assigneeId}`);
           }
         }
-
-        // No team logic needed - all assignees are already individual users
         
         // Insert all assignees in batch if any exist
         if (assigneeInserts.length > 0) {

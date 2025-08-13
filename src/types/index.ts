@@ -11,6 +11,10 @@ export interface User {
   hourly_rate?: number;
   bio?: string;
   performanceFlags?: PerformanceFlag[];
+  performance_flags?: PerformanceFlag[]; // Backend field
+  team_names?: string[]; // Backend field
+  team_ids?: number[]; // Backend field
+  last_login_at?: string; // Backend field
 }
 
 export interface PerformanceFlag {
@@ -19,6 +23,7 @@ export interface PerformanceFlag {
   reason: string;
   date: string;
   addedBy: string;
+  added_by?: string; // Backend field
 }
 
 export interface Project {
@@ -147,6 +152,27 @@ export interface Task {
   actualHours?: number; // Frontend field (optional for backward compatibility)
   estimated_hours?: number; // Backend field for estimated hours
   actual_hours?: number; // Backend field for actual hours
+  created_at?: string; // Backend field
+  updated_at?: string; // Backend field
+  created_by?: string; // Backend field
+  // Enhanced fields from team member queries
+  project_name?: string;
+  project_status?: string;
+  project_description?: string;
+  stage_name?: string;
+  stage_description?: string;
+  category_name?: string;
+  category_description?: string;
+  required_skills?: string[];
+  grade_name?: string;
+  book_name?: string;
+  unit_name?: string;
+  lesson_name?: string;
+  // Computed fields
+  is_overdue?: boolean;
+  days_until_due?: number;
+  priority_color?: string;
+  status_color?: string;
 }
 
 export interface TeamAllocation {
