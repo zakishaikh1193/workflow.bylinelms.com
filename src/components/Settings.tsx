@@ -22,14 +22,16 @@ import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 
 import { useAuth } from '../contexts/AuthContext';
-import { teamService, categoryService, skillService } from '../services/apiService';
+import { teamService, categoryService, skillService, stageService, stageTemplateService } from '../services/apiService';
 
 interface Stage {
   id: string;
   name: string;
   description: string;
-  order: number;
-  isDefault: boolean;
+  order_index: number;
+  is_active: boolean;
+  template_order?: number;
+  is_default?: boolean;
   category?: string; // Optional category assignment
 }
 
@@ -40,6 +42,25 @@ export function Settings() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('eLearning Design');
+
+  // Function to load stages for a category
+  const loadStagesForCategory = async (categoryName: string) => {
+    try {
+      setStagesLoading(true);
+      const category = categories.find((c: any) => c.name === categoryName);
+      if (category) {
+        console.log('Loading stages for category:', categoryName, 'ID:', category.id);
+        const stagesData = await stageService.getByCategory(category.id);
+        console.log('Stages data received:', stagesData);
+        setStages(stagesData);
+      }
+    } catch (error) {
+      console.error('Failed to load stages for category:', error);
+      setStages([]); // Set empty array on error
+    } finally {
+      setStagesLoading(false);
+    }
+  };
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [userType, setUserType] = useState<'admin' | 'team'>('admin');
@@ -57,38 +78,8 @@ export function Settings() {
     }
   ]);
   const { signUp } = useAuth();
-  const [stages, setStages] = useState<Stage[]>([
-    // eLearning Design Stages
-    { id: '1', name: 'Content Strategy', description: 'Define learning objectives and content outline', order: 1, isDefault: true, category: 'eLearning Design' },
-    { id: '2', name: 'Instructional Design', description: 'Create detailed instructional design document', order: 2, isDefault: true, category: 'eLearning Design' },
-    { id: '3', name: 'Storyboarding', description: 'Visual planning and storyboard creation', order: 3, isDefault: true, category: 'eLearning Design' },
-    { id: '4', name: 'Content Development', description: 'Content creation and writing phase', order: 4, isDefault: true, category: 'eLearning Design' },
-    { id: '5', name: 'Media Production', description: 'Graphics, animations, and multimedia creation', order: 5, isDefault: true, category: 'eLearning Design' },
-    { id: '6', name: 'Development & Integration', description: 'Technical development and LMS integration', order: 6, isDefault: true, category: 'eLearning Design' },
-    { id: '7', name: 'Review & QA', description: 'Quality assurance and review process', order: 7, isDefault: true, category: 'eLearning Design' },
-    { id: '8', name: 'Deployment', description: 'Final deployment and launch', order: 8, isDefault: true, category: 'eLearning Design' },
-    
-    // Curriculum Design Stages
-    { id: '9', name: 'Curriculum Analysis', description: 'Analyze curriculum requirements and standards', order: 1, isDefault: true, category: 'Curriculum Design' },
-    { id: '10', name: 'Scope & Sequence', description: 'Define scope and sequence of curriculum', order: 2, isDefault: true, category: 'Curriculum Design' },
-    { id: '11', name: 'Learning Objectives', description: 'Define detailed learning objectives', order: 3, isDefault: true, category: 'Curriculum Design' },
-    { id: '12', name: 'Content Creation', description: 'Develop curriculum content and materials', order: 4, isDefault: true, category: 'Curriculum Design' },
-    { id: '13', name: 'Assessment Design', description: 'Create assessments and evaluation tools', order: 5, isDefault: true, category: 'Curriculum Design' },
-    { id: '14', name: 'Teacher Resources', description: 'Develop teacher guides and resources', order: 6, isDefault: true, category: 'Curriculum Design' },
-    { id: '15', name: 'Pilot Testing', description: 'Pilot test with target audience', order: 7, isDefault: true, category: 'Curriculum Design' },
-    { id: '16', name: 'Revision & Finalization', description: 'Revise based on feedback and finalize', order: 8, isDefault: true, category: 'Curriculum Design' },
-    
-    // IT Applications Stages
-    { id: '17', name: 'Requirements Analysis', description: 'Gather and analyze system requirements', order: 1, isDefault: true, category: 'IT Applications' },
-    { id: '18', name: 'System Design', description: 'Design system architecture and database', order: 2, isDefault: true, category: 'IT Applications' },
-    { id: '19', name: 'UI/UX Design', description: 'Design user interface and user experience', order: 3, isDefault: true, category: 'IT Applications' },
-    { id: '20', name: 'Frontend Development', description: 'Develop user interface and client-side logic', order: 4, isDefault: true, category: 'IT Applications' },
-    { id: '21', name: 'Backend Development', description: 'Develop server-side logic and APIs', order: 5, isDefault: true, category: 'IT Applications' },
-    { id: '22', name: 'Database Implementation', description: 'Implement database and data models', order: 6, isDefault: true, category: 'IT Applications' },
-    { id: '23', name: 'Integration Testing', description: 'Test system integration and APIs', order: 7, isDefault: true, category: 'IT Applications' },
-    { id: '24', name: 'User Acceptance Testing', description: 'Conduct user acceptance testing', order: 8, isDefault: true, category: 'IT Applications' },
-    { id: '25', name: 'Deployment & Launch', description: 'Deploy to production and launch', order: 9, isDefault: true, category: 'IT Applications' },
-  ]);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [stagesLoading, setStagesLoading] = useState(false);
 
   // Load data on component mount
   useEffect(() => {
@@ -106,8 +97,22 @@ export function Settings() {
         setSkills(skillsData);
         
         // Set default selected category if available
-        if (categoriesData.length > 0 && !categoriesData.find((c: any) => c.name === selectedCategory)) {
-          setSelectedCategory(categoriesData[0].name);
+        if (categoriesData.length > 0) {
+          const categoryExists = categoriesData.find((c: any) => c.name === selectedCategory);
+          if (!categoryExists) {
+            setSelectedCategory(categoriesData[0].name);
+          }
+        }
+        
+        // Load stages for the selected category
+        if (categoriesData.length > 0) {
+          const selectedCategoryId = categoriesData.find((c: any) => c.name === selectedCategory)?.id;
+          if (selectedCategoryId) {
+            console.log('Initial load - Loading stages for category:', selectedCategory, 'ID:', selectedCategoryId);
+            const stagesData = await stageService.getByCategory(selectedCategoryId);
+            console.log('Initial stages data received:', stagesData);
+            setStages(stagesData);
+          }
         }
         
         // Load admin users (in a real app, you would fetch from Supabase auth)
@@ -125,7 +130,7 @@ export function Settings() {
       }
     };
     loadData();
-  }, []);
+  }, [selectedCategory]);
 
   const tabs = [
     { key: 'categories', label: 'Categories', icon: Tag },
@@ -170,16 +175,42 @@ export function Settings() {
           setSkills([...skills, newSkill]);
         }
             } else if (type === 'stage') {
-        const categoryStages = stages.filter(s => s.category === selectedCategory);
-        const newStage: Stage = {
-          id: Date.now().toString(),
-          name: data.name,
-          description: data.description || '',
-          order: categoryStages.length + 1,
-          isDefault: false,
-          category: selectedCategory,
-        };
-        setStages([...stages, newStage]);
+        try {
+          if (editingItem?.id) {
+            // Update existing stage
+            const updatedStage = await stageService.update(editingItem.id, {
+              name: data.name,
+              description: data.description || null
+            });
+            
+            // Reload stages to get the updated data
+            await loadStagesForCategory(selectedCategory);
+          } else {
+            // Create new stage
+            const newStage = await stageService.create({
+              name: data.name,
+              description: data.description || null,
+              order_index: stages.length + 1
+            });
+            
+            // Create stage template to link stage to category
+            const selectedCategoryId = categories.find((c: any) => c.name === selectedCategory)?.id;
+            if (selectedCategoryId) {
+              await stageTemplateService.create({
+                category_id: selectedCategoryId,
+                stage_id: newStage.id,
+                order_index: stages.length + 1,
+                is_default: false
+              });
+            }
+            
+            // Reload stages to get the updated list with template data
+            await loadStagesForCategory(selectedCategory);
+          }
+        } catch (error) {
+          console.error('Failed to save stage:', error);
+          alert('Failed to save stage. Please try again.');
+        }
       } else if (type === 'admin-user') {
         handleCreateUser(data, 'admin');
         return; // Don't close modal yet, let handleCreateUser handle it
@@ -224,7 +255,29 @@ export function Settings() {
         await skillService.delete(id);
         setSkills(skills.filter(s => s.id !== id));
       } else if (type === 'stage') {
-        setStages(stages.filter(s => s.id !== id));
+        try {
+          // First, delete the stage template (if it exists)
+          const selectedCategoryId = categories.find((c: any) => c.name === selectedCategory)?.id;
+          if (selectedCategoryId) {
+            try {
+              // Get stage templates for this category and stage
+              const templates = await stageTemplateService.getByCategory(selectedCategoryId);
+              const templateToDelete = templates.find((t: any) => t.stage_id === id);
+              if (templateToDelete) {
+                await stageTemplateService.delete(templateToDelete.id);
+              }
+            } catch (error) {
+              console.log('No stage template found to delete');
+            }
+          }
+          
+          // Then delete the stage
+          await stageService.delete(id);
+          setStages(stages.filter(s => s.id !== id));
+        } catch (error) {
+          console.error('Failed to delete stage:', error);
+          alert('Failed to delete stage. Please try again.');
+        }
       } else if (type === 'admin-user') {
         setAdminUsers(adminUsers.filter(u => u.id !== id));
       } else if (type === 'team-user') {
@@ -341,27 +394,58 @@ export function Settings() {
     }
   };
 
-  const moveStage = (stageId: string, direction: 'up' | 'down') => {
-    const categoryStages = stages.filter(s => s.category === selectedCategory).sort((a, b) => a.order - b.order);
-    const stageIndex = categoryStages.findIndex(s => s.id === stageId);
-    if (stageIndex === -1) return;
+  const moveStage = async (stageId: string, direction: 'up' | 'down') => {
+    try {
+      console.log('moveStage called:', { stageId, direction, currentStages: stages });
+      
+      // Since we're already loading stages for the specific category, no need to filter
+      const categoryStages = [...stages].sort((a, b) => (a.template_order || a.order_index) - (b.template_order || b.order_index));
+      const stageIndex = categoryStages.findIndex(s => s.id === stageId);
+      console.log('Stage index found:', stageIndex);
+      
+      if (stageIndex === -1) {
+        console.log('Stage not found, returning');
+        return;
+      }
 
-    const newCategoryStages = [...categoryStages];
-    const targetIndex = direction === 'up' ? stageIndex - 1 : stageIndex + 1;
+      const newCategoryStages = [...categoryStages];
+      const targetIndex = direction === 'up' ? stageIndex - 1 : stageIndex + 1;
+      console.log('Target index:', targetIndex);
 
-    if (targetIndex < 0 || targetIndex >= newCategoryStages.length) return;
+      if (targetIndex < 0 || targetIndex >= newCategoryStages.length) {
+        console.log('Target index out of bounds, returning');
+        return;
+      }
 
-    // Swap stages
-    [newCategoryStages[stageIndex], newCategoryStages[targetIndex]] = [newCategoryStages[targetIndex], newCategoryStages[stageIndex]];
-    
-    // Update order numbers
-    newCategoryStages.forEach((stage, index) => {
-      stage.order = index + 1;
-    });
+      // Swap stages
+      [newCategoryStages[stageIndex], newCategoryStages[targetIndex]] = [newCategoryStages[targetIndex], newCategoryStages[stageIndex]];
+      console.log('Stages swapped');
+      
+      // Update order numbers
+      newCategoryStages.forEach((stage, index) => {
+        stage.template_order = index + 1;
+      });
+      console.log('Order numbers updated:', newCategoryStages.map(s => ({ id: s.id, order: s.template_order })));
 
-    // Update the main stages array
-    const otherStages = stages.filter(s => s.category !== selectedCategory);
-    setStages([...otherStages, ...newCategoryStages]);
+      // Update the stages array
+      setStages(newCategoryStages);
+      console.log('Stages state updated');
+
+      // Save reordering to backend
+      const selectedCategoryId = categories.find((c: any) => c.name === selectedCategory)?.id;
+      if (selectedCategoryId) {
+        const stageOrders = newCategoryStages.map((stage, index) => ({
+          stage_id: stage.id,
+          order: index + 1
+        }));
+        console.log('Sending reorder request:', { categoryId: selectedCategoryId, stageOrders });
+        await stageService.reorder(selectedCategoryId, stageOrders);
+        console.log('Reorder request completed successfully');
+      }
+    } catch (error) {
+      console.error('Failed to reorder stages:', error);
+      alert('Failed to reorder stages. Please try again.');
+    }
   };
 
   const renderCategories = () => (
@@ -491,7 +575,10 @@ export function Settings() {
         <div className="flex items-center space-x-4">
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              loadStagesForCategory(e.target.value);
+            }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
           >
             {categories.map(category => (
@@ -521,10 +608,34 @@ export function Settings() {
       <Card>
         <CardContent className="p-0">
           <div className="space-y-2 p-4">
-            {stages
-              .filter(stage => stage.category === selectedCategory)
-              .sort((a, b) => a.order - b.order)
-              .map((stage, index, filteredStages) => (
+            {stagesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading stages...</p>
+                </div>
+              </div>
+            ) : stages.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-gray-500 mb-4">
+                  <Layers className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium text-gray-900 mb-2">No stages found</p>
+                  <p className="text-gray-600">No stages have been created for this category yet.</p>
+                </div>
+                <Button 
+                  icon={<Plus className="w-4 h-4" />}
+                  onClick={() => {
+                    setEditingItem({ type: 'stage' });
+                    setIsModalOpen(true);
+                  }}
+                >
+                  Add First Stage
+                </Button>
+              </div>
+            ) : (
+              stages
+                .sort((a, b) => (a.template_order || a.order_index) - (b.template_order || b.order_index))
+                .map((stage, index, filteredStages) => (
               <div key={stage.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div className="flex items-center space-x-4">
                   <div className="flex flex-col space-y-1">
@@ -548,7 +659,7 @@ export function Settings() {
                     </Button>
                   </div>
                   <div className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full font-semibold text-sm">
-                    {stage.order}
+                    {stage.template_order || stage.order_index}
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-900">{stage.name}</h4>
@@ -556,7 +667,7 @@ export function Settings() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {stage.isDefault && (
+                  {stage.is_default && (
                     <Badge variant="secondary" size="sm">Default</Badge>
                   )}
                   <Button 
@@ -566,7 +677,7 @@ export function Settings() {
                   >
                     <Edit2 className="w-4 h-4" />
                   </Button>
-                  {!stage.isDefault && (
+                  {!stage.is_default && (
                     <Button 
                       variant="ghost" 
                       size="sm"
@@ -577,7 +688,8 @@ export function Settings() {
                   )}
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
         </CardContent>
       </Card>

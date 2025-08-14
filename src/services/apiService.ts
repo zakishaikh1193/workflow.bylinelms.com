@@ -544,11 +544,68 @@ export const stageService = {
     return result.data;
   },
 
-  // Get stages by project
-  getByProject: async (projectId: string | number) => {
-    const result = await apiService.get(`/stages?project_id=${projectId}`);
+  // Update stage
+  update: async (id: string | number, stageData: any) => {
+    const result = await apiService.put(`/stages/${id}`, stageData);
     return result.data;
   },
+
+  // Delete stage
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/stages/${id}`);
+    return result.data;
+  },
+
+  // Get stages by category
+  getByCategory: async (categoryId: string | number) => {
+    const result = await apiService.get(`/stages/category/${categoryId}`);
+    return result.data;
+  },
+
+  // Reorder stages within a category
+  reorder: async (categoryId: string | number, stageOrders: any[]) => {
+    const result = await apiService.post(`/stages/category/${categoryId}/reorder`, { stage_orders: stageOrders });
+    return result.data;
+  }
+};
+
+// Stage Template Service
+export const stageTemplateService = {
+  // Get all stage templates for a category
+  getByCategory: async (categoryId: string | number) => {
+    const result = await apiService.get(`/stage-templates/category/${categoryId}`);
+    return result.data;
+  },
+
+  // Get stage template by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/stage-templates/${id}`);
+    return result.data;
+  },
+
+  // Create new stage template
+  create: async (templateData: any) => {
+    const result = await apiService.post('/stage-templates', templateData);
+    return result.data;
+  },
+
+  // Update stage template
+  update: async (id: string | number, templateData: any) => {
+    const result = await apiService.put(`/stage-templates/${id}`, templateData);
+    return result.data;
+  },
+
+  // Delete stage template
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/stage-templates/${id}`);
+    return result.data;
+  },
+
+  // Bulk create stage templates for a category
+  bulkCreate: async (categoryId: string | number, templates: any[]) => {
+    const result = await apiService.post(`/stage-templates/category/${categoryId}/bulk`, { templates });
+    return result.data;
+  }
 };
 
 // Grade Service
