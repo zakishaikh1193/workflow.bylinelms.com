@@ -32,6 +32,7 @@ export interface Project {
   description: string;
   category: string;
   category_id?: number | null; // Backend field for category ID
+  current_stage_id?: number | null; // Backend field for current stage ID
   status: ProjectStatus;
   startDate?: Date; // Frontend field (optional for backward compatibility)
   endDate?: Date; // Frontend field (optional for backward compatibility)

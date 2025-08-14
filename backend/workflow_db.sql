@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Aug 13, 2025 at 12:40 PM
+-- Generation Time: Aug 14, 2025 at 07:06 AM
 -- Server version: 9.1.0
 -- PHP Version: 8.1.31
 
@@ -155,7 +155,10 @@ INSERT INTO `admin_sessions` (`id`, `user_id`, `access_token`, `refresh_token`, 
 ('admin_1_1755086495265', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg2NDk1LCJleHAiOjE3NTUxNzI4OTV9.OeQ3LHvDAWOBrSc-vLtOiPm-ZgJqLC5m05SFO109czs', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg2NDk1LCJleHAiOjE3NTU2OTEyOTV9.FOL-uz1iCIaDFrsNuFDJwH3Xpi6FVfBMbG7JGAbqR20', '2025-08-14 12:01:35', '2025-08-13 12:01:35', '2025-08-13 12:01:35'),
 ('admin_1_1755087563270', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg3NTYzLCJleHAiOjE3NTUxNzM5NjN9.KJBO8l4TGeoVBsdeg_N7YtNCdrcPWYIme-gUI4gFHjk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg3NTYzLCJleHAiOjE3NTU2OTIzNjN9.t7EDpH7SHbtkZEwyLgoE_Fx8SveY-EcVGypYMpAH1g8', '2025-08-14 12:19:23', '2025-08-13 12:19:23', '2025-08-13 12:19:23'),
 ('admin_1_1755087629492', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg3NjI5LCJleHAiOjE3NTUxNzQwMjl9.leu8qdKGSlVbLVRT8t9TAcNTQfU9GW_ohKlw_89fToQ', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg3NjI5LCJleHAiOjE3NTU2OTI0Mjl9.St6ncZ-EIqlBrtKGihkr7qxU8wXf3LTLKEor6_S5DhY', '2025-08-14 12:20:29', '2025-08-13 12:20:29', '2025-08-13 12:20:29'),
-('admin_1_1755088395281', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg4Mzk1LCJleHAiOjE3NTUxNzQ3OTV9.DOEsxK-JkMbmvZ7dBBkcVS7Pc1MS9Btca_7mRww7ZSY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg4Mzk1LCJleHAiOjE3NTU2OTMxOTV9.E7WqwqqSbVTu6ldINhqtFW4OhXJbOIV1skwcdzXOjVM', '2025-08-14 12:33:15', '2025-08-13 12:33:15', '2025-08-13 12:33:15');
+('admin_1_1755088395281', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg4Mzk1LCJleHAiOjE3NTUxNzQ3OTV9.DOEsxK-JkMbmvZ7dBBkcVS7Pc1MS9Btca_7mRww7ZSY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg4Mzk1LCJleHAiOjE3NTU2OTMxOTV9.E7WqwqqSbVTu6ldINhqtFW4OhXJbOIV1skwcdzXOjVM', '2025-08-14 12:33:15', '2025-08-13 12:33:15', '2025-08-13 12:33:15'),
+('admin_1_1755149150352', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MTUwLCJleHAiOjE3NTUyMzU1NTB9.4OMeSl_PRihUxDUC9SwZoE3CCyo6s0lw9AruK6u-73Y', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MTUwLCJleHAiOjE3NTU3NTM5NTB9.9O1aifybqlugU7m_9hkeerPQReWu0dItMC8Z5fzYmQ0', '2025-08-15 05:25:50', '2025-08-14 05:25:50', '2025-08-14 05:25:50'),
+('admin_1_1755149241552', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MjQxLCJleHAiOjE3NTUyMzU2NDF9._Cb7EPp9h52sUji1xab0GDk-McmBomygYtcKhxtvfeA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MjQxLCJleHAiOjE3NTU3NTQwNDF9.3tcfQlN39zXjtwgOkj6kbRRyhTl64qMWk7OF35cKH5Y', '2025-08-15 05:27:21', '2025-08-14 05:27:21', '2025-08-14 05:27:21'),
+('admin_1_1755150909434', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTUwOTA5LCJleHAiOjE3NTUyMzczMDl9.iIcn9fmNZPnUGanYPTcDjBz_IdtzXwk9izdDxkzvqKA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTUwOTA5LCJleHAiOjE3NTU3NTU3MDl9.ET12OW-Vs621n3jRtoVLMI_-u_84abFbUt5IFN9f780', '2025-08-15 05:55:09', '2025-08-14 05:55:09', '2025-08-14 05:55:09');
 
 -- --------------------------------------------------------
 
@@ -186,7 +189,7 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
 --
 
 INSERT INTO `admin_users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `is_active`, `last_login_at`, `email_verified_at`, `created_at`, `updated_at`) VALUES
-(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-08-13 12:33:15', '2025-08-09 06:56:11', '2025-08-09 06:56:11', '2025-08-13 12:33:15');
+(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-08-14 05:55:09', '2025-08-09 06:56:11', '2025-08-09 06:56:11', '2025-08-14 05:55:09');
 
 -- --------------------------------------------------------
 
@@ -263,6 +266,49 @@ INSERT INTO `categories` (`id`, `name`, `description`, `is_default`, `created_at
 (3, 'IT Applications', 'Software development and technical solutions', 1, '2025-08-09 06:56:11', '2025-08-09 06:56:11'),
 (4, 'Web Development', 'Website and web application projects', 0, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
 (6, 'Data Analysis', 'Data science and analytics projects', 0, '2025-08-09 09:45:32', '2025-08-09 09:45:32');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `category_stages`
+--
+
+DROP TABLE IF EXISTS `category_stages`;
+CREATE TABLE IF NOT EXISTS `category_stages` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `order_index` int DEFAULT '0',
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_order` (`order_index`),
+  KEY `idx_active` (`is_active`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `category_stages`
+--
+
+INSERT INTO `category_stages` (`id`, `name`, `description`, `order_index`, `is_active`, `created_at`, `updated_at`) VALUES
+(1, 'Content Strategy', 'Define learning objectives and content outline', 1, 1, '2025-08-14 06:23:11', '2025-08-14 07:00:10'),
+(2, 'Instructional Design', 'Create detailed instructional design document', 2, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(3, 'Storyboarding', 'Develop visual storyboards and content flow', 3, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(4, 'Content Development', 'Create actual learning content and materials', 4, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(5, 'Media Production', 'Produce multimedia elements and assets', 5, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(6, 'Quality Assurance', 'Review and test content for accuracy and effectiveness', 6, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(7, 'Final Review', 'Final approval and content validation', 7, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(8, 'Deployment', 'Publish and deploy content to learning platform', 8, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(9, 'Requirements Analysis', 'Gather and analyze project requirements', 1, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(10, 'System Design', 'Design system architecture and components', 2, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(11, 'Implementation', 'Develop and implement system features', 3, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(12, 'Testing', 'Comprehensive testing and bug fixes', 4, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(13, 'Documentation', 'Create user and technical documentation', 5, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(14, 'Deployment', 'Deploy system to production environment', 6, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(15, 'Maintenance', 'Ongoing support and maintenance', 7, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(16, 'System Design', 'System Design', 8, 1, '2025-08-14 06:41:53', '2025-08-14 06:41:53'),
+(17, 'dfsdsfsdf', 'fdssdf', 9, 1, '2025-08-14 06:42:06', '2025-08-14 06:42:06');
 
 -- --------------------------------------------------------
 
@@ -424,7 +470,7 @@ INSERT INTO `projects` (`id`, `name`, `description`, `category_id`, `status`, `s
 (2, 'Mobile Fitness App', 'Cross-platform fitness tracking application', 2, 'planning', '2024-02-01', '2024-08-15', 15, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
 (3, 'Sales Dashboard', 'Real-time sales analytics and reporting dashboard', 3, 'active', '2024-01-01', '2024-04-30', 75, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
 (4, 'Company Website Redesign', 'Complete redesign of corporate website with modern UI/UX', 1, 'completed', '2023-10-01', '2024-01-15', 100, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
-(8, 'Workflow App', 'Workflow App', 3, 'active', '2025-09-09', '2025-09-11', 36, 1, NULL, '2025-08-09 10:14:57', '2025-08-12 13:55:35');
+(8, 'Workflow App', 'Workflow App', 3, 'active', '2025-09-09', '2025-09-11', 56, 1, NULL, '2025-08-09 10:14:57', '2025-08-13 12:45:20');
 
 -- --------------------------------------------------------
 
@@ -620,46 +666,44 @@ DROP TABLE IF EXISTS `stage_templates`;
 CREATE TABLE IF NOT EXISTS `stage_templates` (
   `id` int NOT NULL AUTO_INCREMENT,
   `category_id` int NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb4_unicode_ci,
+  `stage_id` int NOT NULL,
   `order_index` int DEFAULT '0',
   `is_default` tinyint(1) DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_category` (`category_id`),
+  KEY `idx_stage` (`stage_id`),
   KEY `idx_order` (`order_index`)
-) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `stage_templates`
 --
 
-INSERT INTO `stage_templates` (`id`, `category_id`, `name`, `description`, `order_index`, `is_default`, `created_at`) VALUES
-(1, 1, 'Content Strategy', 'Define learning objectives and content outline', 1, 1, '2025-08-09 06:56:11'),
-(2, 1, 'Instructional Design', 'Create detailed instructional design document', 2, 1, '2025-08-09 06:56:11'),
-(3, 1, 'Storyboarding', 'Visual planning and storyboard creation', 3, 1, '2025-08-09 06:56:11'),
-(4, 1, 'Content Development', 'Content creation and writing phase', 4, 1, '2025-08-09 06:56:11'),
-(5, 1, 'Media Production', 'Graphics, animations, and multimedia creation', 5, 1, '2025-08-09 06:56:11'),
-(6, 1, 'Development & Integration', 'Technical development and LMS integration', 6, 1, '2025-08-09 06:56:11'),
-(7, 1, 'Review & QA', 'Quality assurance and review process', 7, 1, '2025-08-09 06:56:11'),
-(8, 1, 'Deployment', 'Final deployment and launch', 8, 1, '2025-08-09 06:56:11'),
-(9, 2, 'Curriculum Analysis', 'Analyze curriculum requirements and standards', 1, 1, '2025-08-09 06:56:11'),
-(10, 2, 'Scope & Sequence', 'Define scope and sequence of curriculum', 2, 1, '2025-08-09 06:56:11'),
-(11, 2, 'Learning Objectives', 'Define detailed learning objectives', 3, 1, '2025-08-09 06:56:11'),
-(12, 2, 'Content Creation', 'Develop curriculum content and materials', 4, 1, '2025-08-09 06:56:11'),
-(13, 2, 'Assessment Design', 'Create assessments and evaluation tools', 5, 1, '2025-08-09 06:56:11'),
-(14, 2, 'Teacher Resources', 'Develop teacher guides and resources', 6, 1, '2025-08-09 06:56:11'),
-(15, 2, 'Pilot Testing', 'Pilot test with target audience', 7, 1, '2025-08-09 06:56:11'),
-(16, 2, 'Revision & Finalization', 'Revise based on feedback and finalize', 8, 1, '2025-08-09 06:56:11'),
-(17, 3, 'Requirements Analysis', 'Gather and analyze system requirements', 1, 1, '2025-08-09 06:56:11'),
-(18, 3, 'System Design', 'Design system architecture and database', 2, 1, '2025-08-09 06:56:11'),
-(19, 3, 'UI/UX Design', 'Design user interface and user experience', 3, 1, '2025-08-09 06:56:11'),
-(20, 3, 'Frontend Development', 'Develop user interface and client-side logic', 4, 1, '2025-08-09 06:56:11'),
-(21, 3, 'Backend Development', 'Develop server-side logic and APIs', 5, 1, '2025-08-09 06:56:11'),
-(22, 3, 'Database Implementation', 'Implement database and data models', 6, 1, '2025-08-09 06:56:11'),
-(23, 3, 'Integration Testing', 'Test system integration and APIs', 7, 1, '2025-08-09 06:56:11'),
-(24, 3, 'User Acceptance Testing', 'Conduct user acceptance testing', 8, 1, '2025-08-09 06:56:11'),
-(25, 3, 'Deployment & Launch', 'Deploy to production and launch', 9, 1, '2025-08-09 06:56:11');
+INSERT INTO `stage_templates` (`id`, `category_id`, `stage_id`, `order_index`, `is_default`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 1, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(2, 1, 2, 2, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(3, 1, 3, 3, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(4, 1, 4, 4, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(5, 1, 5, 5, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(6, 1, 6, 6, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(7, 1, 7, 7, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(8, 1, 8, 8, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(9, 2, 9, 1, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(10, 2, 10, 2, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(11, 2, 11, 3, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(12, 2, 12, 4, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(13, 2, 13, 5, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(14, 2, 14, 6, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(15, 2, 15, 7, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(16, 3, 1, 1, 1, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(17, 3, 3, 2, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(18, 3, 4, 3, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(19, 3, 5, 4, 0, '2025-08-14 06:23:11', '2025-08-14 06:23:11'),
+(20, 3, 6, 5, 0, '2025-08-14 06:23:11', '2025-08-14 07:02:50'),
+(21, 3, 7, 6, 0, '2025-08-14 06:23:11', '2025-08-14 07:02:51'),
+(22, 3, 8, 7, 0, '2025-08-14 06:23:11', '2025-08-14 07:02:51');
 
 -- --------------------------------------------------------
 
@@ -712,7 +756,7 @@ INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `stage_id`, `gra
 (2, 'Register Page', 'Register Page', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'high', '2025-08-11', '2025-08-18', 0, 45.00, 75.00, 1, '2025-08-11 12:34:09', '2025-08-12 06:53:27'),
 (4, 'sdffddsdsfg', 'dfssdf', 1, 1, NULL, NULL, NULL, NULL, '', 'in-progress', 'high', '2025-08-11', '2025-08-18', 50, 8.00, 0.00, 1, '2025-08-11 13:13:04', '2025-08-12 08:10:41'),
 (5, 'Task name', 'Description', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'low', '2025-08-11', '2025-08-14', 90, 8.00, 0.00, 1, '2025-08-11 13:36:06', '2025-08-12 08:05:27'),
-(6, 'bfdfbfdv', 'bfdfbfdv', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'high', '2025-08-12', '2025-08-19', 0, 8.00, 0.00, 1, '2025-08-12 06:51:40', '2025-08-12 07:44:36'),
+(6, 'bfdfbfdv', 'bfdfbfdv', 8, 1, NULL, NULL, NULL, NULL, '', 'completed', 'high', '2025-08-12', '2025-08-19', 100, 8.00, 0.00, 1, '2025-08-12 06:51:40', '2025-08-13 12:45:20'),
 (10, 'sdsdfds', 'dsfsdf', 8, 1, 3, 1, 1, 1, '', 'under-review', 'medium', '2025-08-12', '2025-08-19', 90, 8.00, 0.00, 1, '2025-08-12 13:55:35', '2025-08-13 06:35:28');
 
 -- --------------------------------------------------------
@@ -740,17 +784,17 @@ CREATE TABLE IF NOT EXISTS `task_assignees` (
 --
 
 INSERT INTO `task_assignees` (`id`, `task_id`, `assignee_id`, `assignee_type`, `created_at`) VALUES
-(1, 6, 8, 'admin', '2025-08-12 07:44:36'),
-(2, 6, 7, 'admin', '2025-08-12 07:44:36'),
-(3, 6, 1, 'admin', '2025-08-12 07:44:36'),
-(4, 5, 8, 'admin', '2025-08-12 08:05:27'),
-(5, 5, 7, 'admin', '2025-08-12 08:05:27'),
-(6, 5, 2, 'admin', '2025-08-12 08:05:27'),
-(7, 4, 3, 'admin', '2025-08-12 08:10:41'),
-(8, 4, 4, 'admin', '2025-08-12 08:10:41'),
-(9, 4, 1, 'admin', '2025-08-12 08:10:41'),
-(20, 10, 2, 'admin', '2025-08-13 06:35:28'),
-(21, 10, 6, 'admin', '2025-08-13 06:35:28');
+(1, 6, 8, 'team', '2025-08-12 07:44:36'),
+(2, 6, 7, 'team', '2025-08-12 07:44:36'),
+(3, 6, 1, 'team', '2025-08-12 07:44:36'),
+(4, 5, 8, 'team', '2025-08-12 08:05:27'),
+(5, 5, 7, 'team', '2025-08-12 08:05:27'),
+(6, 5, 2, 'team', '2025-08-12 08:05:27'),
+(7, 4, 3, 'team', '2025-08-12 08:10:41'),
+(8, 4, 4, 'team', '2025-08-12 08:10:41'),
+(9, 4, 1, 'team', '2025-08-12 08:10:41'),
+(20, 10, 2, 'team', '2025-08-13 06:35:28'),
+(21, 10, 6, 'team', '2025-08-13 06:35:28');
 
 -- --------------------------------------------------------
 
@@ -922,11 +966,11 @@ CREATE TABLE IF NOT EXISTS `team_members` (
 INSERT INTO `team_members` (`id`, `email`, `passcode`, `name`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
 (1, 'sarah.johnson@company.com', 'DEMO123', 'Sarah Johnson', 1, NULL, '2025-08-09 06:56:11', '2025-08-11 06:52:26'),
 (2, 'mike.chen@company.com', 'TECH456', 'Mikel Chen', 1, NULL, '2025-08-09 06:56:11', '2025-08-09 11:39:13'),
-(3, 'emily.rodriguez@company.com', 'DESIGN789', 'Emily Rodriguez', 1, NULL, '2025-08-09 06:56:11', '2025-08-09 06:56:11'),
-(4, 'david.kim@company.com', 'DAVID123', 'David Kim', 1, NULL, '2025-08-09 06:56:11', '2025-08-11 10:41:24'),
+(3, 'emily.rodriguez@company.com', 'DESIGN789', 'Emily Rodriguez', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:10'),
+(4, 'david.kim@company.com', 'DAVID123', 'David Kim', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:14'),
 (5, 'lisa.thompson@company.com', 'MARKET99', 'Lisa Thompson', 1, NULL, '2025-08-09 06:56:11', '2025-08-09 06:56:11'),
-(6, 'john.smith@company.com', 'WRITE42', 'John Smith', 1, NULL, '2025-08-09 06:56:11', '2025-08-09 06:56:11'),
-(7, 'zaki@bylinelearning.com', 'ZAKI11', 'Zaki Shaikh', 1, '2025-08-13 12:37:42', '2025-08-09 11:36:07', '2025-08-13 12:37:42'),
+(6, 'john.smith@company.com', 'WRITE42', 'John Smith', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:12'),
+(7, 'zaki@bylinelearning.com', 'ZAKI11', 'Zaki Shaikh', 1, '2025-08-14 05:48:50', '2025-08-09 11:36:07', '2025-08-14 05:48:50'),
 (8, 'rahul.k@bylinelearning.com', 'RAHUL123', 'Rahul Kirad', 1, NULL, '2025-08-11 09:51:14', '2025-08-11 09:51:14');
 
 -- --------------------------------------------------------
@@ -1193,7 +1237,8 @@ ALTER TABLE `stages`
 -- Constraints for table `stage_templates`
 --
 ALTER TABLE `stage_templates`
-  ADD CONSTRAINT `stage_templates_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `stage_templates_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `stage_templates_ibfk_2` FOREIGN KEY (`stage_id`) REFERENCES `category_stages` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `tasks`

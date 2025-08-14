@@ -569,6 +569,8 @@ export const stageService = {
   }
 };
 
+
+
 // Stage Template Service
 export const stageTemplateService = {
   // Get all stage templates for a category

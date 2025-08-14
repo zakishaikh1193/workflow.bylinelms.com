@@ -235,6 +235,7 @@ const createProject = async (req, res) => {
       name,
       description,
       category_id,
+      current_stage_id,
       start_date,
       end_date,
       status = 'planning',
@@ -265,9 +266,9 @@ const createProject = async (req, res) => {
 
     const query = `
       INSERT INTO projects (
-        name, description, category_id, start_date, end_date, 
+        name, description, category_id, current_stage_id, start_date, end_date, 
         status, progress, created_by, parent_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // Ensure all parameters are defined and properly formatted
@@ -287,6 +288,7 @@ const createProject = async (req, res) => {
       name || null,
       description || null,
       category_id || null,
+      current_stage_id || null,
       formattedStartDate,
       formattedEndDate,
       status || 'planning',
@@ -349,6 +351,7 @@ const updateProject = async (req, res) => {
       name,
       description,
       category_id,
+      current_stage_id,
       start_date,
       end_date,
       status,
@@ -384,6 +387,10 @@ const updateProject = async (req, res) => {
       updateFields.push('category_id = ?');
       updateValues.push(category_id);
     }
+    if (current_stage_id !== undefined) {
+      updateFields.push('current_stage_id = ?');
+      updateValues.push(current_stage_id);
+    }
     if (start_date !== undefined) {
       updateFields.push('start_date = ?');
       updateValues.push(start_date);
@@ -418,7 +425,7 @@ const updateProject = async (req, res) => {
     updateValues.push(id);
 
     console.log('🔄 Updating project with values:', {
-      name, description, category_id, start_date, end_date, 
+      name, description, category_id, current_stage_id, start_date, end_date, 
       status, progress, parent_id, id
     });
     console.log('🔍 Database query:', query);

@@ -67,6 +67,10 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     { progress: currentProject.progress, completedWeight: currentProject.progress, totalWeight: 100 } :
     calculateProjectProgress(currentProject, projectTasks);
 
+  // Get current stage information
+  const currentStage = currentProject.current_stage_id ? 
+    stages.find(stage => stage.id === currentProject.current_stage_id) : null;
+
   // Fetch project members, teams, and available team members
   useEffect(() => {
     const fetchData = async () => {
@@ -353,6 +357,48 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           </CardContent>
         </Card>
       </div>
+
+      {/* Current Stage */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Flag className="w-5 h-5 mr-2 text-blue-600" />
+            Current Stage
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {currentStage ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-gray-900">{currentStage.name}</h4>
+                <p className="text-sm text-gray-600 mt-1">{currentStage.description}</p>
+                <div className="flex items-center space-x-4 mt-2">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <BarChart3 className="w-4 h-4 mr-1" />
+                    Order: {currentStage.order_index || currentStage.template_order || 'N/A'}
+                  </div>
+                  {currentStage.is_active !== undefined && (
+                    <Badge variant={currentStage.is_active ? 'success' : 'default'} size="sm">
+                      {currentStage.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="text-right">
+                <Badge variant="primary">
+                  Current
+                </Badge>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <Flag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-500">No current stage set</p>
+              <p className="text-sm text-gray-400 mt-1">Edit the project to select a stage</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Project Description */}
       <Card>

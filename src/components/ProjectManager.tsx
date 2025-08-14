@@ -20,7 +20,7 @@ import { useApp } from '../contexts/AppContext';
 import { Project, ProjectStatus } from '../types';
 import { ProjectDetails } from './ProjectDetails';
 import { calculateProjectProgress } from '../utils/progressCalculator';
-import { projectService, categoryService } from '../services/apiService';
+import { projectService, categoryService, stageService } from '../services/apiService';
 
 // Category-specific stage templates
 const stageTemplates = {
@@ -105,7 +105,7 @@ export function ProjectManager() {
     return true;
   });
 
-  const handleCreateProject = async (projectData: Partial<Project>) => {
+  const handleCreateProject = async (projectData: Partial<Project> & { currentStageId?: number }) => {
     try {
       setError(null);
       
@@ -114,6 +114,7 @@ export function ProjectManager() {
         name: projectData.name || '',
         description: projectData.description || '',
         category_id: projectData.category_id || categories[0]?.id,
+        current_stage_id: projectData.currentStageId || null,
         start_date: projectData.start_date || new Date().toISOString().split('T')[0],
         end_date: projectData.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: 'planning',
@@ -136,7 +137,7 @@ export function ProjectManager() {
     }
   };
 
-  const handleUpdateProject = async (projectId: string, projectData: Partial<Project>) => {
+  const handleUpdateProject = async (projectId: string, projectData: Partial<Project> & { currentStageId?: number }) => {
     try {
       setError(null);
       
@@ -148,6 +149,7 @@ export function ProjectManager() {
       if (projectData.name) backendProjectData.name = projectData.name;
       if (projectData.description) backendProjectData.description = projectData.description;
       if (category) backendProjectData.category_id = category.id;
+      if (projectData.currentStageId !== undefined) backendProjectData.current_stage_id = projectData.currentStageId;
       if (projectData.startDate) backendProjectData.start_date = projectData.startDate.toISOString().split('T')[0];
       if (projectData.endDate) backendProjectData.end_date = projectData.endDate.toISOString().split('T')[0];
       if (projectData.status) backendProjectData.status = projectData.status;
@@ -511,7 +513,7 @@ export function ProjectManager() {
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (project: Partial<Project>) => void;
+  onSubmit: (project: Partial<Project> & { currentStageId?: number }) => void;
   categories: any[];
 }
 
@@ -520,9 +522,34 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
     name: '',
     description: '',
     category_id: null as number | null,
+    current_stage_id: null as number | null,
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
+  
+  const [selectedCategoryStages, setSelectedCategoryStages] = useState<any[]>([]);
+  const [loadingStages, setLoadingStages] = useState(false);
+
+  // Load stages when category changes
+  const handleCategoryChange = async (categoryId: number | null) => {
+    setFormData({ ...formData, category_id: categoryId, current_stage_id: null });
+    
+    if (categoryId) {
+      setLoadingStages(true);
+      try {
+        const stages = await stageService.getByCategory(categoryId);
+        setSelectedCategoryStages(stages);
+        console.log('📋 Loaded stages for category:', categoryId, stages);
+      } catch (error) {
+        console.error('Failed to load stages for category:', error);
+        setSelectedCategoryStages([]);
+      } finally {
+        setLoadingStages(false);
+      }
+    } else {
+      setSelectedCategoryStages([]);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -530,14 +557,17 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
       ...formData,
       start_date: formData.start_date,
       end_date: formData.end_date,
+      currentStageId: formData.current_stage_id || undefined,
     });
     setFormData({
       name: '',
       description: '',
       category_id: null,
+      current_stage_id: null,
       start_date: new Date().toISOString().split('T')[0],
       end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     });
+    setSelectedCategoryStages([]);
   };
 
   return (
@@ -576,7 +606,7 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
           </label>
           <select
             value={formData.category_id || ''}
-            onChange={(e) => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) : null })}
+            onChange={(e) => handleCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Select a category</option>
@@ -589,6 +619,38 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
             )}
           </select>
         </div>
+
+        {/* Current Stage Selection */}
+        {formData.category_id && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Current Stage
+            </label>
+            {loadingStages ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-sm text-gray-600">Loading stages...</span>
+              </div>
+            ) : selectedCategoryStages.length > 0 ? (
+              <select
+                value={formData.current_stage_id || ''}
+                onChange={(e) => setFormData({ ...formData, current_stage_id: e.target.value ? parseInt(e.target.value) : null })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a stage</option>
+                {selectedCategoryStages.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name} - {stage.description}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-sm text-gray-500 py-2">
+                No stages available for this category.
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
