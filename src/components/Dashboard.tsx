@@ -65,15 +65,45 @@ export function Dashboard() {
     }
   };
 
-  // Temporary fallback data for tasks until we implement the tasks API
-  const todayTasks: any[] = [];
-  const tomorrowTasks: any[] = [];
-  const thisWeekTasks: any[] = [];
-  const allTasks: any[] = [];
-  
-  // Get projects and team members from dashboard data
+  // Get data from dashboard service
   const projects = dashboardData?.projects || [];
   const teamMembers = dashboardData?.teamMembers || [];
+  const allTasks = dashboardData?.tasks || [];
+  
+  // Debug logging
+  console.log('🔍 Dashboard data:', {
+    projects: projects.length,
+    teamMembers: teamMembers.length,
+    allTasks: allTasks.length,
+    sampleTasks: allTasks.slice(0, 3).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      assignees: t.assignees,
+      teamAssignees: t.teamAssignees
+    }))
+  });
+  
+  // Calculate task counts for different time periods
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const weekFromNow = new Date(today);
+  weekFromNow.setDate(today.getDate() + 7);
+  
+  const todayTasks = allTasks.filter((task: any) => {
+    const taskDate = new Date(task.end_date);
+    return taskDate.toDateString() === today.toDateString() && task.status !== 'completed';
+  });
+  
+  const tomorrowTasks = allTasks.filter((task: any) => {
+    const taskDate = new Date(task.end_date);
+    return taskDate.toDateString() === tomorrow.toDateString() && task.status !== 'completed';
+  });
+  
+  const thisWeekTasks = allTasks.filter((task: any) => {
+    const taskDate = new Date(task.end_date);
+    return taskDate >= today && taskDate <= weekFromNow && task.status !== 'completed';
+  });
 
   const handleUserClick = (userId: string) => {
     dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
@@ -310,9 +340,19 @@ export function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             {teamMembers.slice(0, 6).map((member: any) => {
-              const memberTasks = allTasks.filter(t => t.assignees && t.assignees.includes(member.id));
-              const completedTasks = memberTasks.filter(t => t.status === 'completed').length;
+              const memberTasks = allTasks.filter((t: any) => t.assignees && t.assignees.includes(member.id));
+              const completedTasks = memberTasks.filter((t: any) => t.status === 'completed').length;
               const workloadPercentage = memberTasks.length > 0 ? (completedTasks / memberTasks.length) * 100 : 0;
+              
+              // Debug logging for first few members
+              if (member.id <= 3) {
+                console.log(`👤 Member ${member.name} (ID: ${member.id}):`, {
+                  totalTasks: allTasks.length,
+                  memberTasks: memberTasks.length,
+                  taskIds: memberTasks.map((t: any) => t.id),
+                  assignees: memberTasks.map((t: any) => t.assignees)
+                });
+              }
               
               return (
                 <div 

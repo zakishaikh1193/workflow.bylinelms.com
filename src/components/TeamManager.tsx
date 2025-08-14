@@ -23,7 +23,8 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
-import { teamService, skillService } from '../services/apiService';
+import { teamService, skillService, taskService } from '../services/apiService';
+import { useApp } from '../contexts/AppContext';
 
 interface TeamMember {
   id: number;
@@ -36,6 +37,7 @@ interface TeamMember {
   performance_flags_count: number;
   is_active: boolean;
   created_at: string;
+  task_count?: number; // Number of tasks assigned to this member
 }
 
 interface Team {
@@ -60,6 +62,7 @@ interface FunctionalUnit {
 }
 
 export function TeamManager() {
+  const { dispatch } = useApp();
   const [activeTab, setActiveTab] = useState<'members' | 'teams'>('members');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,11 +144,27 @@ export function TeamManager() {
       setError(null);
       
       if (activeTab === 'members') {
-        const membersData = await teamService.getMembers();
+        const [membersData, tasksData] = await Promise.all([
+          teamService.getMembers(),
+          taskService.getAll()
+        ]);
         
         console.log('✅ Team members fetched:', membersData);
-        setTeamMembers(membersData || []);
-        setFilteredMembers(membersData || []);
+        console.log('✅ Tasks fetched:', tasksData);
+        
+        // Add task counts to team members
+        const membersWithTaskCounts = (membersData || []).map((member: TeamMember) => {
+          const memberTasks = tasksData.filter((task: any) => 
+            task.assignees && task.assignees.includes(member.id)
+          );
+          return {
+            ...member,
+            task_count: memberTasks.length
+          };
+        });
+        
+        setTeamMembers(membersWithTaskCounts);
+        setFilteredMembers(membersWithTaskCounts);
       } else {
         const teamsData = await teamService.getTeams();
         
@@ -247,6 +266,12 @@ export function TeamManager() {
       console.error('Error deleting team member:', error);
       setError('Failed to delete team member');
     }
+  };
+
+  const handleMemberClick = (member: TeamMember) => {
+    // Navigate to tasks page filtered by this team member
+    dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
+    dispatch({ type: 'SET_FILTERS', payload: { teamMembers: [member.id.toString()] } });
   };
 
   const resetMemberForm = () => {
@@ -483,6 +508,7 @@ export function TeamManager() {
           members={filteredMembers}
           onEdit={openEditMember}
           onDelete={handleDeleteMember}
+          onMemberClick={handleMemberClick}
         />
       ) : (
         <TeamsTab 
@@ -863,13 +889,18 @@ interface TeamMembersTabProps {
   members: TeamMember[];
   onEdit: (member: TeamMember) => void;
   onDelete: (id: number) => void;
+  onMemberClick?: (member: TeamMember) => void;
 }
 
-function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
+function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMembersTabProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {members.map((member) => (
-        <Card key={member.id} className="hover:shadow-lg transition-shadow duration-200">
+        <Card 
+          key={member.id} 
+          className="hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+          onClick={() => onMemberClick && onMemberClick(member)}
+        >
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -894,13 +925,29 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
           </div>
                 
                 <div className="mb-4 space-y-3">
+                  {/* Task Count */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Tasks</span>
+                      <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                        {member.task_count || 0} tasks
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min((member.task_count || 0) * 10, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700">Skills</span>
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                         {member.skills.length} skills
                       </span>
-      </div>
+                    </div>
 
                     {member.skills.length > 0 && (
                       <div className="flex flex-wrap gap-1">
@@ -955,7 +1002,10 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
             <Button 
                       size="sm" 
                       variant="outline" 
-                      onClick={() => onEdit(member)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(member);
+                      }}
                       className="hover:bg-blue-50 hover:border-blue-300 transition-colors"
                     >
                       <Edit className="w-3 h-3" />
@@ -963,7 +1013,10 @@ function TeamMembersTab({ members, onEdit, onDelete }: TeamMembersTabProps) {
                     <Button 
                       size="sm" 
                       variant="outline" 
-                      onClick={() => onDelete(member.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(member.id);
+                      }}
                       className="hover:bg-red-50 hover:border-red-300 transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />

@@ -28,7 +28,7 @@ import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
 import EducationalHierarchy from './EducationalHierarchy';
-import { projectService, teamService, taskService, skillService, stageService, categoryService } from '../services/apiService';
+import { projectService, teamService, taskService, skillService, stageService, categoryService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -56,14 +56,24 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const projectProgress = calculateProjectProgress(project, projectTasks);
+  const [currentProject, setCurrentProject] = useState<Project>(project);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  
+  // Use the progress calculated by the backend, or calculate from tasks if not available
+  const projectProgress = currentProject.progress !== undefined ? 
+    { progress: currentProject.progress, completedWeight: currentProject.progress, totalWeight: 100 } :
+    calculateProjectProgress(currentProject, projectTasks);
 
   // Fetch project members, teams, and available team members
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [members, teams, teamMembers, availableTeamsData, allTeamsData, tasksData, skillsData, projectsData, stagesData, categoriesData] = await Promise.all([
+        const [currentProjectData, members, teams, teamMembers, availableTeamsData, allTeamsData, tasksData, skillsData, projectsData, stagesData, categoriesData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
+          projectService.getById(project.id),
           projectService.getMembers(project.id),
           projectService.getTeams(project.id),
           teamService.getMembers(),
@@ -73,8 +83,13 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           skillService.getAll(),
           projectService.getAll(),
           stageService.getAll(),
-          categoryService.getAll()
+          categoryService.getAll(),
+          gradeService.getAll(),
+          bookService.getAll(),
+          unitService.getAll(),
+          lessonService.getAll()
         ]);
+        setCurrentProject(currentProjectData);
         setProjectMembers(members);
         setProjectTeams(teams);
         setAvailableTeamMembers(teamMembers);
@@ -86,6 +101,10 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         setProjects(projectsData);
         setStages(stagesData);
         setLocalCategories(categoriesData);
+        setGrades(gradesData);
+        setBooks(booksData);
+        setUnits(unitsData);
+        setLessons(lessonsData);
       } catch (error) {
         console.error('Failed to fetch project data:', error);
       } finally {
@@ -981,17 +1000,17 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
             Back to Projects
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-            <p className="text-gray-600">{project.category}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{currentProject.name}</h1>
+            <p className="text-gray-600">{currentProject.category}</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
           <Badge variant={
-            project.status === 'active' ? 'primary' :
-            project.status === 'completed' ? 'success' :
-            project.status === 'on-hold' ? 'warning' : 'default'
+            currentProject.status === 'active' ? 'primary' :
+            currentProject.status === 'completed' ? 'success' :
+            currentProject.status === 'on-hold' ? 'warning' : 'default'
           }>
-            {project.status}
+            {currentProject.status}
           </Badge>
           <Button 
             variant="outline" 
@@ -1041,7 +1060,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       <div>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'stages' && renderStages()}
-        {activeTab === 'educational-hierarchy' && <EducationalHierarchy projectId={Number(project.id)} />}
+        {activeTab === 'educational-hierarchy' && <EducationalHierarchy projectId={Number(currentProject.id)} />}
         {activeTab === 'tasks' && renderTasks()}
         {activeTab === 'timeline' && renderTimeline()}
         {activeTab === 'team' && renderTeam()}
@@ -1057,6 +1076,10 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         skills={skills}
         projects={projects}
         stages={stages}
+        grades={grades}
+        books={books}
+        units={units}
+        lessons={lessons}
       />
 
       {/* Edit Project Modal */}
@@ -1064,7 +1087,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         isOpen={isEditProjectModalOpen}
         onClose={() => setIsEditProjectModalOpen(false)}
         onSubmit={handleEditProject}
-        project={project}
+        project={currentProject}
         categories={categories || localCategories}
       />
 

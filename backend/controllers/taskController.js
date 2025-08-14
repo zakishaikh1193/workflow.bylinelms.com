@@ -212,13 +212,14 @@ const getTask = async (req, res) => {
     `;
     const skills = await db.query(skillsQuery, [id]);
 
-    // Add assignees and skills to task
-    task.assignees = assignees.map(a => ({
-      id: a.assignee_id,
-      type: a.assignee_type,
-      name: a.team_name || a.admin_name,
-      email: a.team_email || a.admin_email
-    }));
+    // Add assignees and skills to task (consistent with getTaskById)
+    task.assignees = assignees.map(a => a.assignee_id);
+    
+    // For backward compatibility, also provide team assignees separately
+    task.teamAssignees = assignees
+      .filter(a => a.assignee_type === 'team')
+      .map(a => a.assignee_id);
+    
     task.skills = skills;
 
     res.json({
@@ -623,13 +624,13 @@ const getTaskById = async (taskId) => {
   `;
   const skills = await db.query(skillsQuery, [taskId]);
 
-  // Get all assignees (all are now individual)
-  task.assignees = assignees
-    .filter(a => a.assignee_type === 'admin')
-    .map(a => a.assignee_id);
+  // Get all assignees (both admin and team)
+  task.assignees = assignees.map(a => a.assignee_id);
   
-  // No team assignees since we expand them to individuals
-  task.teamAssignees = [];
+  // For backward compatibility, also provide team assignees separately
+  task.teamAssignees = assignees
+    .filter(a => a.assignee_type === 'team')
+    .map(a => a.assignee_id);
   
   task.skills = skills;
 

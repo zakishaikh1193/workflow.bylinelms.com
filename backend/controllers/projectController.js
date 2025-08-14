@@ -39,7 +39,7 @@ const calculateProjectUserCount = async (projectId) => {
       SELECT COUNT(DISTINCT ta.assignee_id) as unique_users
       FROM task_assignees ta
       JOIN tasks t ON ta.task_id = t.id
-      WHERE t.project_id = ? AND ta.assignee_type = 'admin'
+      WHERE t.project_id = ?
     `;
     
     const result = await db.query(userCountQuery, [projectId]);
