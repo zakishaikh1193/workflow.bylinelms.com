@@ -11,14 +11,18 @@ import {
   User,
   LogOut,
   CheckCircle,
-  XCircle
+  XCircle,
+  RefreshCw,
+  Target,
+  BarChart3,
+  Activity
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
-import { useApp } from '../contexts/AppContext';
+import { teamTaskService, teamProjectService, teamService } from '../services/apiService';
 import type { Task, User as UserType } from '../types';
 
 interface TeamMemberPortalProps {
@@ -27,30 +31,71 @@ interface TeamMemberPortalProps {
 }
 
 export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
-  const { state, dispatch } = useApp();
+  const [userTasks, setUserTasks] = useState<Task[]>([]);
+  const [userProjects, setUserProjects] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
   const [extensionReason, setExtensionReason] = useState('');
   const [extensionDays, setExtensionDays] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Get user's tasks
-  const userTasks = state.tasks.filter(task => task.assignees.includes(user.id));
+  // Load user's data
+  useEffect(() => {
+    loadUserData();
+  }, [user.id]);
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load user's tasks and projects using team-specific APIs
+      const [tasksData, projectsData] = await Promise.all([
+        teamService.getMyTasks(),
+        teamProjectService.getAll()
+      ]);
+      
+      setUserTasks(tasksData);
+      setUserProjects(projectsData);
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshData = async () => {
+    setRefreshing(true);
+    await loadUserData();
+    setRefreshing(false);
+  };
+
+  // Filter tasks
   const activeTasks = userTasks.filter(task => task.status !== 'completed');
   const completedTasks = userTasks.filter(task => task.status === 'completed');
   const overdueTasks = userTasks.filter(task => 
-    new Date(task.endDate) < new Date() && task.status !== 'completed'
+    task.end_date && new Date(task.end_date) < new Date() && task.status !== 'completed'
   );
 
   // Performance metrics
   const completionRate = userTasks.length > 0 ? Math.round((completedTasks.length / userTasks.length) * 100) : 0;
-  const onTimeCompletions = completedTasks.length; // In real app, check completion vs due date
-  const performanceFlags = user.performanceFlags || [];
+  const onTimeCompletions = completedTasks.filter(task => 
+    task.updated_at && task.end_date && new Date(task.updated_at) <= new Date(task.end_date)
+  ).length;
+  const performanceFlags = user.performance_flags || [];
 
-  const handleMarkComplete = (taskId: string) => {
-    const task = state.tasks.find(t => t.id === taskId);
-    if (task) {
-      const updatedTask = { ...task, status: 'completed' as const, progress: 100 };
-      dispatch({ type: 'UPDATE_TASK', payload: updatedTask });
+  const handleMarkComplete = async (taskId: string) => {
+    try {
+      await teamTaskService.update(taskId, { 
+        status: 'completed', 
+        progress: 100,
+        actual_hours: 0 // You might want to add actual hours tracking
+      });
+      
+      // Refresh data
+      await loadUserData();
+    } catch (error) {
+      console.error('Failed to mark task complete:', error);
     }
   };
 
@@ -59,22 +104,19 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     setIsExtensionModalOpen(true);
   };
 
-  const submitExtensionRequest = () => {
+  const submitExtensionRequest = async () => {
     if (selectedTask) {
-      // In a real app, this would create a notification/request for the manager
-      console.log('Extension request:', {
-        taskId: selectedTask.id,
-        reason: extensionReason,
-        days: extensionDays,
-        requestedBy: user.id,
-      });
-      
-      // For demo, we'll just update the task with a note
-      const updatedTask = {
-        ...selectedTask,
-        description: `${selectedTask.description}\n\n[Extension Request: ${extensionReason} - ${extensionDays} days]`
-      };
-      dispatch({ type: 'UPDATE_TASK', payload: updatedTask });
+      try {
+        // Update task with extension request
+        await teamTaskService.update(selectedTask.id, {
+          description: `${selectedTask.description}\n\n[Extension Request: ${extensionReason} - ${extensionDays} days]`
+        });
+        
+        // Refresh data
+        await loadUserData();
+      } catch (error) {
+        console.error('Failed to submit extension request:', error);
+      }
     }
     
     setIsExtensionModalOpen(false);
@@ -93,16 +135,28 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   };
 
   const isTaskOverdue = (task: Task) => {
-    return new Date(task.endDate) < new Date() && task.status !== 'completed';
+    return task.end_date && new Date(task.end_date) < new Date() && task.status !== 'completed';
   };
 
   const getDaysUntilDue = (task: Task) => {
+    if (!task.end_date) return 0;
     const today = new Date();
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(task.end_date);
     const diffTime = dueDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading your portal...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -111,18 +165,34 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-medium">
                 {user.name.charAt(0)}
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">Welcome, {user.name}</h1>
-                <p className="text-sm text-gray-600">{user.skills.join(', ')}</p>
+                <p className="text-sm text-gray-600">
+                  {user.skills && user.skills.length > 0 ? user.skills.join(', ') : 'Team Member'}
+                </p>
               </div>
             </div>
-            <Button variant="ghost" onClick={onLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
+            <div className="flex items-center space-x-3">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={refreshData}
+                loading={refreshing}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="ghost" onClick={() => {
+                localStorage.removeItem('teamToken');
+                onLogout();
+              }}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -130,57 +200,57 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Performance Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-blue-50">
-                  <CheckSquare className="w-6 h-6 text-blue-600" />
+                <div className="p-2 rounded-lg bg-blue-400 bg-opacity-20">
+                  <CheckSquare className="w-6 h-6 text-white" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active Tasks</p>
-                  <p className="text-2xl font-bold text-gray-900">{activeTasks.length}</p>
+                  <p className="text-blue-100 text-sm font-medium">Active Tasks</p>
+                  <p className="text-2xl font-bold">{activeTasks.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-green-50">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
+                <div className="p-2 rounded-lg bg-green-400 bg-opacity-20">
+                  <CheckCircle className="w-6 h-6 text-white" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900">{completedTasks.length}</p>
+                  <p className="text-green-100 text-sm font-medium">Completed</p>
+                  <p className="text-2xl font-bold">{completedTasks.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-red-50">
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                <div className="p-2 rounded-lg bg-red-400 bg-opacity-20">
+                  <AlertTriangle className="w-6 h-6 text-white" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Overdue</p>
-                  <p className="text-2xl font-bold text-gray-900">{overdueTasks.length}</p>
+                  <p className="text-red-100 text-sm font-medium">Overdue</p>
+                  <p className="text-2xl font-bold">{overdueTasks.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-purple-50">
-                  <TrendingUp className="w-6 h-6 text-purple-600" />
+                <div className="p-2 rounded-lg bg-purple-400 bg-opacity-20">
+                  <TrendingUp className="w-6 h-6 text-white" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Completion Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">{completionRate}%</p>
+                  <p className="text-purple-100 text-sm font-medium">Completion Rate</p>
+                  <p className="text-2xl font-bold">{completionRate}%</p>
                 </div>
               </div>
             </CardContent>
@@ -205,7 +275,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                   </div>
                 ) : (
                   activeTasks.map(task => {
-                    const project = state.projects.find(p => p.id === task.projectId);
+                    const project = userProjects.find(p => p.id === task.project_id);
                     const daysUntilDue = getDaysUntilDue(task);
                     const isOverdue = isTaskOverdue(task);
                     
@@ -217,9 +287,42 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                               {task.name}
                               {isOverdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                             </h4>
-                            <p className="text-sm text-gray-600">{project?.name}</p>
+                            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-1">
+                              <span className="font-medium">{project?.name}</span>
+                              <span>•</span>
+                              <span>{task.stage_name}</span>
+                              {task.category_name && (
+                                <>
+                                  <span>•</span>
+                                  <span>{task.category_name}</span>
+                                </>
+                              )}
+                            </div>
                             {task.description && (
                               <p className="text-sm text-gray-700 mt-1">{task.description}</p>
+                            )}
+                            {/* Educational Hierarchy */}
+                            {(task.grade_name || task.book_name || task.unit_name || task.lesson_name) && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                <span className="font-medium">Educational Hierarchy:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {task.grade_name && <Badge variant="default" className="text-xs">{task.grade_name}</Badge>}
+                                  {task.book_name && <Badge variant="default" className="text-xs">{task.book_name}</Badge>}
+                                  {task.unit_name && <Badge variant="default" className="text-xs">{task.unit_name}</Badge>}
+                                  {task.lesson_name && <Badge variant="default" className="text-xs">{task.lesson_name}</Badge>}
+                                </div>
+                              </div>
+                            )}
+                            {/* Required Skills */}
+                            {task.required_skills && task.required_skills.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                <span className="font-medium">Required Skills:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {task.required_skills.map((skill: string, index: number) => (
+                                    <Badge key={index} variant="secondary" className="text-xs">{skill}</Badge>
+                                  ))}
+                                </div>
+                              </div>
                             )}
                           </div>
                           <div className="flex items-center space-x-2">
@@ -251,7 +354,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                         <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
                           <div className="flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
-                            Due: {new Date(task.endDate).toLocaleDateString()}
+                            Due: {task.end_date ? new Date(task.end_date).toLocaleDateString() : 'No due date'}
                           </div>
                           <div className={`font-medium ${
                             isOverdue ? 'text-red-600' :
@@ -267,8 +370,8 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
                         <div className="flex items-center justify-between">
                           <div className="text-sm text-gray-600">
-                            Estimated: {task.estimatedHours}h
-                            {task.actualHours && ` | Actual: ${task.actualHours}h`}
+                            Estimated: {task.estimated_hours}h
+                            {task.actual_hours && ` | Actual: ${task.actual_hours}h`}
                           </div>
                           <div className="flex items-center space-x-2">
                             <Button
@@ -358,7 +461,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                               <div>
                                 <p className="text-sm font-medium text-gray-900">{flag.reason}</p>
                                 <p className="text-xs text-gray-600">
-                                  {new Date(flag.date).toLocaleDateString()} by {flag.addedBy}
+                                  {new Date(flag.date).toLocaleDateString()} by {flag.added_by}
                                 </p>
                               </div>
                             </div>
@@ -385,7 +488,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 ) : (
                   <div className="space-y-2">
                     {completedTasks.slice(0, 5).map(task => {
-                      const project = state.projects.find(p => p.id === task.projectId);
+                      const project = userProjects.find(p => p.id === task.project_id);
                       return (
                         <div key={task.id} className="flex items-center justify-between p-2 bg-green-50 rounded">
                           <div>
@@ -415,7 +518,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             <div className="p-3 bg-gray-50 rounded-lg">
               <h4 className="font-medium text-gray-900">{selectedTask.name}</h4>
               <p className="text-sm text-gray-600">
-                Current due date: {new Date(selectedTask.endDate).toLocaleDateString()}
+                Current due date: {selectedTask.end_date ? new Date(selectedTask.end_date).toLocaleDateString() : 'No due date'}
               </p>
             </div>
           )}

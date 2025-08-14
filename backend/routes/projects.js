@@ -1,16 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getProjects,
-  getProject,
-  createProject,
-  updateProject,
+const { 
+  getProjects, 
+  getProject, 
+  createProject, 
+  updateProject, 
   deleteProject,
   getProjectMembers,
+  getProjectTeams,
   addProjectMember,
-  removeProjectMember
+  removeProjectMember,
+  removeProjectTeam
 } = require('../controllers/projectController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -145,13 +147,28 @@ const projectUpdateValidation = [
 
 const memberValidation = [
   body('user_id')
+    .optional()
     .isInt({ min: 1 })
     .withMessage('User ID must be a positive integer'),
+  
+  body('team_id')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Team ID must be a positive integer'),
   
   body('role')
     .optional()
     .isIn(['owner', 'admin', 'member', 'viewer'])
-    .withMessage('Role must be one of: owner, admin, member, viewer')
+    .withMessage('Role must be one of: owner, admin, member, viewer'),
+  
+  // Custom validation to ensure either user_id or team_id is provided
+  body()
+    .custom((value, { req }) => {
+      if (!value.user_id && !value.team_id) {
+        throw new Error('Either user_id or team_id is required');
+      }
+      return true;
+    })
 ];
 
 const idValidation = [
@@ -167,6 +184,15 @@ const memberIdValidation = [
   param('memberId')
     .isInt({ min: 1 })
     .withMessage('Member ID must be a positive integer')
+];
+
+const teamIdValidation = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Project ID must be a positive integer'),
+  param('teamId')
+    .isInt({ min: 1 })
+    .withMessage('Team ID must be a positive integer')
 ];
 
 // Query validation for filtering
@@ -206,7 +232,7 @@ const queryValidation = [
 
 // Get all projects
 router.get('/', 
-  authenticateToken,
+  requireAuth,
   queryValidation,
   handleValidationErrors,
   getProjects
@@ -214,7 +240,7 @@ router.get('/',
 
 // Get project by ID
 router.get('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getProject
@@ -222,7 +248,7 @@ router.get('/:id',
 
 // Create new project
 router.post('/',
-  authenticateToken,
+  requireAuth,
   projectValidation,
   handleValidationErrors,
   createProject
@@ -230,7 +256,7 @@ router.post('/',
 
 // Update project
 router.put('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   projectUpdateValidation,
   handleValidationErrors,
@@ -239,7 +265,7 @@ router.put('/:id',
 
 // Delete project
 router.delete('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   deleteProject
@@ -247,15 +273,23 @@ router.delete('/:id',
 
 // Get project members
 router.get('/:id/members',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getProjectMembers
 );
 
+// Get project teams
+router.get('/:id/teams',
+  requireAuth,
+  idValidation,
+  handleValidationErrors,
+  getProjectTeams
+);
+
 // Add member to project
 router.post('/:id/members',
-  authenticateToken,
+  requireAuth,
   idValidation,
   memberValidation,
   handleValidationErrors,
@@ -264,10 +298,18 @@ router.post('/:id/members',
 
 // Remove member from project
 router.delete('/:id/members/:memberId',
-  authenticateToken,
+  requireAuth,
   memberIdValidation,
   handleValidationErrors,
   removeProjectMember
+);
+
+// Remove team from project
+router.delete('/:id/teams/:teamId',
+  requireAuth,
+  teamIdValidation,
+  handleValidationErrors,
+  removeProjectTeam
 );
 
 module.exports = router;

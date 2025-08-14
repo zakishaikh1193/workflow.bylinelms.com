@@ -54,11 +54,11 @@ const db = {
     }
   },
 
-  // Update/Delete and return affected rows
+  // Execute query and return full result
   async execute(sql, params = []) {
     try {
       const [result] = await pool.execute(sql, params);
-      return result.affectedRows;
+      return result;
     } catch (error) {
       console.error('Database execute error:', error);
       throw error;

@@ -6,7 +6,8 @@ import {
   AlertTriangle, 
   Calendar,
   Search,
-  Edit2
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
@@ -15,21 +16,31 @@ import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import { Task, TaskStatus, Priority } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
-import { taskService, stageService, teamService, projectService, skillService } from '../services/apiService';
+import { taskService, stageService, teamService, projectService, skillService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
+import { TaskDetails } from './TaskDetails';
 
 export function TaskManager() {
   const { state, dispatch } = useApp();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
   const [tasks, setTasks] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,19 +49,55 @@ export function TaskManager() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [tasksData, teamData, stagesData, projectsData, skillsData] = await Promise.all([
-          taskService.getAll(),
-          teamService.getAll(),
+        // Build filters object
+        const filters: any = {
+          sort: sortField,
+          order: sortOrder
+        };
+        
+        // Add filter parameters
+        if (selectedStatus !== 'all') {
+          filters.status = selectedStatus;
+        }
+        if (selectedPriority !== 'all') {
+          filters.priority = selectedPriority;
+        }
+        if (selectedProject !== 'all') {
+          filters.project_id = selectedProject;
+        }
+        if (selectedAssignee !== 'all') {
+          filters.assignee_id = selectedAssignee;
+          // Don't filter by assignee_type - let the backend handle both admin and team assignees
+        }
+        if (searchTerm) {
+          filters.search = searchTerm;
+        }
+        
+        console.log('🔍 Sending filters to API:', filters);
+        
+        const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
+          taskService.getAll(filters),
+          teamService.getMembers(),
+          teamService.getTeams(),
           stageService.getAll(),
           projectService.getAll(),
-          skillService.getAll()
+          skillService.getAll(),
+          gradeService.getAll(),
+          bookService.getAll(),
+          unitService.getAll(),
+          lessonService.getAll()
         ]);
         
         setTasks(tasksData);
-        setTeamMembers(teamData);
+        setTeamMembers(teamMembersData);
+        setTeams(teamsData);
         setStages(stagesData);
         setProjects(projectsData);
         setSkills(skillsData);
+        setGrades(gradesData);
+        setBooks(booksData);
+        setUnits(unitsData);
+        setLessons(lessonsData);
         setError(null);
       } catch (err: any) {
         console.error('Failed to fetch task data:', err);
@@ -61,56 +108,59 @@ export function TaskManager() {
     };
 
     fetchData();
-  }, []);
+  }, [sortField, sortOrder, selectedStatus, selectedPriority, selectedProject, selectedAssignee, searchTerm]);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
-    if (state.filters) {
+    if (state.filters && Object.keys(state.filters).length > 0) {
       if (state.filters.statuses) {
         setSelectedStatus(state.filters.statuses.length === 1 ? state.filters.statuses[0] : 'all');
       }
       if (state.filters.teamMembers) {
         setSelectedAssignee(state.filters.teamMembers.length === 1 ? state.filters.teamMembers[0] : 'all');
       }
-      // Clear filters after applying
-      dispatch({ type: 'SET_FILTERS', payload: {} });
+      // Clear filters after applying - use setTimeout to avoid infinite loop
+      setTimeout(() => {
+        dispatch({ type: 'SET_FILTERS', payload: {} });
+      }, 0);
     }
   }, [state.filters, dispatch]);
 
   const isOverdue = (task: Task) => {
-    return new Date(task.endDate) < new Date() && task.status !== 'completed';
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
+    return new Date(endDate) < new Date() && task.status !== 'completed';
   };
 
   const isDueToday = (task: Task) => {
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
     const today = new Date();
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(endDate);
     return today.toDateString() === dueDate.toDateString() && task.status !== 'completed';
   };
 
   const isDueTomorrow = (task: Task) => {
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(endDate);
     return tomorrow.toDateString() === dueDate.toDateString() && task.status !== 'completed';
   };
 
   const isDueThisWeek = (task: Task) => {
+    const endDate = task.end_date || task.endDate;
+    if (!endDate) return false;
     const today = new Date();
     const weekFromNow = new Date();
     weekFromNow.setDate(today.getDate() + 7);
-    const dueDate = new Date(task.endDate);
+    const dueDate = new Date(endDate);
     return dueDate >= today && dueDate <= weekFromNow && task.status !== 'completed';
   };
 
   const filteredTasks = tasks.filter((task: any) => {
-    if (searchTerm && !task.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    if (selectedStatus !== 'all' && task.status !== selectedStatus) return false;
-    if (selectedPriority !== 'all' && task.priority !== selectedPriority) return false;
-    if (selectedAssignee !== 'all' && !task.assignees.includes(selectedAssignee)) return false;
-    
-    // Apply dashboard filters
+    // Apply dashboard filters only (other filters are handled by backend)
     if (state.filters?.overdue && !isOverdue(task)) return false;
     if (state.filters?.dueToday && !isDueToday(task)) return false;
     if (state.filters?.dueTomorrow && !isDueTomorrow(task)) return false;
@@ -119,6 +169,8 @@ export function TaskManager() {
     return true;
   });
 
+
+
   const handleCreateTask = async (taskData: Partial<Task>) => {
     try {
       if (editingTask) {
@@ -126,13 +178,22 @@ export function TaskManager() {
         const updateData = {
           name: taskData.name,
           description: taskData.description,
+          project_id: parseInt(taskData.projectId || '1'),
+          stage_id: parseInt(taskData.stageId || '1'),
           status: taskData.status,
           priority: taskData.priority,
           start_date: taskData.startDate,
           end_date: taskData.endDate,
-          estimated_hours: taskData.estimatedHours,
-          assignees: taskData.assignees?.map(id => ({ id, type: 'team' })),
-          skills: taskData.skills
+          estimated_hours: parseInt(String(taskData.estimatedHours || 0)),
+          actual_hours: parseInt(String(taskData.actualHours || 0)),
+          assignees: taskData.assignees || [],
+          skills: taskData.skills,
+          // Add educational hierarchy IDs
+          grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+          book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+          unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+          lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
+          component_path: taskData.componentPath
         };
         
         await taskService.update(editingTask.id, updateData);
@@ -158,12 +219,24 @@ export function TaskManager() {
           start_date: taskData.startDate || new Date().toISOString().split('T')[0],
           end_date: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           estimated_hours: taskData.estimatedHours || 8,
-          assignees: taskData.assignees?.map(id => ({ id, type: 'team' })) || [],
+          assignees: taskData.assignees || [],
           skills: skillIds,
-          component_path: taskData.componentPath
+          component_path: taskData.componentPath,
+          // Add educational hierarchy IDs
+          grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+          book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+          unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+          lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null
         };
         
         console.log('🚀 Creating task with data:', createData);
+        console.log('📚 Educational hierarchy IDs being sent:', {
+          grade_id: createData.grade_id,
+          book_id: createData.book_id,
+          unit_id: createData.unit_id,
+          lesson_id: createData.lesson_id,
+          component_path: createData.component_path
+        });
         
         const newTask = await taskService.create(createData);
         
@@ -208,13 +281,59 @@ export function TaskManager() {
     setIsCreateModalOpen(true);
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle order if same field
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with default desc order
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    if (!confirm(`Are you sure you want to delete the task "${task.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setError(null);
+      
+      // Delete the task
+      await taskService.delete(task.id);
+      
+      // Refresh tasks list
+      const tasksData = await taskService.getAll();
+      setTasks(tasksData);
+      
+      console.log('✅ Task deleted successfully:', task.name);
+    } catch (err: any) {
+      console.error('❌ Delete task error:', err);
+      setError(err.message || 'Failed to delete task');
+    }
+  };
+
   const taskStats = {
     total: tasks.length,
     notStarted: tasks.filter((t: any) => t.status === 'not-started').length,
     inProgress: tasks.filter((t: any) => t.status === 'in-progress').length,
     completed: tasks.filter((t: any) => t.status === 'completed').length,
-    overdue: tasks.filter((t: any) => new Date(t.end_date) < new Date() && t.status !== 'completed').length,
+    overdue: tasks.filter((t: any) => {
+      const endDate = t.end_date || t.endDate;
+      return endDate && new Date(endDate) < new Date() && t.status !== 'completed';
+    }).length,
   };
+
+  // Show task details if a task is selected
+  if (selectedTaskId) {
+    return (
+      <TaskDetails 
+        taskId={selectedTaskId} 
+        onBack={() => setSelectedTaskId(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -372,12 +491,23 @@ export function TaskManager() {
           </select>
 
           <select
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">All Projects</option>
+            {projects.map(project => (
+              <option key={project.id} value={project.id}>{project.name}</option>
+            ))}
+          </select>
+
+          <select
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
           >
             <option value="all">All Assignees</option>
-            {state.users.map(user => (
+            {teamMembers.map(user => (
               <option key={user.id} value={user.id}>{user.name}</option>
             ))}
           </select>
@@ -391,32 +521,109 @@ export function TaskManager() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Task Name
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center">
+                      Task Name
+                      {sortField === 'name' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    Project
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Priority
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {sortField === 'status' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assignees
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('priority')}
+                  >
+                    <div className="flex items-center">
+                      Priority
+                      {sortField === 'priority' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Due Date
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('assignees')}
+                  >
+                    <div className="flex items-center">
+                      Assignees
+                      {sortField === 'assignees' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Progress
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('end_date')}
+                  >
+                    <div className="flex items-center">
+                      Due Date
+                      {sortField === 'end_date' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('progress')}
+                  >
+                    <div className="flex items-center">
+                      Progress
+                      {sortField === 'progress' && (
+                        <span className="ml-1 text-blue-600">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredTasks.map((task) => {
-                  const assignedUsers = state.users.filter(u => task.assignees.includes(u.id));
+                  const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
+                  const assignedTeams = teams.filter(t => task.teamAssignees && task.teamAssignees.includes(t.id));
                   const overdue = isOverdue(task);
-                  const project = state.projects.find(p => p.id === task.projectId);
-                  const stage = project?.stages?.find(s => s.id === task.stageId);
+                  // Find project by ID - handle both string and number types
+                  const taskProjectId = task.project_id || task.projectId;
+                  const project = projects.find(p => {
+                    const projectId = typeof p.id === 'string' ? parseInt(p.id) : p.id;
+                    const taskId = typeof taskProjectId === 'string' ? parseInt(taskProjectId) : taskProjectId;
+                    return projectId === taskId;
+                  });
+                  
+                  // Find stage by ID - handle both string and number types
+                  const taskStageId = task.stage_id || task.stageId;
+                  const stage = project?.stages?.find((s: any) => {
+                    const stageId = typeof s.id === 'string' ? parseInt(s.id) : s.id;
+                    const taskStage = typeof taskStageId === 'string' ? parseInt(taskStageId) : taskStageId;
+                    return stageId === taskStage;
+                  });
                   
                   return (
                     <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
@@ -427,11 +634,21 @@ export function TaskManager() {
                             {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {project && <span className="font-medium">{project.name}</span>}
-                            {stage && <span> → {stage.name}</span>}
-                            {task.componentPath && <div className="text-xs text-blue-600">{task.componentPath}</div>}
-                            {task.description && <div>{task.description}</div>}
+                            {task.componentPath && <div className="text-xs text-purple-600 mt-1">📚 {task.componentPath}</div>}
+                            {task.description && <div className="mt-1">{task.description}</div>}
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {project ? (
+                            <div>
+                              <div className="font-medium text-blue-600">{project.name}</div>
+                              {stage && <div className="text-xs text-gray-500">{stage.name}</div>}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">Unknown Project</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -445,32 +662,39 @@ export function TaskManager() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          {assignedUsers.slice(0, 3).map(user => (
-                            <div 
-                              key={user.id}
-                              className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
-                              title={user.name}
-                            >
-                              {user.name.charAt(0)}
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                {user.name}
-                                <br />
-                                <span className="text-gray-300">{user.skills[0]}</span>
-                              </div>
+                        <div className="space-y-1">
+                          {/* All Assignees (Individuals + Team Members) */}
+                          {assignedUsers.length > 0 && (
+                            <div className="flex items-center space-x-2">
+                              {assignedUsers.slice(0, 5).map(user => (
+                                <div 
+                                  key={user.id}
+                                  className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
+                                  title={user.name}
+                                >
+                                  {user.name.charAt(0)}
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                    {user.name}
+                                  </div>
+                                </div>
+                              ))}
+                              {assignedUsers.length > 5 && (
+                                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+                                  +{assignedUsers.length - 5}
+                                </div>
+                              )}
                             </div>
-                          ))}
-                          {assignedUsers.length > 3 && (
-                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
-                              +{assignedUsers.length - 3}
-                            </div>
+                          )}
+                          
+                          {assignedUsers.length === 0 && (
+                            <span className="text-xs text-gray-400">No assignees</span>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1 text-gray-400" />
-                          {new Date(task.endDate).toLocaleDateString()}
+                          {task.end_date || task.endDate ? new Date(task.end_date || task.endDate || '').toLocaleDateString() : 'No due date'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -478,22 +702,47 @@ export function TaskManager() {
                           <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
                             <div
                               className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: `${task.progress}%` }}
+                              style={{ width: `${calculateTaskProgress(task.status)}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600">{task.progress}%</span>
+                          <span className="text-sm text-gray-600">{calculateTaskProgress(task.status)}%</span>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditTask(task);
-                          }}
-                          title="Edit Task"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center space-x-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTaskId(task.id);
+                            }}
+                            title="View Details"
+                          >
+                            👁️
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTask(task);
+                            }}
+                            title="Edit Task"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTask(task);
+                            }}
+                            title="Delete Task"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -513,9 +762,14 @@ export function TaskManager() {
         }}
         onSubmit={handleCreateTask}
         users={teamMembers}
+        teams={teams}
         skills={skills}
         projects={projects}
         stages={stages}
+        grades={grades}
+        books={books}
+        units={units}
+        lessons={lessons}
         editingTask={editingTask}
       />
     </div>
@@ -527,13 +781,18 @@ export interface CreateTaskModalProps {
   onClose: () => void;
   onSubmit: (task: Partial<Task>) => void;
   users: any[];
+  teams: any[];
   skills: any[];
   projects: any[];
   stages: any[];
+  grades: any[];
+  books: any[];
+  units: any[];
+  lessons: any[];
   editingTask?: Task | null;
 }
 
-export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, projects, editingTask }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skills, projects, stages, grades, books, units, lessons, editingTask }: CreateTaskModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -545,7 +804,8 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     lessonId: '',
     status: 'not-started' as TaskStatus,
     assignees: [] as string[],
-    skills: [] as string[],
+    teamAssignees: [] as string[],
+    skills: [] as string[] | any[],
     priority: 'medium' as Priority,
     estimatedHours: 8,
     actualHours: 0,
@@ -555,23 +815,43 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
 
   useEffect(() => {
     if (editingTask) {
+      // Convert skills from objects to names if needed
+      const skillNames = Array.isArray(editingTask.skills) 
+        ? editingTask.skills.map((skill: any) => skill.name || skill)
+        : [];
+      
+      // Convert assignees to array of string IDs
+      const assigneeIds = Array.isArray(editingTask.assignees) 
+        ? editingTask.assignees.map((assignee: any) => {
+            if (typeof assignee === 'object' && assignee.id) {
+              return assignee.id.toString();
+            } else {
+              return assignee.toString();
+            }
+          })
+        : [];
+      
+      console.log('🔍 Editing task assignees:', editingTask.assignees);
+      console.log('🔍 Converted assignee IDs:', assigneeIds);
+      
       setFormData({
         name: editingTask.name,
         description: editingTask.description || '',
-        projectId: editingTask.projectId,
-        stageId: editingTask.stageId,
+        projectId: editingTask.project_id || editingTask.projectId || '',
+        stageId: editingTask.stage_id || editingTask.stageId || '',
         gradeId: editingTask.gradeId || '',
         bookId: editingTask.bookId || '',
         unitId: editingTask.unitId || '',
         lessonId: editingTask.lessonId || '',
         status: editingTask.status,
-        assignees: editingTask.assignees,
-        skills: editingTask.skills,
+        assignees: assigneeIds,
+        teamAssignees: editingTask.teamAssignees || [],
+        skills: skillNames,
         priority: editingTask.priority,
-        estimatedHours: editingTask.estimatedHours,
-        actualHours: editingTask.actualHours || 0,
-        startDate: new Date(editingTask.startDate).toISOString().split('T')[0],
-        endDate: new Date(editingTask.endDate).toISOString().split('T')[0],
+        estimatedHours: editingTask.estimated_hours || editingTask.estimatedHours || 8,
+        actualHours: editingTask.actual_hours || editingTask.actualHours || 0,
+        startDate: editingTask.start_date || editingTask.startDate ? new Date(editingTask.start_date || editingTask.startDate || '').toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        endDate: editingTask.end_date || editingTask.endDate ? new Date(editingTask.end_date || editingTask.endDate || '').toISOString().split('T')[0] : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       });
     } else {
       setFormData({
@@ -585,6 +865,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
         lessonId: '',
         status: 'not-started',
         assignees: [],
+        teamAssignees: [],
         skills: [],
         priority: 'medium',
         estimatedHours: 8,
@@ -601,25 +882,25 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     // Auto-calculate progress based on status
     const autoProgress = calculateTaskProgress(formData.status);
     
-    // Build component path for display
-    let componentPath = '';
-    const selectedProject = projects.find(p => p.id === formData.projectId);
+    // Build educational hierarchy path for display
+    let educationalPath = '';
+    const selectedProject = projects.find(p => p.id === parseInt(formData.projectId) || p.id === formData.projectId);
     if (selectedProject && formData.gradeId) {
       const grade = selectedProject.grades?.find((g: any) => g.id === formData.gradeId);
       if (grade) {
-        componentPath = grade.name;
+        educationalPath = grade.name;
         if (formData.bookId) {
           const book = grade.books.find((b: any) => b.id === formData.bookId);
           if (book) {
-            componentPath += ` > ${book.name}`;
+            educationalPath += ` > ${book.name}`;
             if (formData.unitId) {
               const unit = book.units.find((u: any) => u.id === formData.unitId);
               if (unit) {
-                componentPath += ` > ${unit.name}`;
+                educationalPath += ` > ${unit.name}`;
                 if (formData.lessonId) {
                   const lesson = unit.lessons.find((l: any) => l.id === formData.lessonId);
                   if (lesson) {
-                    componentPath += ` > ${lesson.name}`;
+                    educationalPath += ` > ${lesson.name}`;
                   }
                 }
               }
@@ -629,10 +910,17 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
       }
     }
     
+    // Convert skill names back to skill IDs
+    const skillIds = formData.skills.map(skillName => {
+      const skill = skills.find(s => s.name === skillName);
+      return skill ? skill.id : null;
+    }).filter(id => id !== null);
+    
     onSubmit({
       ...formData,
-      progress: autoProgress,
-      componentPath,
+      skills: skillIds, // Use skill IDs instead of names
+      // progress will be auto-calculated by backend based on status
+      componentPath: educationalPath, // Keep componentPath for backend compatibility
       startDate: new Date(formData.startDate),
       endDate: new Date(formData.endDate),
     });
@@ -647,6 +935,72 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     }));
   };
 
+  const toggleTeamAssignee = async (teamId: string) => {
+    console.log('🔍 Toggling team:', teamId);
+    console.log('🔍 Available teams:', teams);
+    console.log('🔍 Available users:', users);
+    
+    try {
+      // Fetch team members from API
+      const teamMembers = await teamService.getTeamMembers(teamId);
+      console.log('🔍 Team members from API:', teamMembers);
+      
+      setFormData(prev => {
+        const isTeamSelected = prev.teamAssignees.includes(teamId);
+        console.log('🔍 Is team selected:', isTeamSelected);
+        
+        // Find the team
+        const team = teams.find(t => t.id === parseInt(teamId));
+        console.log('🔍 Found team:', team);
+        
+        if (!team) {
+          console.log('❌ Team not found');
+          return prev;
+        }
+        
+        // Get team member IDs from the API response
+        const teamMemberIds = teamMembers.map((member: any) => member.id.toString());
+        console.log('🔍 Team member IDs from API:', teamMemberIds);
+        
+        let newAssignees = [...prev.assignees];
+        
+        if (isTeamSelected) {
+          // Remove team - uncheck all team members
+          newAssignees = newAssignees.filter(id => !teamMemberIds.includes(id));
+        } else {
+          // Add team - check all team members (avoid duplicates)
+          teamMemberIds.forEach((memberId: string) => {
+            if (!newAssignees.includes(memberId)) {
+              newAssignees.push(memberId);
+            }
+          });
+        }
+        
+        console.log('🔍 New assignees:', newAssignees);
+        
+        return {
+          ...prev,
+          assignees: newAssignees,
+          teamAssignees: isTeamSelected
+            ? prev.teamAssignees.filter(id => id !== teamId)
+            : [...prev.teamAssignees, teamId]
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error fetching team members:', error);
+      // Fallback to simple toggle without member expansion
+      setFormData(prev => {
+        const isTeamSelected = prev.teamAssignees.includes(teamId);
+        return {
+          ...prev,
+          teamAssignees: isTeamSelected
+            ? prev.teamAssignees.filter(id => id !== teamId)
+            : [...prev.teamAssignees, teamId]
+        };
+      });
+    }
+  };
+
   const toggleSkill = (skillName: string) => {
     setFormData(prev => ({
       ...prev,
@@ -656,7 +1010,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
     }));
   };
 
-  const selectedProject = projects.find(p => p.id === formData.projectId);
+  const selectedProject = projects.find(p => p.id === parseInt(formData.projectId) || p.id === formData.projectId);
   // const availableStages = selectedProject?.stages || [];
   // const availableGrades = selectedProject?.grades || [];
   // const selectedGrade = availableGrades.find((g: any) => g.id === formData.gradeId);
@@ -666,13 +1020,16 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
   // const selectedUnit = availableUnits.find((u: any) => u.id === formData.unitId);
   // const availableLessons = selectedUnit?.lessons || [];
 
-  // Build availableComponents array for the component selector
-  const availableComponents: any[] = [];
+  // Build availableEducationalHierarchy array for the educational hierarchy selector
+  const availableEducationalHierarchy: any[] = [];
   
   if (selectedProject) {
+    // Get grades for this project
+    const projectGrades = grades.filter((grade: any) => grade.project_id === parseInt(selectedProject.id));
+    
     // Add grades
-    selectedProject.grades?.forEach((grade: any) => {
-      availableComponents.push({
+    projectGrades.forEach((grade: any) => {
+      availableEducationalHierarchy.push({
         id: grade.id,
         name: grade.name,
         type: 'grade',
@@ -682,9 +1039,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
         lessonId: null
       });
       
+      // Get books for this grade
+      const gradeBooks = books.filter((book: any) => book.grade_id === grade.id);
+      
       // Add books within this grade
-      grade.books?.forEach((book: any) => {
-        availableComponents.push({
+      gradeBooks.forEach((book: any) => {
+        availableEducationalHierarchy.push({
           id: `${grade.id}-${book.id}`,
           name: `${grade.name} > ${book.name}`,
           type: 'book',
@@ -694,9 +1054,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
           lessonId: null
         });
         
+        // Get units for this book
+        const bookUnits = units.filter((unit: any) => unit.book_id === book.id);
+        
         // Add units within this book
-        book.units?.forEach((unit: any) => {
-          availableComponents.push({
+        bookUnits.forEach((unit: any) => {
+          availableEducationalHierarchy.push({
             id: `${grade.id}-${book.id}-${unit.id}`,
             name: `${grade.name} > ${book.name} > ${unit.name}`,
             type: 'unit',
@@ -706,9 +1069,12 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
             lessonId: null
           });
           
+          // Get lessons for this unit
+          const unitLessons = lessons.filter((lesson: any) => lesson.unit_id === unit.id);
+          
           // Add lessons within this unit
-          unit.lessons?.forEach((lesson: any) => {
-            availableComponents.push({
+          unitLessons.forEach((lesson: any) => {
+            availableEducationalHierarchy.push({
               id: `${grade.id}-${book.id}-${unit.id}-${lesson.id}`,
               name: `${grade.name} > ${book.name} > ${unit.name} > ${lesson.name}`,
               type: 'lesson',
@@ -761,7 +1127,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
             <select
               required
               value={formData.projectId}
-              onChange={(e) => setFormData({ ...formData, projectId: e.target.value, gradeId: '', bookId: '', unitId: '', lessonId: '' })}
+              onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Select Project</option>
@@ -773,19 +1139,28 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Component (Optional)
+              Educational Hierarchy (Optional)
             </label>
             <select
-              value={`${formData.gradeId}-${formData.bookId}-${formData.unitId}-${formData.lessonId}`.replace(/^-+|-+$/g, '')}
+              value={(() => {
+                // Find the matching educational hierarchy item based on current form data
+                const matchingHierarchyItem = availableEducationalHierarchy.find(c => 
+                  c.gradeId === formData.gradeId &&
+                  c.bookId === formData.bookId &&
+                  c.unitId === formData.unitId &&
+                  c.lessonId === formData.lessonId
+                );
+                return matchingHierarchyItem ? matchingHierarchyItem.id : '';
+              })()}
               onChange={(e) => {
-                const selectedComponent = availableComponents.find(c => c.id === e.target.value);
-                if (selectedComponent) {
+                const selectedHierarchyItem = availableEducationalHierarchy.find(c => c.id === e.target.value);
+                if (selectedHierarchyItem) {
                   setFormData({ 
                     ...formData, 
-                    gradeId: selectedComponent.gradeId || '',
-                    bookId: selectedComponent.bookId || '',
-                    unitId: selectedComponent.unitId || '',
-                    lessonId: selectedComponent.lessonId || ''
+                    gradeId: selectedHierarchyItem.gradeId || '',
+                    bookId: selectedHierarchyItem.bookId || '',
+                    unitId: selectedHierarchyItem.unitId || '',
+                    lessonId: selectedHierarchyItem.lessonId || ''
                   });
                 } else {
                   setFormData({ 
@@ -801,14 +1176,14 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
               disabled={!formData.projectId}
             >
               <option value="">Project Level Task</option>
-              {availableComponents.map(component => (
+              {availableEducationalHierarchy.map(component => (
                 <option key={component.id} value={component.id}>
                   {component.name} ({component.type})
                 </option>
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Select a specific component to assign this task to a particular grade, book, unit, or lesson
+              Select a specific educational hierarchy item to assign this task to a particular grade, book, unit, or lesson
             </p>
           </div>
 
@@ -876,7 +1251,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
               type="number"
               min="1"
               value={formData.estimatedHours}
-              onChange={(e) => setFormData({ ...formData, estimatedHours: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, estimatedHours: parseInt(e.target.value) || 0 })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -923,21 +1298,49 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, skills, proj
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Assignees
+            Individual Assignees
           </label>
           <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
-            {users.map(user => (
-              <label key={user.id} className="flex items-center space-x-2 cursor-pointer">
+            {users && users.length > 0 ? users.map((user: any) => {
+              const isChecked = formData.assignees.includes(user.id.toString());
+              console.log(`🔍 User ${user.name} (ID: ${user.id}) - checked: ${isChecked}, assignees:`, formData.assignees);
+              return (
+                <label key={user.id} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleAssignee(user.id.toString())}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{user.name}</span>
+                </label>
+              );
+            }) : (
+              <p className="text-gray-500 text-sm">No team members available</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Team Assignees (Auto-selects all team members)
+          </label>
+          <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
+            {teams.map(team => (
+              <label key={team.id} className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.assignees.includes(user.id)}
-                  onChange={() => toggleAssignee(user.id)}
+                  checked={formData.teamAssignees.includes(team.id)}
+                  onChange={() => toggleTeamAssignee(team.id)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">{user.name}</span>
+                <span className="text-sm text-gray-700">{team.name}</span>
               </label>
             ))}
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Selecting a team will automatically check all its members in the Individual Assignees list above
+          </p>
         </div>
 
         <div>

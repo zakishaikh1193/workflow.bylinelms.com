@@ -26,24 +26,36 @@ export function Dashboard() {
 
   // Fetch dashboard data on component mount
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
         
         const data = await dashboardService.getOverview();
-        setDashboardData(data);
         
-        console.log('📊 Dashboard data loaded:', data);
+        if (isMounted) {
+          setDashboardData(data);
+          console.log('📊 Dashboard data loaded:', data);
+        }
       } catch (err: any) {
-        console.error('Dashboard fetch error:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        if (isMounted) {
+          console.error('Dashboard fetch error:', err);
+          setError(err.message || 'Failed to load dashboard data');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleStatClick = (view: string, filter?: any) => {
@@ -53,15 +65,45 @@ export function Dashboard() {
     }
   };
 
-  // Temporary fallback data for tasks until we implement the tasks API
-  const todayTasks: any[] = [];
-  const tomorrowTasks: any[] = [];
-  const thisWeekTasks: any[] = [];
-  const allTasks: any[] = [];
-  
-  // Get projects and team members from dashboard data
+  // Get data from dashboard service
   const projects = dashboardData?.projects || [];
   const teamMembers = dashboardData?.teamMembers || [];
+  const allTasks = dashboardData?.tasks || [];
+  
+  // Debug logging
+  console.log('🔍 Dashboard data:', {
+    projects: projects.length,
+    teamMembers: teamMembers.length,
+    allTasks: allTasks.length,
+    sampleTasks: allTasks.slice(0, 3).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      assignees: t.assignees,
+      teamAssignees: t.teamAssignees
+    }))
+  });
+  
+  // Calculate task counts for different time periods
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const weekFromNow = new Date(today);
+  weekFromNow.setDate(today.getDate() + 7);
+  
+  const todayTasks = allTasks.filter((task: any) => {
+    const taskDate = new Date(task.end_date);
+    return taskDate.toDateString() === today.toDateString() && task.status !== 'completed';
+  });
+  
+  const tomorrowTasks = allTasks.filter((task: any) => {
+    const taskDate = new Date(task.end_date);
+    return taskDate.toDateString() === tomorrow.toDateString() && task.status !== 'completed';
+  });
+  
+  const thisWeekTasks = allTasks.filter((task: any) => {
+    const taskDate = new Date(task.end_date);
+    return taskDate >= today && taskDate <= weekFromNow && task.status !== 'completed';
+  });
 
   const handleUserClick = (userId: string) => {
     dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
@@ -256,7 +298,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state.projects.slice(0, 5).map((project) => (
+            {projects.slice(0, 5).map((project: any) => (
               <div 
                 key={project.id} 
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
@@ -264,8 +306,8 @@ export function Dashboard() {
               >
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{project.name}</h4>
-                  <p className="text-sm text-gray-600">{project.category}</p>
-                  <ProgressBar value={calculateProjectProgress(project, allTasks).progress} className="mt-2" />
+                  <p className="text-sm text-gray-600">{project.category_name || project.category}</p>
+                  <ProgressBar value={project.progress || 0} className="mt-2" />
                 </div>
                 <div className="flex items-center space-x-2">
                   <Badge variant={
@@ -297,28 +339,38 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state.users.slice(0, 6).map((user) => {
-              const userTasks = allTasks.filter(t => t.assignees.includes(user.id));
-              const completedTasks = userTasks.filter(t => t.status === 'completed').length;
-              const workloadPercentage = userTasks.length > 0 ? (completedTasks / userTasks.length) * 100 : 0;
+            {teamMembers.slice(0, 6).map((member: any) => {
+              const memberTasks = allTasks.filter((t: any) => t.assignees && t.assignees.includes(member.id));
+              const completedTasks = memberTasks.filter((t: any) => t.status === 'completed').length;
+              const workloadPercentage = memberTasks.length > 0 ? (completedTasks / memberTasks.length) * 100 : 0;
+              
+              // Debug logging for first few members
+              if (member.id <= 3) {
+                console.log(`👤 Member ${member.name} (ID: ${member.id}):`, {
+                  totalTasks: allTasks.length,
+                  memberTasks: memberTasks.length,
+                  taskIds: memberTasks.map((t: any) => t.id),
+                  assignees: memberTasks.map((t: any) => t.assignees)
+                });
+              }
               
               return (
                 <div 
-                  key={user.id} 
+                  key={member.id} 
                   className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => handleUserClick(user.id)}
+                  onClick={() => handleUserClick(member.id)}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {user.name.charAt(0)}
+                      {member.name.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-sm text-gray-600">{user.skills[0]}</p>
+                      <p className="font-medium text-gray-900">{member.name}</p>
+                      <p className="text-sm text-gray-600">{member.skills?.[0] || 'No skills'}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">{userTasks.length} tasks</span>
+                    <span className="text-sm text-gray-600">{memberTasks.length} tasks</span>
                     <ProgressBar 
                       value={workloadPercentage} 
                       className="w-20" 

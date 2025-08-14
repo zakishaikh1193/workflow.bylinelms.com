@@ -7,7 +7,7 @@ const {
   updateTask,
   deleteTask
 } = require('../controllers/taskController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -255,7 +255,7 @@ const queryValidation = [
 
 // Get all tasks
 router.get('/', 
-  authenticateToken,
+  requireAuth,
   queryValidation,
   handleValidationErrors,
   getTasks
@@ -263,7 +263,7 @@ router.get('/',
 
 // Get task by ID
 router.get('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getTask
@@ -271,7 +271,7 @@ router.get('/:id',
 
 // Create new task
 router.post('/',
-  authenticateToken,
+  requireAuth,
   taskValidation,
   handleValidationErrors,
   createTask
@@ -279,7 +279,7 @@ router.post('/',
 
 // Update task
 router.put('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   taskUpdateValidation,
   handleValidationErrors,
@@ -288,7 +288,7 @@ router.put('/:id',
 
 // Delete task
 router.delete('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   deleteTask

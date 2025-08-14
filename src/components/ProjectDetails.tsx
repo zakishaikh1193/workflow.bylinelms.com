@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   Layers,
   UserPlus,
-  X
+  X,
+  GraduationCap
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -26,38 +27,84 @@ import { calculateProjectProgress, calculateStageProgress } from '../utils/progr
 import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
-import { ProjectComponents } from './ProjectComponents';
-import { projectService, teamService } from '../services/apiService';
+import EducationalHierarchy from './EducationalHierarchy';
+import { projectService, teamService, taskService, skillService, stageService, categoryService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
 interface ProjectDetailsProps {
   project: Project;
   onBack: () => void;
+  onUpdate?: (updatedProject: Project) => void;
+  categories?: any[];
 }
 
-export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
+export function ProjectDetails({ project, onBack, onUpdate, categories }: ProjectDetailsProps) {
   const { state, dispatch } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'components'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'stages' | 'tasks' | 'timeline' | 'team' | 'educational-hierarchy'>('overview');
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
   const [projectMembers, setProjectMembers] = useState<any[]>([]);
+  const [projectTeams, setProjectTeams] = useState<any[]>([]);
   const [availableTeamMembers, setAvailableTeamMembers] = useState<any[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<any[]>([]);
+  const [allTeams, setAllTeams] = useState<any[]>([]);
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [localCategories, setLocalCategories] = useState<any[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [currentProject, setCurrentProject] = useState<Project>(project);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  
+  // Use the progress calculated by the backend, or calculate from tasks if not available
+  const projectProgress = currentProject.progress !== undefined ? 
+    { progress: currentProject.progress, completedWeight: currentProject.progress, totalWeight: 100 } :
+    calculateProjectProgress(currentProject, projectTasks);
 
-  const projectTasks = state.tasks.filter(task => task.projectId === project.id);
-  const projectProgress = calculateProjectProgress(project, projectTasks);
-
-  // Fetch project members and available team members
+  // Fetch project members, teams, and available team members
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [members, teamMembers] = await Promise.all([
+        const [currentProjectData, members, teams, teamMembers, availableTeamsData, allTeamsData, tasksData, skillsData, projectsData, stagesData, categoriesData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
+          projectService.getById(project.id),
           projectService.getMembers(project.id),
-          teamService.getAll()
+          projectService.getTeams(project.id),
+          teamService.getMembers(),
+          teamService.getTeams(),
+          teamService.getTeams(),
+          taskService.getAll(),
+          skillService.getAll(),
+          projectService.getAll(),
+          stageService.getAll(),
+          categoryService.getAll(),
+          gradeService.getAll(),
+          bookService.getAll(),
+          unitService.getAll(),
+          lessonService.getAll()
         ]);
+        setCurrentProject(currentProjectData);
         setProjectMembers(members);
+        setProjectTeams(teams);
         setAvailableTeamMembers(teamMembers);
+        setAvailableTeams(availableTeamsData);
+        setAllTeams(allTeamsData);
+        setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+        setTeamMembers(teamMembers);
+        setSkills(skillsData);
+        setProjects(projectsData);
+        setStages(stagesData);
+        setLocalCategories(categoriesData);
+        setGrades(gradesData);
+        setBooks(booksData);
+        setUnits(unitsData);
+        setLessons(lessonsData);
       } catch (error) {
         console.error('Failed to fetch project data:', error);
       } finally {
@@ -85,6 +132,26 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     }
   };
 
+  const handleAddTeam = async (teamId: number, role: string = 'member') => {
+    try {
+      await projectService.addTeam(project.id, { 
+        team_id: teamId, 
+        role 
+      });
+      
+      // Refresh project members and teams
+      const [members, teams] = await Promise.all([
+        projectService.getMembers(project.id),
+        projectService.getTeams(project.id)
+      ]);
+      setProjectMembers(members);
+      setProjectTeams(teams);
+      setIsAddTeamModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add team:', error);
+    }
+  };
+
   const handleRemoveMember = async (memberId: number) => {
     try {
       await projectService.removeMember(project.id, memberId);
@@ -97,28 +164,46 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     }
   };
 
-  const handleCreateTask = (taskData: Partial<Task>) => {
-    // Auto-calculate progress based on status
-    const autoProgress = taskData.status ? calculateTaskProgress(taskData.status) : 0;
-    
-    // Build component path for display
-    let componentPath = '';
-    if (taskData.gradeId) {
-      const grade = project.grades?.find(g => g.id === taskData.gradeId);
-      if (grade) {
-        componentPath = grade.name;
-        if (taskData.bookId) {
-          const book = grade.books.find(b => b.id === taskData.bookId);
-          if (book) {
-            componentPath += ` > ${book.name}`;
-            if (taskData.unitId) {
-              const unit = book.units.find(u => u.id === taskData.unitId);
-              if (unit) {
-                componentPath += ` > ${unit.name}`;
-                if (taskData.lessonId) {
-                  const lesson = unit.lessons.find(l => l.id === taskData.lessonId);
-                  if (lesson) {
-                    componentPath += ` > ${lesson.name}`;
+  const handleRemoveTeam = async (teamId: number) => {
+    try {
+      await projectService.removeTeam(project.id, teamId);
+      
+      // Refresh project members and teams
+      const [members, teams] = await Promise.all([
+        projectService.getMembers(project.id),
+        projectService.getTeams(project.id)
+      ]);
+      setProjectMembers(members);
+      setProjectTeams(teams);
+    } catch (error) {
+      console.error('Failed to remove team:', error);
+    }
+  };
+
+  const handleCreateTask = async (taskData: Partial<Task>) => {
+    try {
+      // Auto-calculate progress based on status
+      const autoProgress = taskData.status ? calculateTaskProgress(taskData.status) : 0;
+      
+      // Build component path for display
+      let componentPath = '';
+      if (taskData.gradeId) {
+        const grade = project.grades?.find(g => g.id === taskData.gradeId);
+        if (grade) {
+          componentPath = grade.name;
+          if (taskData.bookId) {
+            const book = grade.books.find(b => b.id === taskData.bookId);
+            if (book) {
+              componentPath += ` > ${book.name}`;
+              if (taskData.unitId) {
+                const unit = book.units.find(u => u.id === taskData.unitId);
+                if (unit) {
+                  componentPath += ` > ${unit.name}`;
+                  if (taskData.lessonId) {
+                    const lesson = unit.lessons.find(l => l.id === taskData.lessonId);
+                    if (lesson) {
+                      componentPath += ` > ${lesson.name}`;
+                    }
                   }
                 }
               }
@@ -126,50 +211,81 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           }
         }
       }
+      
+      // Convert skill names to skill IDs
+      const skillIds = (taskData.skills || []).map((skillName: string) => {
+        const skill = skills.find(s => s.name === skillName);
+        return skill ? skill.id : null;
+      }).filter(id => id !== null);
+
+      // Create new task via API
+      const createData = {
+        name: taskData.name || '',
+        description: taskData.description || '',
+        project_id: parseInt(project.id),
+        stage_id: parseInt(taskData.stageId || '1'), 
+        status: taskData.status || 'not-started',
+        priority: taskData.priority || 'medium',
+        start_date: taskData.startDate || new Date().toISOString().split('T')[0],
+        end_date: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        estimated_hours: taskData.estimatedHours || 8,
+        assignees: taskData.assignees || [],
+        teamAssignees: taskData.teamAssignees || [],
+        skills: skillIds,
+        component_path: componentPath
+      };
+      
+      console.log('🚀 Creating task from ProjectDetails:', createData);
+      
+      const newTask = await taskService.create(createData);
+      
+      // Refresh project tasks
+      const tasksData = await taskService.getAll();
+      setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+      
+      console.log('✅ Task created successfully from ProjectDetails:', newTask);
+      setIsCreateTaskModalOpen(false);
+    } catch (error) {
+      console.error('❌ Failed to create task from ProjectDetails:', error);
     }
-    
-    const newTask: Task = {
-      id: Date.now().toString(),
-      name: taskData.name || '',
-      description: taskData.description || '',
-      projectId: project.id,
-      stageId: taskData.stageId || '',
-      gradeId: taskData.gradeId,
-      bookId: taskData.bookId,
-      unitId: taskData.unitId,
-      lessonId: taskData.lessonId,
-      componentPath,
-      assignees: taskData.assignees || [],
-      skills: taskData.skills || [],
-      status: taskData.status || 'not-started',
-      priority: taskData.priority || 'medium',
-      startDate: taskData.startDate || new Date(),
-      endDate: taskData.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      progress: autoProgress,
-      estimatedHours: taskData.estimatedHours || 8,
-      actualHours: taskData.actualHours || 0,
-    };
-    
-    dispatch({ type: 'ADD_TASK', payload: newTask });
-    setIsCreateTaskModalOpen(false);
   };
 
-  const handleEditProject = (projectData: Partial<Project>) => {
-    const updatedProject: Project = {
-      ...project,
-      ...projectData,
-      startDate: projectData.startDate || project.startDate,
-      endDate: projectData.endDate || project.endDate,
-    };
-    
-    dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
-    setIsEditProjectModalOpen(false);
+  const handleEditProject = async (projectData: Partial<Project>) => {
+    try {
+      setLoading(true);
+      
+      // Call the API to update the project
+      const updatedProjectData = await projectService.update(project.id, projectData);
+      
+      // Update the local state with the response from the API
+      const updatedProject: Project = {
+        ...project,
+        ...updatedProjectData,
+        start_date: projectData.start_date || project.start_date,
+        end_date: projectData.end_date || project.end_date,
+      };
+      
+      // Call the onUpdate callback to update the parent component
+      if (onUpdate) {
+        onUpdate(updatedProject);
+      }
+      
+      dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
+      setIsEditProjectModalOpen(false);
+      
+      console.log('✅ Project updated successfully:', updatedProjectData);
+    } catch (error) {
+      console.error('❌ Failed to update project:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setLoading(false);
+    }
   };
 
   const tabs = [
     { key: 'overview', label: 'Overview', icon: BarChart3 },
     { key: 'stages', label: 'Stages', icon: Flag },
-    { key: 'components', label: 'Components', icon: Layers },
+    { key: 'educational-hierarchy', label: 'Educational Hierarchy', icon: GraduationCap },
     { key: 'tasks', label: 'Tasks', icon: CheckSquare },
     { key: 'timeline', label: 'Timeline', icon: Calendar },
     { key: 'team', label: 'Team', icon: Users },
@@ -230,7 +346,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Days Left</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Math.ceil((new Date(project.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+                  {Math.ceil((new Date(project.end_date || project.endDate || '').getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
                 </p>
               </div>
             </div>
@@ -248,11 +364,11 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           <div className="mt-4 flex items-center space-x-4">
             <div className="flex items-center text-sm text-gray-600">
               <Calendar className="w-4 h-4 mr-1" />
-              Start: {new Date(project.startDate).toLocaleDateString()}
+              Start: {new Date(project.start_date || project.startDate || '').toLocaleDateString()}
             </div>
             <div className="flex items-center text-sm text-gray-600">
               <Calendar className="w-4 h-4 mr-1" />
-              End: {new Date(project.endDate).toLocaleDateString()}
+              End: {new Date(project.end_date || project.endDate || '').toLocaleDateString()}
             </div>
             <Badge variant={
               project.status === 'active' ? 'primary' :
@@ -276,7 +392,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       id: 'project-start',
       type: 'milestone',
       title: 'Project Start',
-      date: new Date(project.startDate),
+      date: new Date(project.start_date || project.startDate || ''),
       status: 'completed',
       description: 'Project officially started'
     });
@@ -318,7 +434,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       id: 'project-end',
       type: 'milestone',
       title: 'Project Completion',
-      date: new Date(project.endDate),
+      date: new Date(project.end_date || project.endDate || ''),
       status: project.status === 'completed' ? 'completed' : 'pending',
       description: 'Planned project completion date'
     });
@@ -403,17 +519,17 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                           <div className="flex-1">
                             <div className="flex items-center space-x-2">
                               <h4 className="font-semibold text-gray-900">{item.title}</h4>
-                              {item.type === 'stage' && (
+                              {item.type === 'stage' && (item as any).weight && (
                                 <Badge variant="secondary" size="sm">
-                                  {item.weight}% weight
+                                  {(item as any).weight}% weight
                                 </Badge>
                               )}
-                              {item.priority && (
+                              {(item as any).priority && (
                                 <Badge variant={
-                                  item.priority === 'urgent' ? 'danger' :
-                                  item.priority === 'high' ? 'warning' : 'primary'
+                                  (item as any).priority === 'urgent' ? 'danger' :
+                                  (item as any).priority === 'high' ? 'warning' : 'primary'
                                 } size="sm">
-                                  {item.priority}
+                                  {(item as any).priority}
                                 </Badge>
                               )}
                               {isOverdue(item) && (
@@ -430,13 +546,13 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                               <div className="flex items-center">
                                 <Calendar className="w-4 h-4 mr-1" />
                                 {item.date.toLocaleDateString()}
-                                {item.endDate && ` - ${item.endDate.toLocaleDateString()}`}
+                                {(item as any).endDate && ` - ${(item as any).endDate.toLocaleDateString()}`}
                               </div>
                               
-                              {item.assignees && item.assignees.length > 0 && (
+                              {(item as any).assignees && (item as any).assignees.length > 0 && (
                                 <div className="flex items-center">
                                   <Users className="w-4 h-4 mr-1" />
-                                  {item.assignees.length} assigned
+                                  {(item as any).assignees.length} assigned
                                 </div>
                               )}
                             </div>
@@ -446,9 +562,9 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                               <div className="mt-3">
                                 <div className="flex items-center justify-between text-sm mb-1">
                                   <span className="text-gray-600">Progress</span>
-                                  <span className="font-medium">{item.progress}%</span>
+                                  <span className="font-medium">{(item as any).progress}%</span>
                                 </div>
-                                <ProgressBar value={item.progress} showLabel={false} />
+                                <ProgressBar value={(item as any).progress} showLabel={false} />
                               </div>
                             )}
                           </div>
@@ -612,7 +728,8 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       {projectTasks.length > 0 ? (
         <div className="space-y-4">
           {projectTasks.map((task) => {
-            const assignedUsers = state.users.filter(u => task.assignees.includes(u.id));
+            const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
+            const assignedTeams = allTeams.filter((t: any) => task.teamAssignees && task.teamAssignees.includes(t.id));
             const stage = project.stages?.find(s => s.id === task.stageId);
             
             return (
@@ -640,25 +757,32 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 mt-2">
-                        {assignedUsers.slice(0, 3).map(user => (
-                          <div 
-                            key={user.id}
-                            className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
-                            title={user.name}
-                          >
-                            {user.name.charAt(0)}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              {user.name}
-                              <br />
-                              <span className="text-gray-300">{user.skills[0]}</span>
-                            </div>
+                      <div className="space-y-2 mt-2">
+                        {/* All Assignees (Individuals + Team Members) */}
+                        {assignedUsers.length > 0 && (
+                          <div className="flex items-center space-x-2">
+                            {assignedUsers.slice(0, 5).map(user => (
+                              <div 
+                                key={user.id}
+                                className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
+                                title={user.name}
+                              >
+                                {user.name.charAt(0)}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                  {user.name}
+                                </div>
+                              </div>
+                            ))}
+                            {assignedUsers.length > 5 && (
+                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+                                +{assignedUsers.length - 5}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                        {assignedUsers.length > 3 && (
-                          <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
-                            +{assignedUsers.length - 3}
-                          </div>
+                        )}
+                        
+                        {assignedUsers.length === 0 && (
+                          <span className="text-xs text-gray-400">No assignees</span>
                         )}
                       </div>
                     </div>
@@ -711,14 +835,79 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">Project Team</h3>
-        <Button 
-          onClick={() => setIsAddMemberModalOpen(true)}
-          className="flex items-center space-x-2"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Add Member</span>
-        </Button>
+        <div className="flex space-x-2">
+          <Button 
+            onClick={() => setIsAddTeamModalOpen(true)}
+            className="flex items-center space-x-2"
+            variant="outline"
+          >
+            <Users className="w-4 h-4" />
+            <span>Add Team</span>
+          </Button>
+          <Button 
+            onClick={() => setIsAddMemberModalOpen(true)}
+            className="flex items-center space-x-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Add Member</span>
+          </Button>
+        </div>
       </div>
+      
+      {/* Teams Section */}
+      <div className="space-y-4">
+        <h4 className="text-md font-medium text-gray-900">Assigned Teams</h4>
+        {projectTeams.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {projectTeams.map((team) => (
+               <Card key={team.id}>
+                 <CardContent className="p-4">
+                   <div className="flex items-center justify-between mb-3">
+                     <div className="flex items-center space-x-3">
+                       <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white">
+                         <Users className="w-5 h-5" />
+                       </div>
+                       <div>
+                         <h5 className="font-medium text-gray-900">{team.team_name}</h5>
+                         <Badge variant="secondary" className="text-xs">{team.role}</Badge>
+                       </div>
+                     </div>
+                     <Button
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => handleRemoveTeam(team.id)}
+                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                     >
+                       <X className="w-4 h-4" />
+                     </Button>
+                   </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Members</span>
+                      <span className="font-medium">{team.member_count} / {team.max_capacity}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full"
+                        style={{ width: `${Math.min((team.member_count / team.max_capacity) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 bg-gray-50 rounded-lg">
+            <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-gray-500">No teams assigned to this project</p>
+          </div>
+        )}
+      </div>
+
+      {/* Individual Members Section */}
+      <div className="space-y-4">
+        <h4 className="text-md font-medium text-gray-900">Individual Members</h4>
       
       {loading ? (
         <div className="text-center py-8">
@@ -727,12 +916,12 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       ) : projectMembers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projectMembers.map((member) => {
-            const memberTasks = projectTasks.filter(task => task.assignees && task.assignees.includes(member.user_id || member.id));
+            const memberTasks = projectTasks.filter(task => task.assignees && task.assignees.includes(member.user_id || member.team_member_id));
             const completedTasks = memberTasks.filter(task => task.status === 'completed');
             const completionRate = memberTasks.length > 0 ? Math.round((completedTasks.length / memberTasks.length) * 100) : 0;
             
             return (
-              <Card key={member.id}>
+              <Card key={member.project_member_id}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
@@ -742,7 +931,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                       <div>
                         <h4 className="font-medium text-gray-900">{member.name || 'Unknown User'}</h4>
                         <div className="flex items-center space-x-2">
-                          <Badge variant="outline">{member.role || 'member'}</Badge>
+                          <Badge variant="secondary">{member.role || 'member'}</Badge>
                           {member.skills && (
                             <p className="text-sm text-gray-600">{member.skills.join?.(', ') || member.skills}</p>
                           )}
@@ -752,7 +941,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRemoveMember(member.id)}
+                      onClick={() => handleRemoveMember(member.project_member_id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       <X className="w-4 h-4" />
@@ -782,23 +971,24 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
           })}
         </div>
       ) : (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Members</h3>
-            <p className="text-gray-600 mb-4">No team members have been assigned to this project yet.</p>
-            <Button 
-              onClick={() => setIsAddMemberModalOpen(true)}
-              className="flex items-center space-x-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add First Member</span>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+                 <Card>
+           <CardContent className="p-8 text-center">
+             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+             <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Members</h3>
+             <p className="text-gray-600 mb-4">No team members have been assigned to this project yet.</p>
+             <Button 
+               onClick={() => setIsAddMemberModalOpen(true)}
+               className="flex items-center space-x-2"
+             >
+               <UserPlus className="w-4 h-4" />
+               <span>Add First Member</span>
+             </Button>
+           </CardContent>
+         </Card>
+       )}
+       </div>
+     </div>
+   );
 
   return (
     <div className="p-6 space-y-6">
@@ -810,17 +1000,17 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
             Back to Projects
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-            <p className="text-gray-600">{project.category}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{currentProject.name}</h1>
+            <p className="text-gray-600">{currentProject.category}</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
           <Badge variant={
-            project.status === 'active' ? 'primary' :
-            project.status === 'completed' ? 'success' :
-            project.status === 'on-hold' ? 'warning' : 'default'
+            currentProject.status === 'active' ? 'primary' :
+            currentProject.status === 'completed' ? 'success' :
+            currentProject.status === 'on-hold' ? 'warning' : 'default'
           }>
-            {project.status}
+            {currentProject.status}
           </Badge>
           <Button 
             variant="outline" 
@@ -870,7 +1060,7 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
       <div>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'stages' && renderStages()}
-        {activeTab === 'components' && <ProjectComponents project={project} />}
+        {activeTab === 'educational-hierarchy' && <EducationalHierarchy projectId={Number(currentProject.id)} />}
         {activeTab === 'tasks' && renderTasks()}
         {activeTab === 'timeline' && renderTimeline()}
         {activeTab === 'team' && renderTeam()}
@@ -881,9 +1071,15 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         isOpen={isCreateTaskModalOpen}
         onClose={() => setIsCreateTaskModalOpen(false)}
         onSubmit={handleCreateTask}
-        users={state.users}
-        skills={state.skills}
-        projects={state.projects}
+        users={teamMembers}
+        teams={allTeams}
+        skills={skills}
+        projects={projects}
+        stages={stages}
+        grades={grades}
+        books={books}
+        units={units}
+        lessons={lessons}
       />
 
       {/* Edit Project Modal */}
@@ -891,22 +1087,122 @@ export function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
         isOpen={isEditProjectModalOpen}
         onClose={() => setIsEditProjectModalOpen(false)}
         onSubmit={handleEditProject}
-        project={project}
-        categories={state.categories}
-        users={state.users}
+        project={currentProject}
+        categories={categories || localCategories}
       />
 
-      {/* Add Member Modal */}
-      <AddMemberModal
-        isOpen={isAddMemberModalOpen}
-        onClose={() => setIsAddMemberModalOpen(false)}
-        onSubmit={handleAddMember}
-        availableMembers={availableTeamMembers}
-        projectMembers={projectMembers}
-      />
-    </div>
-  );
+             {/* Add Member Modal */}
+       <AddMemberModal
+         isOpen={isAddMemberModalOpen}
+         onClose={() => setIsAddMemberModalOpen(false)}
+         onSubmit={handleAddMember}
+         availableMembers={availableTeamMembers}
+         projectMembers={projectMembers}
+       />
+       
+       {/* Add Team Modal */}
+       <AddTeamModal
+         isOpen={isAddTeamModalOpen}
+         onClose={() => setIsAddTeamModalOpen(false)}
+         onSubmit={handleAddTeam}
+         availableTeams={availableTeams}
+         projectTeams={projectTeams}
+       />
+     </div>
+   );
+ }
+
+// Add Team Modal Component
+interface AddTeamModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (teamId: number, role: string) => void;
+  availableTeams: any[];
+  projectTeams: any[];
 }
+
+function AddTeamModal({ isOpen, onClose, onSubmit, availableTeams, projectTeams }: AddTeamModalProps) {
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [selectedRole, setSelectedRole] = useState('member');
+
+  const assignedTeamIds = projectTeams.map(pt => pt.team_id);
+  const unassignedTeams = availableTeams.filter(team => 
+    !assignedTeamIds.includes(team.id)
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedTeamId) {
+      onSubmit(selectedTeamId, selectedRole);
+      setSelectedTeamId(null);
+      setSelectedRole('member');
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Team to Project">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Team
+          </label>
+          <select
+            value={selectedTeamId || ''}
+            onChange={(e) => setSelectedTeamId(Number(e.target.value))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          >
+            <option value="">Choose a team...</option>
+            {unassignedTeams.map(team => (
+              <option key={team.id} value={team.id}>
+                {team.name} - {team.member_count || 0} members
+              </option>
+            ))}
+          </select>
+          {unassignedTeams.length === 0 && (
+            <p className="text-sm text-gray-500 mt-1">
+              All teams are already assigned to this project.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Role
+          </label>
+                     <select
+             value={selectedRole}
+             onChange={(e) => setSelectedRole(e.target.value)}
+             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+           >
+             <option value="member">Member</option>
+             <option value="admin">Admin</option>
+             <option value="owner">Owner</option>
+             <option value="viewer">Viewer</option>
+           </select>
+        </div>
+
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Note:</strong> When you assign a team to this project, all team members will automatically be added as individual project members.
+          </p>
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={!selectedTeamId || unassignedTeams.length === 0}
+          >
+            Add Team
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+ }
 
 // Add Member Modal Component
 interface AddMemberModalProps {
@@ -921,7 +1217,7 @@ function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMe
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedRole, setSelectedRole] = useState('member');
 
-  const assignedMemberIds = projectMembers.map(pm => pm.user_id || pm.id);
+  const assignedMemberIds = projectMembers.map(pm => pm.user_id || pm.team_member_id);
   const unassignedMembers = availableMembers.filter(member => 
     !assignedMemberIds.includes(member.id)
   );
@@ -972,8 +1268,9 @@ function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMe
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="member">Member</option>
-            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
             <option value="owner">Owner</option>
+            <option value="viewer">Viewer</option>
           </select>
         </div>
 

@@ -8,31 +8,48 @@ interface EditProjectModalProps {
   onClose: () => void;
   onSubmit: (project: Partial<Project>) => void;
   project: Project;
-  categories: string[];
-  users: any[];
+  categories: any[]; // Changed to any[] to match backend structure
 }
 
-export function EditProjectModal({ isOpen, onClose, onSubmit, project, categories, users }: EditProjectModalProps) {
+export function EditProjectModal({ isOpen, onClose, onSubmit, project, categories }: EditProjectModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: '',
+    category_id: null as number | null, // Changed to category_id to match backend
     status: 'planning' as ProjectStatus,
-    startDate: '',
-    endDate: '',
-    teamMembers: [] as string[],
+    start_date: '', // Changed to start_date to match backend
+    end_date: '', // Changed to end_date to match backend
   });
 
   useEffect(() => {
     if (project && isOpen) {
+      // Helper function to safely format date
+      const formatDate = (dateValue: any): string => {
+        if (!dateValue) return new Date().toISOString().split('T')[0];
+        
+        try {
+          const date = new Date(dateValue);
+          if (isNaN(date.getTime())) {
+            return new Date().toISOString().split('T')[0];
+          }
+          return date.toISOString().split('T')[0];
+        } catch (error) {
+          console.warn('Invalid date value:', dateValue, error);
+          return new Date().toISOString().split('T')[0];
+        }
+      };
+
+      // Use backend field names since that's what we're getting from the API
+      const startDate = project.start_date;
+      const endDate = project.end_date;
+
       setFormData({
-        name: project.name,
-        description: project.description,
-        category: project.category,
-        status: project.status,
-        startDate: new Date(project.startDate).toISOString().split('T')[0],
-        endDate: new Date(project.endDate).toISOString().split('T')[0],
-        teamMembers: project.teamMembers || [],
+        name: project.name || '',
+        description: project.description || '',
+        category_id: project.category_id || null,
+        status: project.status || 'planning',
+        start_date: formatDate(startDate),
+        end_date: formatDate(endDate),
       });
     }
   }, [project, isOpen]);
@@ -41,18 +58,9 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
     e.preventDefault();
     onSubmit({
       ...formData,
-      startDate: new Date(formData.startDate),
-      endDate: new Date(formData.endDate),
+      start_date: formData.start_date,
+      end_date: formData.end_date,
     });
-  };
-
-  const toggleTeamMember = (userId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      teamMembers: prev.teamMembers.includes(userId)
-        ? prev.teamMembers.filter(id => id !== userId)
-        : [...prev.teamMembers, userId]
-    }));
   };
 
   return (
@@ -85,22 +93,23 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Category
-            </label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Category
+          </label>
+          <select
+            value={formData.category_id || ''}
+            onChange={(e) => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) : null })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Select a category</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>{category.name}</option>
+            ))}
+          </select>
+        </div>
 
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Status
@@ -126,8 +135,8 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
             </label>
             <input
               type="date"
-              value={formData.startDate}
-              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              value={formData.start_date}
+              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -137,29 +146,10 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
             </label>
             <input
               type="date"
-              value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              value={formData.end_date}
+              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Team Members
-          </label>
-          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2">
-            {users.map(user => (
-              <label key={user.id} className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.teamMembers.includes(user.id)}
-                  onChange={() => toggleTeamMember(user.id)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">{user.name}</span>
-              </label>
-            ))}
           </div>
         </div>
 

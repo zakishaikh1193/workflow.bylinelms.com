@@ -25,7 +25,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">Loading...</p>
@@ -38,9 +38,12 @@ function App() {
   if (showTeamPortal) {
     if (!teamMemberUser) {
       return (
-        <TeamMemberLogin 
-          onLogin={(user) => setTeamMemberUser(user)} 
-        />
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
+          <TeamMemberLogin 
+            onLogin={(user) => setTeamMemberUser(user)}
+            onBackToAdmin={() => setShowTeamPortal(false)}
+          />
+        </div>
       );
     }
     
@@ -59,17 +62,7 @@ function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-4">
-          <Auth />
-          <div className="text-center">
-            <button
-              onClick={() => setShowTeamPortal(true)}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-            >
-              Team Member? Sign in here →
-            </button>
-          </div>
-        </div>
+        <Auth onSwitchToTeam={() => setShowTeamPortal(true)} />
       </div>
     );
   }

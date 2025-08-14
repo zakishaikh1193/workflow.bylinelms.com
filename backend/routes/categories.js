@@ -7,7 +7,7 @@ const {
   updateCategory,
   deleteCategory
 } = require('../controllers/categoryController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { body, param, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -78,13 +78,13 @@ const idValidation = [
 
 // Get all categories
 router.get('/', 
-  authenticateToken,
+  requireAuth,
   getCategories
 );
 
 // Get category by ID
 router.get('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   getCategory
@@ -92,7 +92,7 @@ router.get('/:id',
 
 // Create new category
 router.post('/',
-  authenticateToken,
+  requireAuth,
   categoryValidation,
   handleValidationErrors,
   createCategory
@@ -100,7 +100,7 @@ router.post('/',
 
 // Update category
 router.put('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   categoryUpdateValidation,
   handleValidationErrors,
@@ -109,7 +109,7 @@ router.put('/:id',
 
 // Delete category
 router.delete('/:id',
-  authenticateToken,
+  requireAuth,
   idValidation,
   handleValidationErrors,
   deleteCategory

@@ -11,6 +11,10 @@ export interface User {
   hourly_rate?: number;
   bio?: string;
   performanceFlags?: PerformanceFlag[];
+  performance_flags?: PerformanceFlag[]; // Backend field
+  team_names?: string[]; // Backend field
+  team_ids?: number[]; // Backend field
+  last_login_at?: string; // Backend field
 }
 
 export interface PerformanceFlag {
@@ -19,6 +23,7 @@ export interface PerformanceFlag {
   reason: string;
   date: string;
   addedBy: string;
+  added_by?: string; // Backend field
 }
 
 export interface Project {
@@ -26,10 +31,14 @@ export interface Project {
   name: string;
   description: string;
   category: string;
+  category_id?: number | null; // Backend field for category ID
   status: ProjectStatus;
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date; // Frontend field (optional for backward compatibility)
+  endDate?: Date; // Frontend field (optional for backward compatibility)
+  start_date?: string; // Backend field for start date (primary)
+  end_date?: string; // Backend field for end date (primary)
   progress: number;
+  userCount?: number; // Number of unique users assigned to project tasks
   stages: Stage[];
   teamMembers: string[]; // User IDs
   subProjects?: Project[];
@@ -120,31 +129,75 @@ export interface Task {
   id: string;
   name: string;
   description: string;
-  stageId: string; // Required - tasks must be tied to stages
-  projectId: string;
+  stageId?: string; // Frontend field (optional for backward compatibility)
+  projectId?: string; // Frontend field (optional for backward compatibility)
+  stage_id?: string; // Backend field for stage ID
+  project_id?: string; // Backend field for project ID
   gradeId?: string;
   bookId?: string;
   unitId?: string;
   lessonId?: string;
   componentPath?: string; // Human readable path
   assignees: string[]; // User IDs
-  skills: string[];
+  teamAssignees?: string[]; // Team IDs
+  skills: string[] | any[]; // Can be array of strings or skill objects
   status: TaskStatus;
   priority: Priority;
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date; // Frontend field (optional for backward compatibility)
+  endDate?: Date; // Frontend field (optional for backward compatibility)
+  start_date?: string; // Backend field for start date
+  end_date?: string; // Backend field for end date
   progress: number;
-  estimatedHours: number;
-  actualHours?: number;
+  estimatedHours?: number; // Frontend field (optional for backward compatibility)
+  actualHours?: number; // Frontend field (optional for backward compatibility)
+  estimated_hours?: number; // Backend field for estimated hours
+  actual_hours?: number; // Backend field for actual hours
+  created_at?: string; // Backend field
+  updated_at?: string; // Backend field
+  created_by?: string; // Backend field
+  // Enhanced fields from team member queries
+  project_name?: string;
+  project_status?: string;
+  project_description?: string;
+  stage_name?: string;
+  stage_description?: string;
+  category_name?: string;
+  category_description?: string;
+  required_skills?: string[];
+  grade_name?: string;
+  book_name?: string;
+  unit_name?: string;
+  lesson_name?: string;
+  // Computed fields
+  is_overdue?: boolean;
+  days_until_due?: number;
+  priority_color?: string;
+  status_color?: string;
 }
 
 export interface TeamAllocation {
-  userId: string;
-  projectId: string;
-  taskId: string;
-  hoursPerDay: number;
-  startDate: Date;
-  endDate: Date;
+  id?: string | number;
+  user_id: string | number;
+  user_type: 'admin' | 'team';
+  project_id: string | number;
+  task_id?: string | number;
+  hours_per_day: number;
+  start_date: string;
+  end_date: string;
+  created_at?: string;
+  updated_at?: string;
+  // Frontend compatibility fields
+  userId?: string;
+  projectId?: string;
+  taskId?: string;
+  hoursPerDay?: number;
+  startDate?: Date;
+  endDate?: Date;
+  // Related data from joins
+  project_name?: string;
+  task_name?: string;
+  user_name?: string;
+  user_email?: string;
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed' | 'cancelled';

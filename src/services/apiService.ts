@@ -1,13 +1,36 @@
 // Modern API service for the new Node.js backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token');
-  return {
+  const headers = {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
   };
+  
+  // Debug logging for auth headers
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔑 Auth headers:', { hasToken: !!token, headers });
+  }
+  
+  return headers;
+};
+
+// Helper function to get team auth headers
+const getTeamAuthHeaders = () => {
+  const token = localStorage.getItem('teamToken');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+  
+  // Debug logging for team auth headers
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔑 Team auth headers:', { hasToken: !!token, headers });
+  }
+  
+  return headers;
 };
 
 // Helper function to handle API responses
@@ -21,11 +44,28 @@ const handleResponse = async (response: Response) => {
   return data;
 };
 
+// Simple fetch wrapper without retries
+const simpleFetch = async (url: string, options: RequestInit) => {
+  // Debug logging for requests
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🌐 Making request to: ${url}`, { method: options.method });
+  }
+  
+  const response = await fetch(url, options);
+  
+  // Debug logging for responses
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`📡 Response from ${url}:`, { status: response.status, ok: response.ok });
+  }
+  
+  return response;
+};
+
 // Generic API methods
 export const apiService = {
   // GET request
   get: async (endpoint: string) => {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
@@ -34,7 +74,7 @@ export const apiService = {
 
   // POST request
   post: async (endpoint: string, data: any) => {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -44,7 +84,7 @@ export const apiService = {
 
   // PUT request
   put: async (endpoint: string, data: any) => {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -54,7 +94,7 @@ export const apiService = {
 
   // DELETE request
   delete: async (endpoint: string) => {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -62,60 +102,159 @@ export const apiService = {
   },
 };
 
-// Team Member Service (replaces teamMemberService.ts)
+// Team API service for team member specific calls
+const teamApiService = {
+  // GET request with team auth
+  get: async (endpoint: string) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'GET',
+      headers: getTeamAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // POST request with team auth
+  post: async (endpoint: string, data: any) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: getTeamAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // PUT request with team auth
+  put: async (endpoint: string, data: any) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: getTeamAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // DELETE request with team auth
+  delete: async (endpoint: string) => {
+    const response = await simpleFetch(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: getTeamAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
+// Team-specific project service
+export const teamProjectService = {
+  // Get all projects (team member access)
+  getAll: async (filters?: any) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/projects?${queryParams}` : '/projects';
+    const result = await teamApiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get project by ID (team member access)
+  getById: async (id: string | number) => {
+    const result = await teamApiService.get(`/projects/${id}`);
+    return result.data;
+  },
+};
+
+// Team service (existing)
 export const teamService = {
-  // Get all team members
   getAll: async () => {
     const result = await apiService.get('/team');
     return result.data;
   },
-
-  // Get team member by ID
-  getById: async (id: string | number) => {
+  
+  // Team member specific methods (uses team auth)
+  getMyTasks: async () => {
+    const result = await teamApiService.get('/team/my-tasks');
+    return result.data;
+  },
+  
+  getMyProfile: async () => {
+    const result = await teamApiService.get('/team/my-profile');
+    return result.data;
+  },
+  getById: async (id: string) => {
     const result = await apiService.get(`/team/${id}`);
     return result.data;
   },
-
-  // Create new team member
-  create: async (memberData: any) => {
-    const result = await apiService.post('/team', memberData);
+  create: async (data: any) => {
+    const result = await apiService.post('/team', data);
     return result.data;
   },
-
-  // Update team member
-  update: async (id: string | number, memberData: any) => {
-    const result = await apiService.put(`/team/${id}`, memberData);
+  update: async (id: string, data: any) => {
+    const result = await apiService.put(`/team/${id}`, data);
     return result.data;
   },
-
-  // Delete team member
-  delete: async (id: string | number) => {
+  delete: async (id: string) => {
     const result = await apiService.delete(`/team/${id}`);
     return result.data;
   },
-
-  // Get performance flags for team member
-  getPerformanceFlags: async (id: string | number) => {
-    const result = await apiService.get(`/team/${id}/flags`);
+  
+  // Team member specific endpoints
+  getMembers: async () => {
+    const result = await apiService.get('/team/members');
     return result.data;
   },
-
-  // Add performance flag
-  addPerformanceFlag: async (memberId: string | number, flagData: any) => {
-    const result = await apiService.post(`/team/${memberId}/flags`, flagData);
+  getMemberById: async (id: string) => {
+    const result = await apiService.get(`/team/members/${id}`);
     return result.data;
   },
-
-  // Remove performance flag
-  removePerformanceFlag: async (flagId: string | number) => {
-    const result = await apiService.delete(`/team/flags/${flagId}`);
+  createMember: async (data: any) => {
+    const result = await apiService.post('/team/members', data);
     return result.data;
   },
-
-  // Generate a random passcode (utility function)
-  generatePasscode: () => {
-    return Math.random().toString(36).slice(-8).toUpperCase();
+  updateMember: async (id: string, data: any) => {
+    const result = await apiService.put(`/team/members/${id}`, data);
+    return result.data;
   },
+  deleteMember: async (id: string) => {
+    const result = await apiService.delete(`/team/members/${id}`);
+    return result.data;
+  },
+  
+  // Team management endpoints (new)
+  getTeams: async () => {
+    const result = await apiService.get('/team/teams');
+    return result.data;
+  },
+  getTeamById: async (id: string) => {
+    const result = await apiService.get(`/team/teams/${id}`);
+    return result.data;
+  },
+  createTeam: async (data: any) => {
+    const result = await apiService.post('/team/teams', data);
+    return result.data;
+  },
+  updateTeam: async (id: string, data: any) => {
+    const result = await apiService.put(`/team/teams/${id}`, data);
+    return result.data;
+  },
+  deleteTeam: async (id: string) => {
+    const result = await apiService.delete(`/team/teams/${id}`);
+    return result.data;
+  },
+  addMemberToTeam: async (teamId: string, data: any) => {
+    const result = await apiService.post(`/team/teams/${teamId}/members`, data);
+    return result.data;
+  },
+  removeMemberFromTeam: async (teamId: string, memberId: string) => {
+    const result = await apiService.delete(`/team/teams/${teamId}/members/${memberId}`);
+    return result.data;
+  },
+  getTeamMembers: async (teamId: string) => {
+    const result = await apiService.get(`/team/teams/${teamId}`);
+    return result.data.members || [];
+  },
+  
+  // Team member authentication
+  authenticate: async (credentials: { email: string; passcode: string }) => {
+    const result = await apiService.post('/team/authenticate', credentials);
+    return result;
+  }
 };
 
 // Project Service
@@ -158,15 +297,33 @@ export const projectService = {
     return result.data;
   },
 
+  // Get project teams
+  getTeams: async (id: string | number) => {
+    const result = await apiService.get(`/projects/${id}/teams`);
+    return result.data;
+  },
+
   // Add member to project
   addMember: async (projectId: string | number, memberData: any) => {
     const result = await apiService.post(`/projects/${projectId}/members`, memberData);
     return result.data;
   },
 
+  // Add team to project
+  addTeam: async (projectId: string | number, teamData: any) => {
+    const result = await apiService.post(`/projects/${projectId}/members`, teamData);
+    return result.data;
+  },
+
   // Remove member from project
   removeMember: async (projectId: string | number, memberId: string | number) => {
     const result = await apiService.delete(`/projects/${projectId}/members/${memberId}`);
+    return result.data;
+  },
+
+  // Remove team from project
+  removeTeam: async (projectId: string | number, teamId: string | number) => {
+    const result = await apiService.delete(`/projects/${projectId}/teams/${teamId}`);
     return result.data;
   },
 };
@@ -300,6 +457,72 @@ export const taskService = {
   },
 };
 
+// Team-specific task service
+export const teamTaskService = {
+  // Update task (team member access)
+  update: async (id: string | number, taskData: any) => {
+    const result = await teamApiService.put(`/tasks/${id}`, taskData);
+    return result.data;
+  },
+
+  // Update task status (team member access)
+  updateStatus: async (id: string | number, status: string, progress?: number) => {
+    const data: any = { status };
+    if (progress !== undefined) {
+      data.progress = progress;
+    }
+    const result = await teamApiService.put(`/tasks/${id}`, data);
+    return result.data;
+  },
+
+  // Update task progress (team member access)
+  updateProgress: async (id: string | number, progress: number) => {
+    const result = await teamApiService.put(`/tasks/${id}`, { progress });
+    return result.data;
+  },
+};
+
+// Allocation Service
+export const allocationService = {
+  // Get all allocations with filters
+  getAll: async (filters?: any) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/allocations?${queryParams}` : '/allocations';
+    const result = await apiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get allocation by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/allocations/${id}`);
+    return result.data;
+  },
+
+  // Create new allocation
+  create: async (allocationData: any) => {
+    const result = await apiService.post('/allocations', allocationData);
+    return result.data;
+  },
+
+  // Update allocation
+  update: async (id: string | number, allocationData: any) => {
+    const result = await apiService.put(`/allocations/${id}`, allocationData);
+    return result.data;
+  },
+
+  // Delete allocation
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/allocations/${id}`);
+    return result.data;
+  },
+
+  // Get workload summary for a specific date
+  getWorkloadSummary: async (date: string) => {
+    const result = await apiService.get(`/allocations/workload-summary?date=${date}`);
+    return result.data;
+  },
+};
+
 // Stage Service
 export const stageService = {
   // Get all stages
@@ -328,26 +551,239 @@ export const stageService = {
   },
 };
 
+// Grade Service
+export const gradeService = {
+  // Get all grades for a project
+  getByProject: async (projectId: string | number) => {
+    const result = await apiService.get(`/grades/project/${projectId}`);
+    return result.data;
+  },
+
+  // Get all grades
+  getAll: async () => {
+    const result = await apiService.get('/grades');
+    return result.data;
+  },
+
+  // Get grade by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/grades/${id}`);
+    return result.data;
+  },
+
+  // Create new grade
+  create: async (gradeData: any) => {
+    const result = await apiService.post('/grades', gradeData);
+    return result.data;
+  },
+
+  // Update grade
+  update: async (id: string | number, gradeData: any) => {
+    const result = await apiService.put(`/grades/${id}`, gradeData);
+    return result.data;
+  },
+
+  // Delete grade
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/grades/${id}`);
+    return result.data;
+  },
+
+  // Distribute weights
+  distributeWeights: async (projectId: string | number) => {
+    const result = await apiService.post('/grades/distribute-weights', { project_id: projectId });
+    return result.data;
+  }
+};
+
+// Book Service
+export const bookService = {
+  // Get all books for a grade
+  getByGrade: async (gradeId: string | number) => {
+    const result = await apiService.get(`/books/grade/${gradeId}`);
+    return result.data;
+  },
+
+  // Get all books
+  getAll: async () => {
+    const result = await apiService.get('/books');
+    return result.data;
+  },
+
+  // Get book by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/books/${id}`);
+    return result.data;
+  },
+
+  // Create new book
+  create: async (bookData: any) => {
+    const result = await apiService.post('/books', bookData);
+    return result.data;
+  },
+
+  // Update book
+  update: async (id: string | number, bookData: any) => {
+    const result = await apiService.put(`/books/${id}`, bookData);
+    return result.data;
+  },
+
+  // Delete book
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/books/${id}`);
+    return result.data;
+  },
+
+  // Distribute weights
+  distributeWeights: async (gradeId: string | number) => {
+    const result = await apiService.post('/books/distribute-weights', { grade_id: gradeId });
+    return result.data;
+  }
+};
+
+// Unit Service
+export const unitService = {
+  // Get all units for a book
+  getByBook: async (bookId: string | number) => {
+    const result = await apiService.get(`/units/book/${bookId}`);
+    return result.data;
+  },
+
+  // Get all units
+  getAll: async () => {
+    const result = await apiService.get('/units');
+    return result.data;
+  },
+
+  // Get unit by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/units/${id}`);
+    return result.data;
+  },
+
+  // Create new unit
+  create: async (unitData: any) => {
+    const result = await apiService.post('/units', unitData);
+    return result.data;
+  },
+
+  // Update unit
+  update: async (id: string | number, unitData: any) => {
+    const result = await apiService.put(`/units/${id}`, unitData);
+    return result.data;
+  },
+
+  // Delete unit
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/units/${id}`);
+    return result.data;
+  },
+
+  // Distribute weights
+  distributeWeights: async (bookId: string | number) => {
+    const result = await apiService.post('/units/distribute-weights', { book_id: bookId });
+    return result.data;
+  }
+};
+
+// Lesson Service
+export const lessonService = {
+  // Get all lessons for a unit
+  getByUnit: async (unitId: string | number) => {
+    const result = await apiService.get(`/lessons/unit/${unitId}`);
+    return result.data;
+  },
+
+  // Get all lessons
+  getAll: async () => {
+    const result = await apiService.get('/lessons');
+    return result.data;
+  },
+
+  // Get lesson by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/lessons/${id}`);
+    return result.data;
+  },
+
+  // Create new lesson
+  create: async (lessonData: any) => {
+    const result = await apiService.post('/lessons', lessonData);
+    return result.data;
+  },
+
+  // Update lesson
+  update: async (id: string | number, lessonData: any) => {
+    const result = await apiService.put(`/lessons/${id}`, lessonData);
+    return result.data;
+  },
+
+  // Delete lesson
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/lessons/${id}`);
+    return result.data;
+  },
+
+  // Distribute weights
+  distributeWeights: async (unitId: string | number) => {
+    const result = await apiService.post('/lessons/distribute-weights', { unit_id: unitId });
+    return result.data;
+  }
+};
+
 // Dashboard Service
 export const dashboardService = {
   // Get dashboard overview data
   getOverview: async () => {
     try {
-      // Fetch all necessary data in parallel
-      const [projects, teamMembers, categories, skills, tasks] = await Promise.all([
-        projectService.getAll(),
-        teamService.getAll(),
-        categoryService.getAll(),
-        skillService.getAll(),
-        taskService.getAll()
+      // Fetch all necessary data in parallel with individual error handling
+      const results = await Promise.allSettled([
+        projectService.getAll().catch((error) => {
+          console.error('❌ Projects fetch error:', error);
+          return [];
+        }),
+        teamService.getMembers().catch((error) => {
+          console.error('❌ Team members fetch error:', error);
+          return [];
+        }),
+        categoryService.getAll().catch((error) => {
+          console.error('❌ Categories fetch error:', error);
+          return [];
+        }),
+        skillService.getAll().catch((error) => {
+          console.error('❌ Skills fetch error:', error);
+          return [];
+        }),
+        taskService.getAll().catch((error) => {
+          console.error('❌ Tasks fetch error:', error);
+          return [];
+        })
       ]);
+
+      const [projects, teamMembers, categories, skills, tasks] = results.map(result => {
+        if (result.status === 'fulfilled') {
+          return result.value || [];
+        } else {
+          console.error('❌ API call failed:', result.reason);
+          return [];
+        }
+      });
+
+      // Debug logging
+      console.log('🔍 Dashboard data received:', {
+        projects: projects.length,
+        teamMembers: teamMembers.length,
+        categories: categories.length,
+        skills: skills.length,
+        tasks: tasks.length
+      });
 
       // Calculate statistics
       const stats = {
         totalProjects: projects.length,
         activeProjects: projects.filter((p: any) => p.status === 'active').length,
         totalTeamMembers: teamMembers.length,
-        activeTeamMembers: teamMembers.filter((m: any) => m.status === 'active').length,
+        activeTeamMembers: teamMembers.filter((m: any) => m.is_active !== false).length,
         totalCategories: categories.length,
         totalSkills: skills.length,
         totalTasks: tasks.length,
@@ -366,7 +802,26 @@ export const dashboardService = {
       };
     } catch (error) {
       console.error('Dashboard overview fetch error:', error);
-      throw error;
+      // Return empty data instead of throwing
+      return {
+        projects: [],
+        teamMembers: [],
+        tasks: [],
+        categories: [],
+        skills: [],
+        stats: {
+          totalProjects: 0,
+          activeProjects: 0,
+          totalTeamMembers: 0,
+          activeTeamMembers: 0,
+          totalCategories: 0,
+          totalSkills: 0,
+          totalTasks: 0,
+          activeTasks: 0,
+          completedTasks: 0,
+          overdueTasks: 0
+        }
+      };
     }
   },
 

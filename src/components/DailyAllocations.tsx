@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -17,40 +17,139 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
+import { allocationService, teamService, projectService, taskService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 import type { TeamAllocation, Task, User as UserType } from '../types';
 
 export function DailyAllocations() {
-  const { state, dispatch } = useApp();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date('2025-08-11')); // Set to a date that has allocations
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [groupBy, setGroupBy] = useState<'team' | 'project'>('team');
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [editingAllocation, setEditingAllocation] = useState<TeamAllocation | null>(null);
+  const [allocations, setAllocations] = useState<TeamAllocation[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Generate sample allocations for demonstration
-  const sampleAllocations: TeamAllocation[] = useMemo(() => {
-    const allocations: TeamAllocation[] = [];
-    
-    state.tasks.forEach(task => {
-      task.assignees.forEach(userId => {
-        const startDate = new Date(task.startDate);
-        const endDate = new Date(task.endDate);
-        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const hoursPerDay = Math.min(task.estimatedHours / Math.max(daysDiff, 1), 8);
+  // Fetch allocations from API
+  const fetchAllocations = async (filters?: any) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await allocationService.getAll(filters);
+      setAllocations(result);
+    } catch (err) {
+      console.error('Failed to fetch allocations:', err);
+      setError('Failed to load allocations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
         
-        allocations.push({
-          userId,
-          projectId: task.projectId,
-          taskId: task.id,
-          hoursPerDay: Math.round(hoursPerDay * 100) / 100,
-          startDate: startDate,
-          endDate: endDate,
-        });
-      });
-    });
+        const [allocationsData, usersData, projectsData, tasksData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
+          allocationService.getAll(),
+          teamService.getMembers(),
+          projectService.getAll(),
+          taskService.getAll(),
+          gradeService.getAll(),
+          bookService.getAll(),
+          unitService.getAll(),
+          lessonService.getAll()
+        ]);
+        
+        console.log('📊 Allocations data:', allocationsData);
+        console.log('👥 Users data:', usersData);
+        console.log('📋 Projects data:', projectsData);
+        console.log('✅ Tasks data:', tasksData);
+        
+        setAllocations(allocationsData);
+        setUsers(usersData);
+        setProjects(projectsData);
+        setTasks(tasksData);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setError('Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    return allocations;
-  }, [state.tasks]);
+    fetchData();
+  }, []);
+
+  // Auto-create allocations from existing tasks if no allocations exist
+  const createAllocationsFromTasks = async () => {
+    if (allocations.length === 0 && tasks.length > 0) {
+      try {
+        setLoading(true);
+        
+        // Create allocations for each task with assignees
+        for (const task of tasks) {
+          if (task.assignees && task.assignees.length > 0) {
+            const startDate = task.start_date || task.startDate;
+            const endDate = task.end_date || task.endDate;
+            const estimatedHours = task.estimated_hours || task.estimatedHours || 8;
+            
+            if (startDate && endDate) {
+              const daysDiff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+              const hoursPerDay = Math.min(estimatedHours / Math.max(daysDiff, 1), 8);
+              
+              for (const userId of task.assignees) {
+                // Don't specify user_type - let the backend determine it
+                const allocationData = {
+                  user_id: userId,
+                  project_id: task.project_id || task.projectId || '',
+                  task_id: task.id,
+                  hours_per_day: Math.round(hoursPerDay * 100) / 100,
+                  start_date: new Date(startDate).toISOString().split('T')[0],
+                  end_date: new Date(endDate).toISOString().split('T')[0],
+                };
+                
+                await allocationService.create(allocationData);
+              }
+            }
+          }
+        }
+        
+        // Refresh allocations after creating them
+        await fetchAllocations();
+      } catch (err) {
+        console.error('Failed to create allocations from tasks:', err);
+        setError('Failed to create initial allocations');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Auto-create allocations when component mounts and no allocations exist
+  useEffect(() => {
+    if (allocations.length === 0 && !loading && tasks.length > 0) {
+      createAllocationsFromTasks();
+    }
+  }, [allocations.length, loading, tasks.length]);
+
+  // Fetch allocations for a specific date range
+  const fetchAllocationsForDateRange = async (startDate: Date, endDate: Date) => {
+    const filters = {
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0]
+    };
+    await fetchAllocations(filters);
+  };
 
   const getWeekDates = (date: Date) => {
     const week = [];
@@ -66,27 +165,52 @@ export function DailyAllocations() {
   };
 
   const getAllocationsForDate = (date: Date, userId?: string, projectId?: string) => {
-    return sampleAllocations.filter(allocation => {
-      const allocDate = new Date(date);
-      const startDate = new Date(allocation.startDate);
-      const endDate = new Date(allocation.endDate);
+    console.log(`🔍 getAllocationsForDate: date=${date.toISOString().split('T')[0]}, userId=${userId}, allocations.length=${allocations.length}`);
+    
+    const filteredAllocations = allocations.filter(allocation => {
+      // Convert dates to YYYY-MM-DD format for comparison
+      const allocDateStr = date.toISOString().split('T')[0];
+      const startDateStr = allocation.start_date.split('T')[0];
+      const endDateStr = allocation.end_date.split('T')[0];
       
-      const isInDateRange = allocDate >= startDate && allocDate <= endDate;
-      const isForUser = !userId || allocation.userId === userId;
-      const isForProject = !projectId || allocation.projectId === projectId;
+      const isInDateRange = allocDateStr >= startDateStr && allocDateStr <= endDateStr;
+      const isForUser = !userId || allocation.user_id?.toString() === userId;
+      const isForProject = !projectId || allocation.project_id?.toString() === projectId;
+
+      // Debug: Only log date filtering issues for specific user
+      if (userId && allocation.user_id?.toString() === userId && !isInDateRange) {
+        console.log(`❌ Date mismatch: Looking for ${allocDateStr}, allocation ${allocation.id} range is ${startDateStr} to ${endDateStr}`);
+      }
       
+      // Debug: Log ALL allocations for user 7 to see what we have
+      if (userId === '7' && allocation.user_id?.toString() === userId) {
+        console.log(`🔍 User 7 allocation ${allocation.id}: date ${allocDateStr}, range ${startDateStr} to ${endDateStr}, inRange: ${isInDateRange}`);
+      }
+
       return isInDateRange && isForUser && isForProject;
     });
+    
+    return filteredAllocations;
   };
 
   const getTotalHoursForUserOnDate = (userId: string, date: Date) => {
-    const allocations = getAllocationsForDate(date, userId);
-    return allocations.reduce((total, allocation) => total + allocation.hoursPerDay, 0);
+    const userAllocations = getAllocationsForDate(date, userId);
+    return userAllocations.reduce((total: number, allocation: TeamAllocation) => {
+      const hours = typeof allocation.hours_per_day === 'string' 
+        ? parseFloat(allocation.hours_per_day) 
+        : allocation.hours_per_day || 0;
+      return total + hours;
+    }, 0);
   };
 
   const getTotalHoursForProjectOnDate = (projectId: string, date: Date) => {
-    const allocations = getAllocationsForDate(date, undefined, projectId);
-    return allocations.reduce((total, allocation) => total + allocation.hoursPerDay, 0);
+    const projectAllocations = getAllocationsForDate(date, undefined, projectId);
+    return projectAllocations.reduce((total: number, allocation: TeamAllocation) => {
+      const hours = typeof allocation.hours_per_day === 'string' 
+        ? parseFloat(allocation.hours_per_day) 
+        : allocation.hours_per_day || 0;
+      return total + hours;
+    }, 0);
   };
 
   const getUserWorkloadStatus = (userId: string, date: Date) => {
@@ -137,28 +261,33 @@ export function DailyAllocations() {
     }
   };
 
-  const handleCreateAllocation = (allocationData: Partial<TeamAllocation>) => {
-    const newAllocation: TeamAllocation = {
-      userId: allocationData.userId || '',
-      projectId: allocationData.projectId || '',
-      taskId: allocationData.taskId || '',
-      hoursPerDay: allocationData.hoursPerDay || 8,
-      startDate: allocationData.startDate || new Date(),
-      endDate: allocationData.endDate || new Date(),
-    };
-    
-    // Add to allocations state and update sample allocations
-    dispatch({ type: 'ADD_ALLOCATION', payload: newAllocation });
-    
-    // Force re-render by updating the component state
-    setIsAllocationModalOpen(false);
-    // Trigger a re-render to show the new allocation
-    window.location.reload();
-    setIsAllocationModalOpen(false);
+  const handleCreateAllocation = async (allocationData: Partial<TeamAllocation>) => {
+    try {
+      const newAllocation = {
+        user_id: allocationData.userId || '',
+        project_id: allocationData.projectId || '',
+        task_id: allocationData.taskId || undefined,
+        hours_per_day: allocationData.hoursPerDay || 8,
+        start_date: allocationData.startDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+        end_date: allocationData.endDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+      };
+      
+      await allocationService.create(newAllocation);
+      
+      // Refresh allocations
+      await fetchAllocations();
+      
+      setIsAllocationModalOpen(false);
+    } catch (err) {
+      console.error('Failed to create allocation:', err);
+      setError('Failed to create allocation');
+    }
   };
 
   const renderTeamWeekView = () => {
     const weekDates = getWeekDates(selectedDate);
+    console.log(`📅 Current selected date: ${selectedDate.toISOString().split('T')[0]}`);
+    console.log(`📅 Week dates:`, weekDates.map(d => d.toISOString().split('T')[0]));
     
     return (
       <div className="space-y-4">
@@ -178,7 +307,7 @@ export function DailyAllocations() {
         </div>
 
         {/* Team Member Rows */}
-        {state.users.map(user => (
+        {users.map(user => (
           <Card key={user.id} className="overflow-hidden">
             <CardContent className="p-0">
               <div className="grid grid-cols-8 gap-2">
@@ -189,14 +318,16 @@ export function DailyAllocations() {
                   </div>
                   <div>
                     <div className="font-medium text-gray-900">{user.name}</div>
-                    <div className="text-sm text-gray-600">{user.skills[0]}</div>
+                                                <div className="text-sm text-gray-600">{user.skills?.[0] || 'No skills'}</div>
                   </div>
                 </div>
 
-                {/* Daily Allocations */}
-                {weekDates.map(date => {
-                  const allocations = getAllocationsForDate(date, user.id);
-                  const totalHours = getTotalHoursForUserOnDate(user.id, date);
+                                  {/* Daily Allocations */}
+                  {weekDates.map(date => {
+                    console.log(`🎯 Rendering date ${date.toISOString().split('T')[0]} for user ${user.id}`);
+       
+                    const allocations = getAllocationsForDate(date, user.id);
+                    const totalHours = getTotalHoursForUserOnDate(user.id, date);
                   const status = getUserWorkloadStatus(user.id, date);
                   
                   return (
@@ -208,19 +339,19 @@ export function DailyAllocations() {
                       
                       {allocations.length > 0 && (
                         <div className="mt-2 space-y-1">
-                          {allocations.slice(0, 2).map(allocation => {
-                            const task = state.tasks.find(t => t.id === allocation.taskId);
-                            const project = state.projects.find(p => p.id === allocation.projectId);
-                            const user = state.users.find(u => u.id === allocation.userId);
+                          {allocations.slice(0, 2).map((allocation: TeamAllocation) => {
+                            const task = tasks.find(t => t.id === allocation.task_id);
+                            const project = projects.find(p => p.id === allocation.project_id);
+                            const user = users.find(u => u.id === allocation.user_id);
                             
                             return (
                               <div 
-                                key={allocation.taskId}
+                                key={allocation.task_id || allocation.id}
                                 className="text-xs bg-white rounded p-1 border"
-                                title={`${project?.name}: ${task?.name} (${user?.skills[0]})`}
+                                title={`${project?.name}: ${task?.name} (${user?.skills?.[0]})`}
                               >
                                 <div className="font-medium truncate">{task?.name}</div>
-                                <div className="text-gray-600">{allocation.hoursPerDay}h • {user?.skills[0]}</div>
+                                <div className="text-gray-600">{allocation.hours_per_day}h • {user?.skills?.[0]}</div>
                               </div>
                             );
                           })}
@@ -263,7 +394,7 @@ export function DailyAllocations() {
         </div>
 
         {/* Project Rows */}
-        {state.projects.map(project => (
+        {projects.map(project => (
           <Card key={project.id} className="overflow-hidden">
             <CardContent className="p-0">
               <div className="grid grid-cols-8 gap-2">
@@ -282,7 +413,7 @@ export function DailyAllocations() {
                 {weekDates.map(date => {
                   const allocations = getAllocationsForDate(date, undefined, project.id);
                   const totalHours = getTotalHoursForProjectOnDate(project.id, date);
-                  const uniqueUsers = new Set(allocations.map(a => a.userId)).size;
+                  const uniqueUsers = new Set(allocations.map((a: TeamAllocation) => a.user_id)).size;
                   
                   return (
                     <div key={date.toISOString()} className="p-2 border-l border-gray-200">
@@ -293,18 +424,18 @@ export function DailyAllocations() {
                       
                       {allocations.length > 0 && (
                         <div className="mt-2 space-y-1">
-                          {allocations.slice(0, 2).map(allocation => {
-                            const user = state.users.find(u => u.id === allocation.userId);
-                            const task = state.tasks.find(t => t.id === allocation.taskId);
+                          {allocations.slice(0, 2).map((allocation: TeamAllocation) => {
+                            const user = users.find(u => u.id === allocation.user_id);
+                            const task = tasks.find(t => t.id === allocation.task_id);
                             
                             return (
                               <div 
-                                key={`${allocation.userId}-${allocation.taskId}`}
+                                key={`${allocation.user_id}-${allocation.task_id}`}
                                 className="text-xs bg-white rounded p-1 border"
                                 title={`${user?.name}: ${task?.name}`}
                               >
                                 <div className="font-medium truncate">{user?.name}</div>
-                                <div className="text-gray-600">{allocation.hoursPerDay}h</div>
+                                <div className="text-gray-600">{allocation.hours_per_day}h</div>
                               </div>
                             );
                           })}
@@ -330,7 +461,7 @@ export function DailyAllocations() {
     if (groupBy === 'team') {
       return (
         <div className="space-y-6">
-          {state.users.map(user => {
+          {users.map(user => {
             const allocations = getAllocationsForDate(selectedDate, user.id);
             const totalHours = getTotalHoursForUserOnDate(user.id, selectedDate);
             const status = getUserWorkloadStatus(user.id, selectedDate);
@@ -368,8 +499,8 @@ export function DailyAllocations() {
                   ) : (
                     <div className="space-y-3">
                       {allocations.map(allocation => {
-                        const task = state.tasks.find(t => t.id === allocation.taskId);
-                        const project = state.projects.find(p => p.id === allocation.projectId);
+                        const task = tasks.find(t => t.id === allocation.taskId);
+                        const project = projects.find(p => p.id === allocation.projectId);
                         
                         return (
                           <div key={allocation.taskId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -408,7 +539,7 @@ export function DailyAllocations() {
       // Project-based day view
       return (
         <div className="space-y-6">
-          {state.projects.map(project => {
+          {projects.map(project => {
             const allocations = getAllocationsForDate(selectedDate, undefined, project.id);
             const totalHours = getTotalHoursForProjectOnDate(project.id, selectedDate);
             const uniqueUsers = new Set(allocations.map(a => a.userId)).size;
@@ -442,8 +573,8 @@ export function DailyAllocations() {
                   ) : (
                     <div className="space-y-3">
                       {allocations.map(allocation => {
-                        const user = state.users.find(u => u.id === allocation.userId);
-                        const task = state.tasks.find(t => t.id === allocation.taskId);
+                        const user = users.find(u => u.id === allocation.userId);
+                        const task = tasks.find(t => t.id === allocation.taskId);
                         
                         return (
                           <div key={`${allocation.userId}-${allocation.taskId}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -570,7 +701,7 @@ export function DailyAllocations() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Team</p>
-                <p className="text-2xl font-bold text-gray-900">{state.users.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{users.length}</p>
               </div>
             </div>
           </CardContent>
@@ -585,7 +716,7 @@ export function DailyAllocations() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Available</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {state.users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'available').length}
+                  {users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'available').length}
                 </p>
               </div>
             </div>
@@ -601,7 +732,7 @@ export function DailyAllocations() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Busy</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {state.users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'busy').length}
+                  {users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'busy').length}
                 </p>
               </div>
             </div>
@@ -617,7 +748,7 @@ export function DailyAllocations() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Overloaded</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {state.users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'overloaded').length}
+                  {users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'overloaded').length}
                 </p>
               </div>
             </div>
@@ -625,11 +756,31 @@ export function DailyAllocations() {
         </Card>
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 text-red-400 mr-2" />
+            <span className="text-red-800">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">Loading allocations...</span>
+        </div>
+      )}
+
       {/* Main Content */}
-      {viewMode === 'week' ? (
-        groupBy === 'team' ? renderTeamWeekView() : renderProjectWeekView()
-      ) : (
-        renderDayView()
+      {!loading && (
+        viewMode === 'week' ? (
+          groupBy === 'team' ? renderTeamWeekView() : renderProjectWeekView()
+        ) : (
+          renderDayView()
+        )
       )}
 
       {/* Add Allocation Modal */}
@@ -637,9 +788,9 @@ export function DailyAllocations() {
         isOpen={isAllocationModalOpen}
         onClose={() => setIsAllocationModalOpen(false)}
         onSubmit={handleCreateAllocation}
-        users={state.users}
-        projects={state.projects}
-        tasks={state.tasks}
+        users={users}
+        projects={projects}
+        tasks={tasks}
       />
     </div>
   );

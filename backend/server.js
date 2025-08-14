@@ -1,10 +1,7 @@
 const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
 require('express-async-errors');
 require('dotenv').config();
 
@@ -14,26 +11,18 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+// Simple CORS middleware to allow all origins
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
 });
-app.use('/api/', limiter);
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -76,6 +65,11 @@ const teamRoutes = require('./routes/team');
 const skillRoutes = require('./routes/skills');
 const taskRoutes = require('./routes/tasks');
 const stageRoutes = require('./routes/stages');
+const gradeRoutes = require('./routes/grades');
+const bookRoutes = require('./routes/books');
+const unitRoutes = require('./routes/units');
+const lessonRoutes = require('./routes/lessons');
+const allocationRoutes = require('./routes/allocations');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -85,6 +79,11 @@ app.use('/api/team', teamRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/stages', stageRoutes);
+app.use('/api/grades', gradeRoutes);
+app.use('/api/books', bookRoutes);
+app.use('/api/units', unitRoutes);
+app.use('/api/lessons', lessonRoutes);
+app.use('/api/allocations', allocationRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {

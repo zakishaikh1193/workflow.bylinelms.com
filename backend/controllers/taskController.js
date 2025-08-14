@@ -1,5 +1,53 @@
 const db = require('../db');
 
+// Helper function to calculate task progress based on status
+const calculateTaskProgress = (status) => {
+  switch (status) {
+    case 'not-started':
+      return 0;
+    case 'in-progress':
+      return 50; // Default to 50% for in-progress tasks
+    case 'under-review':
+      return 90; // 90% when under review
+    case 'completed':
+      return 100;
+    case 'blocked':
+      return 25; // 25% for blocked tasks (some work done)
+    default:
+      return 0;
+  }
+};
+
+// Helper function to recalculate project progress
+const recalculateProjectProgress = async (projectId) => {
+  try {
+    const progressQuery = `
+      SELECT 
+        COUNT(*) as total_tasks,
+        AVG(progress) as avg_progress
+      FROM tasks 
+      WHERE project_id = ?
+    `;
+    
+    const result = await db.query(progressQuery, [projectId]);
+    
+    let calculatedProgress = 0;
+    if (result.length > 0 && result[0].total_tasks > 0) {
+      calculatedProgress = Math.round(result[0].avg_progress || 0);
+    }
+    
+    // Update project progress
+    await db.query('UPDATE projects SET progress = ? WHERE id = ?', [calculatedProgress, projectId]);
+    
+    console.log(`🔄 Updated project ${projectId} progress to ${calculatedProgress}%`);
+    
+    return calculatedProgress;
+  } catch (error) {
+    console.error('Error recalculating project progress:', error);
+    return 0;
+  }
+};
+
 // Get all tasks with filters and pagination
 const getTasks = async (req, res) => {
   try {
@@ -16,9 +64,16 @@ const getTasks = async (req, res) => {
       search
     } = req.query;
 
-    // Simple approach first - just get tasks without complex JOINs
-    let query = 'SELECT * FROM tasks WHERE 1=1';
+    // Build query with optional JOIN for assignee sorting and filtering
+    let query = 'SELECT DISTINCT t.* FROM tasks t';
     const queryParams = [];
+    
+    // Add JOIN for assignee sorting or filtering if needed
+    if (sort === 'assignees' || assignee_id) {
+      query += ' LEFT JOIN task_assignees ta ON t.id = ta.task_id LEFT JOIN admin_users au ON ta.assignee_id = au.id AND ta.assignee_type = "admin"';
+    }
+    
+    query += ' WHERE 1=1';
 
     // Add filters
     if (project_id) {
@@ -41,14 +96,22 @@ const getTasks = async (req, res) => {
       queryParams.push(`%${search}%`, `%${search}%`);
     }
 
+    if (assignee_id) {
+      query += ' AND ta.assignee_id = ?';
+      queryParams.push(assignee_id);
+    }
+
     // Add sorting
     const validSortFields = ['name', 'created_at', 'updated_at', 'start_date', 'end_date', 'priority', 'status', 'progress'];
     const validOrders = ['asc', 'desc'];
     
-    if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
-      query += ` ORDER BY ${sort} ${order.toUpperCase()}`;
+    if (sort === 'assignees') {
+      // Special handling for assignee sorting
+      query += ` ORDER BY COALESCE(au.name, '') ${order.toUpperCase()}, t.created_at DESC`;
+    } else if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
+      query += ` ORDER BY t.${sort} ${order.toUpperCase()}`;
     } else {
-      query += ' ORDER BY created_at DESC';
+      query += ' ORDER BY t.created_at DESC';
     }
 
     // Add pagination - use hardcoded values first to test
@@ -64,8 +127,18 @@ const getTasks = async (req, res) => {
     const countResult = await db.query('SELECT COUNT(*) as total FROM tasks', []);
     const total = countResult[0].total;
 
-    // For now, return tasks as-is (we'll add assignees and skills later if needed)
-    const processedTasks = tasks;
+    // Process tasks to include assignees and skills
+    const processedTasks = await Promise.all(tasks.map(async (task) => {
+      const taskWithDetails = await getTaskById(task.id);
+      return taskWithDetails;
+    }));
+
+    console.log('📋 Processed tasks with assignees:', processedTasks.map(t => ({
+      id: t.id,
+      name: t.name,
+      assignees: t.assignees,
+      teamAssignees: t.teamAssignees
+    })));
 
     res.json({
       success: true,
@@ -139,13 +212,14 @@ const getTask = async (req, res) => {
     `;
     const skills = await db.query(skillsQuery, [id]);
 
-    // Add assignees and skills to task
-    task.assignees = assignees.map(a => ({
-      id: a.assignee_id,
-      type: a.assignee_type,
-      name: a.team_name || a.admin_name,
-      email: a.team_email || a.admin_email
-    }));
+    // Add assignees and skills to task (consistent with getTaskById)
+    task.assignees = assignees.map(a => a.assignee_id);
+    
+    // For backward compatibility, also provide team assignees separately
+    task.teamAssignees = assignees
+      .filter(a => a.assignee_type === 'team')
+      .map(a => a.assignee_id);
+    
     task.skills = skills;
 
     res.json({
@@ -180,6 +254,10 @@ const createTask = async (req, res) => {
       progress = 0,
       estimated_hours = 0,
       component_path,
+      grade_id,
+      book_id,
+      unit_id,
+      lesson_id,
       assignees = [],
       skills = []
     } = req.body;
@@ -205,27 +283,43 @@ const createTask = async (req, res) => {
     const insertQuery = `
       INSERT INTO tasks (
         name, description, project_id, stage_id, status, priority, 
-        start_date, end_date, progress, estimated_hours, component_path, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        start_date, end_date, progress, estimated_hours, component_path, 
+        grade_id, book_id, unit_id, lesson_id, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
+    // Auto-calculate progress based on status
+    const calculatedProgress = calculateTaskProgress(status);
+    
     const insertParams = [
       name, description, project_id, stage_id, status, priority,
-      formattedStartDate, formattedEndDate, progress, estimated_hours, component_path, created_by
+      formattedStartDate, formattedEndDate, calculatedProgress, parseInt(estimated_hours) || 0, component_path,
+      grade_id || null, book_id || null, unit_id || null, lesson_id || null, created_by
     ];
 
     console.log('🚀 Creating task with params:', insertParams);
+    console.log('📚 Educational hierarchy data:', { grade_id, book_id, unit_id, lesson_id, component_path });
 
     const result = await db.insert(insertQuery, insertParams);
     const taskId = result.insertId;
 
     // Add assignees if provided
     if (assignees && assignees.length > 0) {
-      for (const assignee of assignees) {
+      for (const assigneeId of assignees) {
+        // Determine assignee type by checking if it's a team member or admin
+        const teamMemberCheck = await db.query(
+          'SELECT id FROM team_members WHERE id = ? AND is_active = true',
+          [assigneeId]
+        );
+        
+        const assigneeType = teamMemberCheck.length > 0 ? 'team' : 'admin';
+        
         await db.insert(
           'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-          [taskId, assignee.id, assignee.type]
+          [taskId, assigneeId, assigneeType]
         );
+        
+        console.log(`👤 Assigned task ${taskId} to ${assigneeType} user ${assigneeId}`);
       }
     }
 
@@ -241,6 +335,9 @@ const createTask = async (req, res) => {
 
     // Get the created task with all related data
     const createdTask = await getTaskById(taskId);
+
+    // Recalculate project progress
+    await recalculateProjectProgress(project_id);
 
     console.log('✅ Task created with ID:', taskId);
 
@@ -277,6 +374,10 @@ const updateTask = async (req, res) => {
       estimated_hours,
       actual_hours,
       component_path,
+      grade_id,
+      book_id,
+      unit_id,
+      lesson_id,
       assignees,
       skills
     } = req.body;
@@ -321,21 +422,44 @@ const updateTask = async (req, res) => {
       updateQuery += ', end_date = ?';
       updateParams.push(new Date(end_date).toISOString().split('T')[0]);
     }
-    if (progress !== undefined) {
+    // Auto-calculate progress based on status if status is being updated
+    if (status !== undefined) {
+      const calculatedProgress = calculateTaskProgress(status);
+      updateQuery += ', progress = ?';
+      updateParams.push(calculatedProgress);
+      console.log(`🔄 Auto-calculated progress for status '${status}': ${calculatedProgress}%`);
+    } else if (progress !== undefined) {
+      // If progress is explicitly provided, use it
       updateQuery += ', progress = ?';
       updateParams.push(progress);
     }
     if (estimated_hours !== undefined) {
       updateQuery += ', estimated_hours = ?';
-      updateParams.push(estimated_hours);
+      updateParams.push(parseInt(estimated_hours) || 0);
     }
     if (actual_hours !== undefined) {
       updateQuery += ', actual_hours = ?';
-      updateParams.push(actual_hours);
+      updateParams.push(parseInt(actual_hours) || 0);
     }
     if (component_path !== undefined) {
       updateQuery += ', component_path = ?';
       updateParams.push(component_path);
+    }
+    if (grade_id !== undefined) {
+      updateQuery += ', grade_id = ?';
+      updateParams.push(grade_id);
+    }
+    if (book_id !== undefined) {
+      updateQuery += ', book_id = ?';
+      updateParams.push(book_id);
+    }
+    if (unit_id !== undefined) {
+      updateQuery += ', unit_id = ?';
+      updateParams.push(unit_id);
+    }
+    if (lesson_id !== undefined) {
+      updateQuery += ', lesson_id = ?';
+      updateParams.push(lesson_id);
     }
 
     updateQuery += ' WHERE id = ?';
@@ -344,18 +468,42 @@ const updateTask = async (req, res) => {
     await db.query(updateQuery, updateParams);
 
     // Update assignees if provided
-    if (assignees !== undefined) {
-      // Remove existing assignees
-      await db.query('DELETE FROM task_assignees WHERE task_id = ?', [id]);
-      
-      // Add new assignees
-      if (assignees.length > 0) {
-        for (const assignee of assignees) {
-          await db.insert(
-            'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
-            [id, assignee.id, assignee.type]
-          );
+    if (assignees !== undefined || req.body.teamAssignees !== undefined) {
+      console.log('🔄 Updating assignees for task', id, ':', { assignees, teamAssignees: req.body.teamAssignees });
+      try {
+        // Remove existing assignees first
+        await db.query('DELETE FROM task_assignees WHERE task_id = ?', [id]);
+        
+        // Prepare all assignee insertions
+        const assigneeInserts = [];
+        
+        // Add assignees
+        if (assignees && assignees.length > 0) {
+          for (const assigneeId of assignees) {
+            // Determine assignee type by checking if it's a team member or admin
+            const teamMemberCheck = await db.query(
+              'SELECT id FROM team_members WHERE id = ? AND is_active = true',
+              [assigneeId]
+            );
+            
+            const assigneeType = teamMemberCheck.length > 0 ? 'team' : 'admin';
+            assigneeInserts.push([id, assigneeId, assigneeType]);
+            
+            console.log(`👤 Updated task ${id} assignment to ${assigneeType} user ${assigneeId}`);
+          }
         }
+        
+        // Insert all assignees in batch if any exist
+        if (assigneeInserts.length > 0) {
+          console.log('📝 Inserting assignees:', assigneeInserts);
+          const insertQuery = 'INSERT IGNORE INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)';
+          for (const insertParams of assigneeInserts) {
+            await db.insert(insertQuery, insertParams);
+          }
+        }
+      } catch (assigneeError) {
+        console.error('Error updating assignees:', assigneeError);
+        // Continue with the update even if assignee update fails
       }
     }
 
@@ -377,6 +525,9 @@ const updateTask = async (req, res) => {
 
     // Get updated task
     const updatedTask = await getTaskById(id);
+
+    // Recalculate project progress
+    await recalculateProjectProgress(updatedTask.project_id);
 
     res.json({
       success: true,
@@ -401,8 +552,8 @@ const deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if task exists
-    const existing = await db.query('SELECT id FROM tasks WHERE id = ?', [id]);
+    // Check if task exists and get project_id
+    const existing = await db.query('SELECT id, project_id FROM tasks WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -413,8 +564,13 @@ const deleteTask = async (req, res) => {
       });
     }
 
+    const projectId = existing[0].project_id;
+
     // Delete task (CASCADE will handle related records)
     await db.query('DELETE FROM tasks WHERE id = ?', [id]);
+
+    // Recalculate project progress
+    await recalculateProjectProgress(projectId);
 
     res.json({
       success: true,
@@ -468,12 +624,14 @@ const getTaskById = async (taskId) => {
   `;
   const skills = await db.query(skillsQuery, [taskId]);
 
-  task.assignees = assignees.map(a => ({
-    id: a.assignee_id,
-    type: a.assignee_type,
-    name: a.team_name || a.admin_name,
-    email: a.team_email || a.admin_email
-  }));
+  // Get all assignees (both admin and team)
+  task.assignees = assignees.map(a => a.assignee_id);
+  
+  // For backward compatibility, also provide team assignees separately
+  task.teamAssignees = assignees
+    .filter(a => a.assignee_type === 'team')
+    .map(a => a.assignee_id);
+  
   task.skills = skills;
 
   return task;

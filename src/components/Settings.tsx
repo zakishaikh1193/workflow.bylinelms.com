@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
-import { useApp } from '../contexts/AppContext';
+
 import { useAuth } from '../contexts/AuthContext';
 import { teamService, categoryService, skillService } from '../services/apiService';
 
@@ -34,7 +34,6 @@ interface Stage {
 }
 
 export function Settings() {
-  const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState<'categories' | 'skills' | 'stages' | 'users' | 'functional-units'>('categories');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -44,6 +43,9 @@ export function Settings() {
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [userType, setUserType] = useState<'admin' | 'team'>('admin');
+  const [categories, setCategories] = useState<any[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [functionalUnits, setFunctionalUnits] = useState<any[]>([
     {
       id: '1',
@@ -88,10 +90,26 @@ export function Settings() {
     { id: '25', name: 'Deployment & Launch', description: 'Deploy to production and launch', order: 9, isDefault: true, category: 'IT Applications' },
   ]);
 
-  // Load admin users on component mount
+  // Load data on component mount
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadData = async () => {
       try {
+        setLoading(true);
+        
+        // Load categories and skills from backend
+        const [categoriesData, skillsData] = await Promise.all([
+          categoryService.getAll(),
+          skillService.getAll()
+        ]);
+        
+        setCategories(categoriesData);
+        setSkills(skillsData);
+        
+        // Set default selected category if available
+        if (categoriesData.length > 0 && !categoriesData.find((c: any) => c.name === selectedCategory)) {
+          setSelectedCategory(categoriesData[0].name);
+        }
+        
         // Load admin users (in a real app, you would fetch from Supabase auth)
         setAdminUsers([
           { id: '1', name: 'Admin User', email: 'admin@company.com', role: 'admin', createdAt: new Date(), isActive: true }
@@ -101,10 +119,12 @@ export function Settings() {
         const members = await teamService.getAll();
         setTeamMembers(members);
       } catch (error) {
-        console.error('Failed to load users:', error);
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
       }
     };
-    loadUsers();
+    loadData();
   }, []);
 
   const tabs = [
@@ -115,62 +135,107 @@ export function Settings() {
     { key: 'functional-units', label: 'Functional Units', icon: Users },
   ];
 
-  const handleAddItem = (type: string, data: any) => {
-    if (type === 'category') {
-      dispatch({ type: 'ADD_CATEGORY', payload: data.name });
-    } else if (type === 'skill') {
-      dispatch({ type: 'ADD_SKILL', payload: data.name });
-    } else if (type === 'stage') {
-      const categoryStages = stages.filter(s => s.category === selectedCategory);
-      const newStage: Stage = {
-        id: Date.now().toString(),
-        name: data.name,
-        description: data.description || '',
-        order: categoryStages.length + 1,
-        isDefault: false,
-        category: selectedCategory,
-      };
-      setStages([...stages, newStage]);
-    } else if (type === 'admin-user') {
-      handleCreateUser(data, 'admin');
-      return; // Don't close modal yet, let handleCreateUser handle it
-    } else if (type === 'team-user') {
-      handleCreateUser(data, 'team');
-      return; // Don't close modal yet, let handleCreateAdminUser handle it
-    } else if (type === 'functional-unit') {
-      const newUnit = {
-        id: Date.now().toString(),
-        name: data.name,
-        description: data.description || '',
-        skills: data.skills || [],
-        lead: data.lead || '',
-        isDefault: false
-      };
-      setFunctionalUnits([...functionalUnits, newUnit]);
+  const handleAddItem = async (type: string, data: any) => {
+    try {
+      if (type === 'category') {
+        if (editingItem?.id) {
+          // Update existing category
+          const updatedCategory = await categoryService.update(editingItem.id, { 
+            name: data.name,
+            description: data.description || null
+          });
+          setCategories(categories.map(c => c.id === editingItem.id ? updatedCategory : c));
+        } else {
+          // Create new category
+          const newCategory = await categoryService.create({ 
+            name: data.name,
+            description: data.description || null
+          });
+          setCategories([...categories, newCategory]);
+        }
+      } else if (type === 'skill') {
+        if (editingItem?.id) {
+          // Update existing skill
+          const updatedSkill = await skillService.update(editingItem.id, { 
+            name: data.name,
+            description: data.description || null
+          });
+          setSkills(skills.map(s => s.id === editingItem.id ? updatedSkill : s));
+        } else {
+          // Create new skill
+          const newSkill = await skillService.create({ 
+            name: data.name,
+            description: data.description || null
+          });
+          setSkills([...skills, newSkill]);
+        }
+            } else if (type === 'stage') {
+        const categoryStages = stages.filter(s => s.category === selectedCategory);
+        const newStage: Stage = {
+          id: Date.now().toString(),
+          name: data.name,
+          description: data.description || '',
+          order: categoryStages.length + 1,
+          isDefault: false,
+          category: selectedCategory,
+        };
+        setStages([...stages, newStage]);
+      } else if (type === 'admin-user') {
+        handleCreateUser(data, 'admin');
+        return; // Don't close modal yet, let handleCreateUser handle it
+      } else if (type === 'team-user') {
+        handleCreateUser(data, 'team');
+        return; // Don't close modal yet, let handleCreateAdminUser handle it
+      } else if (type === 'functional-unit') {
+        const newUnit = {
+          id: Date.now().toString(),
+          name: data.name,
+          description: data.description || '',
+          skills: data.skills || [],
+          lead: data.lead || '',
+          isDefault: false
+        };
+        setFunctionalUnits([...functionalUnits, newUnit]);
+      }
+      setIsModalOpen(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.error('Failed to add item:', error);
+      alert('Failed to add item. Please try again.');
     }
-    setIsModalOpen(false);
-    setEditingItem(null);
   };
 
-  const handleEditItem = (type: string, item: any) => {
-    setEditingItem({ ...item, type });
-    setIsModalOpen(true);
+  const handleEditItem = async (type: string, item: any) => {
+    if (type === 'category' || type === 'skill') {
+      setEditingItem({ ...item, type });
+      setIsModalOpen(true);
+    } else {
+      setEditingItem({ ...item, type });
+      setIsModalOpen(true);
+    }
   };
 
-  const handleDeleteItem = (type: string, id: string) => {
-    if (type === 'stage') {
-      setStages(stages.filter(s => s.id !== id));
+  const handleDeleteItem = async (type: string, id: string) => {
+    try {
+      if (type === 'category') {
+        await categoryService.delete(id);
+        setCategories(categories.filter(c => c.id !== id));
+      } else if (type === 'skill') {
+        await skillService.delete(id);
+        setSkills(skills.filter(s => s.id !== id));
+      } else if (type === 'stage') {
+        setStages(stages.filter(s => s.id !== id));
+      } else if (type === 'admin-user') {
+        setAdminUsers(adminUsers.filter(u => u.id !== id));
+      } else if (type === 'team-user') {
+        handleDeleteTeamMember(id);
+      } else if (type === 'functional-unit') {
+        setFunctionalUnits(functionalUnits.filter(u => u.id !== id));
+      }
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+      alert('Failed to delete item. Please try again.');
     }
-    if (type === 'admin-user') {
-      setAdminUsers(adminUsers.filter(u => u.id !== id));
-    }
-    if (type === 'team-user') {
-      handleDeleteTeamMember(id);
-    }
-    if (type === 'functional-unit') {
-      setFunctionalUnits(functionalUnits.filter(u => u.id !== id));
-    }
-    // Add delete logic for categories and skills if needed
   };
 
   const handleCreateUser = async (userData: any, type: 'admin' | 'team') => {
@@ -200,7 +265,7 @@ export function Settings() {
           name: userData.name,
           email: userData.email,
           skills: userData.skills || [],
-          passcode: userData.passcode || teamService.generatePasscode(),
+          passcode: userData.passcode || Math.random().toString(36).substring(2, 8).toUpperCase(),
           isActive: userData.isActive !== false,
           performanceFlags: [],
         };
@@ -313,25 +378,49 @@ export function Settings() {
           Add Category
         </Button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {state.categories.map((category, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-900">{category}</h4>
-                  <p className="text-sm text-gray-600">Default category</p>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading categories...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {categories.map((category) => (
+            <Card key={category.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">{category.name}</h4>
+                    <p className="text-sm text-gray-600">
+                      {category.isDefault ? 'Default category' : 'Custom category'}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditItem('category', category)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    {!category.isDefault && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteItem('category', category.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm">
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -349,25 +438,49 @@ export function Settings() {
           Add Skill
         </Button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {state.skills.map((skill, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-900">{skill}</h4>
-                  <p className="text-sm text-gray-600">Team skill</p>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading skills...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {skills.map((skill) => (
+            <Card key={skill.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">{skill.name}</h4>
+                    <p className="text-sm text-gray-600">
+                      {skill.isDefault ? 'Default skill' : 'Custom skill'}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditItem('skill', skill)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    {!skill.isDefault && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteItem('skill', skill.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm">
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -381,8 +494,8 @@ export function Settings() {
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
           >
-            {state.categories.map(category => (
-              <option key={category} value={category}>{category}</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.name}>{category.name}</option>
             ))}
           </select>
           <Button 
@@ -597,9 +710,9 @@ export function Settings() {
                       ) : (
                         <div className="flex space-x-1">
                           {user.performanceFlags?.slice(0, 3).map((flag: any) => (
-                            <Badge
+                            <div
                               key={flag.id}
-                              className={`text-xs ${
+                              className={`text-xs px-2 py-1 rounded ${
                                 flag.type === 'gold' ? 'bg-yellow-500 text-white' :
                                 flag.type === 'green' ? 'bg-green-500 text-white' :
                                 flag.type === 'orange' ? 'bg-orange-500 text-white' :
@@ -608,7 +721,7 @@ export function Settings() {
                               title={flag.reason}
                             >
                               {flag.type}
-                            </Badge>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -977,7 +1090,7 @@ function PasswordResetModal({ isOpen, onClose, onSubmit, user, userType }: Passw
   useEffect(() => {
     if (isOpen) {
       if (userType === 'team') {
-        setNewPassword(teamService.generatePasscode());
+        setNewPassword(Math.random().toString(36).substring(2, 8).toUpperCase());
       } else {
         setNewPassword('');
       }
@@ -991,7 +1104,7 @@ function PasswordResetModal({ isOpen, onClose, onSubmit, user, userType }: Passw
   };
 
   const generateNewPasscode = () => {
-    setNewPassword(teamService.generatePasscode());
+    setNewPassword(Math.random().toString(36).substring(2, 8).toUpperCase());
   };
 
   return (

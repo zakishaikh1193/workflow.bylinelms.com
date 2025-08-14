@@ -51,7 +51,7 @@ const getSkill = async (req, res) => {
       GROUP BY s.id
     `;
 
-    const [rows] = await db.query(query, [id]);
+    const rows = await db.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({
@@ -85,8 +85,7 @@ const createSkill = async (req, res) => {
   try {
     const {
       name,
-      description,
-      category = 'general'
+      description = null
     } = req.body;
 
     // Validate required fields
@@ -101,7 +100,7 @@ const createSkill = async (req, res) => {
     }
 
     // Check if skill name already exists
-    const [existing] = await db.query(
+    const existing = await db.query(
       'SELECT id FROM skills WHERE name = ?',
       [name]
     );
@@ -117,14 +116,14 @@ const createSkill = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO skills (name, description, category)
-      VALUES (?, ?, ?)
+      INSERT INTO skills (name, description)
+      VALUES (?, ?)
     `;
 
-    const [result] = await db.query(query, [name, description, category]);
+    const result = await db.insert(query, [name, description]);
 
     // Get the created skill
-    const [createdSkill] = await db.query(
+    const createdSkill = await db.query(
       'SELECT * FROM skills WHERE id = ?',
       [result.insertId]
     );
@@ -151,10 +150,10 @@ const createSkill = async (req, res) => {
 const updateSkill = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, category } = req.body;
+    const { name = null, description = null } = req.body;
 
     // Check if skill exists
-    const [existing] = await db.query('SELECT id FROM skills WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM skills WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -167,7 +166,7 @@ const updateSkill = async (req, res) => {
 
     // If name is being updated, check for duplicates
     if (name) {
-      const [duplicate] = await db.query(
+      const duplicate = await db.query(
         'SELECT id FROM skills WHERE name = ? AND id != ?',
         [name, id]
       );
@@ -183,19 +182,44 @@ const updateSkill = async (req, res) => {
       }
     }
 
+    // Build dynamic query based on provided fields
+    let updateFields = [];
+    let updateParams = [];
+    
+    if (name !== null && name !== undefined) {
+      updateFields.push('name = ?');
+      updateParams.push(name);
+    }
+    
+    if (description !== null && description !== undefined) {
+      updateFields.push('description = ?');
+      updateParams.push(description);
+    }
+    
+    // Always update the timestamp
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No fields to update'
+        }
+      });
+    }
+    
     const query = `
       UPDATE skills SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        category = COALESCE(?, category),
-        updated_at = CURRENT_TIMESTAMP
+        ${updateFields.join(', ')}
       WHERE id = ?
     `;
-
-    await db.query(query, [name, description, category, id]);
+    
+    updateParams.push(id);
+    await db.query(query, updateParams);
 
     // Get updated skill
-    const [updatedSkill] = await db.query(
+    const updatedSkill = await db.query(
       'SELECT * FROM skills WHERE id = ?',
       [id]
     );
@@ -224,7 +248,7 @@ const deleteSkill = async (req, res) => {
     const { id } = req.params;
 
     // Check if skill exists
-    const [existing] = await db.query('SELECT id FROM skills WHERE id = ?', [id]);
+    const existing = await db.query('SELECT id FROM skills WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -236,7 +260,7 @@ const deleteSkill = async (req, res) => {
     }
 
     // Check if skill is being used
-    const [usage] = await db.query(`
+    const usage = await db.query(`
       SELECT 
         (SELECT COUNT(*) FROM team_member_skills WHERE skill_id = ?) as team_member_count,
         (SELECT COUNT(*) FROM task_skills WHERE skill_id = ?) as task_count
