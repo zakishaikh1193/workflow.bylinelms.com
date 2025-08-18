@@ -7,7 +7,8 @@ import {
   Calendar,
   Search,
   Edit2,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
@@ -74,6 +75,8 @@ export function TaskManager() {
         }
         
         console.log('🔍 Sending filters to API:', filters);
+        console.log('🔍 Selected assignee:', selectedAssignee);
+        console.log('🔍 State filters:', state.filters);
         
         const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
           taskService.getAll(filters),
@@ -88,6 +91,7 @@ export function TaskManager() {
           lessonService.getAll()
         ]);
         
+        console.log('🔍 Tasks received from API:', tasksData);
         setTasks(tasksData);
         setTeamMembers(teamMembersData);
         setTeams(teamsData);
@@ -179,7 +183,7 @@ export function TaskManager() {
           name: taskData.name,
           description: taskData.description,
           project_id: parseInt(taskData.projectId || '1'),
-          stage_id: parseInt(taskData.stageId || '1'),
+          category_stage_id: parseInt(taskData.stageId || '1'),
           status: taskData.status,
           priority: taskData.priority,
           start_date: taskData.startDate,
@@ -213,7 +217,7 @@ export function TaskManager() {
           name: taskData.name || '',
           description: taskData.description || '',
           project_id: parseInt(taskData.projectId || '1'),
-          stage_id: parseInt(taskData.stageId || '1'), 
+          category_stage_id: parseInt(taskData.stageId || '1'), 
           status: taskData.status || 'not-started',
           priority: taskData.priority || 'medium',
           start_date: taskData.startDate || new Date().toISOString().split('T')[0],
@@ -717,7 +721,7 @@ export function TaskManager() {
                             }}
                             title="View Details"
                           >
-                            👁️
+                            <Eye className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -817,7 +821,14 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     if (editingTask) {
       // Convert skills from objects to names if needed
       const skillNames = Array.isArray(editingTask.skills) 
-        ? editingTask.skills.map((skill: any) => skill.name || skill)
+        ? editingTask.skills.map((skill: any) => {
+            if (typeof skill === 'object' && skill.name) {
+              return skill.name;
+            } else if (typeof skill === 'string') {
+              return skill;
+            }
+            return '';
+          }).filter(name => name !== '')
         : [];
       
       // Convert assignees to array of string IDs
@@ -834,18 +845,22 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
       console.log('🔍 Editing task assignees:', editingTask.assignees);
       console.log('🔍 Converted assignee IDs:', assigneeIds);
       
+      console.log('🔍 Setting form data for editing task:', editingTask);
+      
       setFormData({
         name: editingTask.name,
         description: editingTask.description || '',
         projectId: editingTask.project_id || editingTask.projectId || '',
         stageId: editingTask.stage_id || editingTask.stageId || '',
-        gradeId: editingTask.gradeId || '',
-        bookId: editingTask.bookId || '',
-        unitId: editingTask.unitId || '',
-        lessonId: editingTask.lessonId || '',
+        gradeId: (editingTask.grade_id || editingTask.gradeId || '').toString(),
+        bookId: (editingTask.book_id || editingTask.bookId || '').toString(),
+        unitId: (editingTask.unit_id || editingTask.unitId || '').toString(),
+        lessonId: (editingTask.lesson_id || editingTask.lessonId || '').toString(),
         status: editingTask.status,
         assignees: assigneeIds,
-        teamAssignees: editingTask.teamAssignees || [],
+        teamAssignees: Array.isArray(editingTask.teamAssignees) 
+          ? editingTask.teamAssignees.map((id: any) => id.toString())
+          : [],
         skills: skillNames,
         priority: editingTask.priority,
         estimatedHours: editingTask.estimated_hours || editingTask.estimatedHours || 8,
@@ -1144,12 +1159,24 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             <select
               value={(() => {
                 // Find the matching educational hierarchy item based on current form data
-                const matchingHierarchyItem = availableEducationalHierarchy.find(c => 
-                  c.gradeId === formData.gradeId &&
-                  c.bookId === formData.bookId &&
-                  c.unitId === formData.unitId &&
-                  c.lessonId === formData.lessonId
-                );
+                const formGradeId = formData.gradeId ? parseInt(formData.gradeId) : null;
+                const formBookId = formData.bookId ? parseInt(formData.bookId) : null;
+                const formUnitId = formData.unitId ? parseInt(formData.unitId) : null;
+                const formLessonId = formData.lessonId ? parseInt(formData.lessonId) : null;
+                
+                console.log('🔍 Educational hierarchy matching:', {
+                  formData: { gradeId: formGradeId, bookId: formBookId, unitId: formUnitId, lessonId: formLessonId },
+                  availableHierarchy: availableEducationalHierarchy.length
+                });
+                
+                const matchingHierarchyItem = availableEducationalHierarchy.find(c => {
+                  return c.gradeId === formGradeId &&
+                         c.bookId === formBookId &&
+                         c.unitId === formUnitId &&
+                         c.lessonId === formLessonId;
+                });
+                
+                console.log('🔍 Matching hierarchy item:', matchingHierarchyItem);
                 return matchingHierarchyItem ? matchingHierarchyItem.id : '';
               })()}
               onChange={(e) => {
@@ -1157,10 +1184,10 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
                 if (selectedHierarchyItem) {
                   setFormData({ 
                     ...formData, 
-                    gradeId: selectedHierarchyItem.gradeId || '',
-                    bookId: selectedHierarchyItem.bookId || '',
-                    unitId: selectedHierarchyItem.unitId || '',
-                    lessonId: selectedHierarchyItem.lessonId || ''
+                    gradeId: selectedHierarchyItem.gradeId ? selectedHierarchyItem.gradeId.toString() : '',
+                    bookId: selectedHierarchyItem.bookId ? selectedHierarchyItem.bookId.toString() : '',
+                    unitId: selectedHierarchyItem.unitId ? selectedHierarchyItem.unitId.toString() : '',
+                    lessonId: selectedHierarchyItem.lessonId ? selectedHierarchyItem.lessonId.toString() : ''
                   });
                 } else {
                   setFormData({ 
@@ -1321,7 +1348,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
           </div>
         </div>
 
-        <div>
+        {/* <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Team Assignees (Auto-selects all team members)
           </label>
@@ -1348,19 +1375,23 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             Required Skills
           </label>
           <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-2">
-            {skills.map(skill => (
-              <label key={skill.id} className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.skills.includes(skill.name)}
-                  onChange={() => toggleSkill(skill.name)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">{skill.name}</span>
-              </label>
-            ))}
+            {skills.map(skill => {
+              const isChecked = formData.skills.includes(skill.name);
+              console.log(`🔍 Skill ${skill.name} - checked: ${isChecked}, skills:`, formData.skills);
+              return (
+                <label key={skill.id} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleSkill(skill.name)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{skill.name}</span>
+                </label>
+              );
+            })}
           </div>
-        </div>
+        </div> */}
 
         <div className="flex justify-end space-x-3 pt-4">
           <Button type="button" variant="outline" onClick={onClose}>

@@ -1,5 +1,5 @@
 // Modern API service for the new Node.js backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://workflow.bylinelms.com';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -8,11 +8,6 @@ const getAuthHeaders = () => {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
   };
-  
-  // Debug logging for auth headers
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔑 Auth headers:', { hasToken: !!token, headers });
-  }
   
   return headers;
 };
@@ -24,11 +19,6 @@ const getTeamAuthHeaders = () => {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
   };
-  
-  // Debug logging for team auth headers
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔑 Team auth headers:', { hasToken: !!token, headers });
-  }
   
   return headers;
 };
@@ -46,17 +36,8 @@ const handleResponse = async (response: Response) => {
 
 // Simple fetch wrapper without retries
 const simpleFetch = async (url: string, options: RequestInit) => {
-  // Debug logging for requests
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`🌐 Making request to: ${url}`, { method: options.method });
-  }
   
   const response = await fetch(url, options);
-  
-  // Debug logging for responses
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`📡 Response from ${url}:`, { status: response.status, ok: response.ok });
-  }
   
   return response;
 };
@@ -455,6 +436,50 @@ export const taskService = {
     const result = await apiService.put(`/tasks/${id}`, { progress });
     return result.data;
   },
+
+  // =====================================================
+  // TASK EXTENSIONS
+  // =====================================================
+
+  // Request task extension
+  requestExtension: async (taskId: string | number, data: { requested_due_date: string; reason: string }) => {
+    const result = await apiService.post(`/tasks/${taskId}/extensions`, data);
+    return result.data;
+  },
+
+  // Get task extensions
+  getExtensions: async (taskId: string | number) => {
+    const result = await apiService.get(`/tasks/${taskId}/extensions`);
+    return result.data;
+  },
+
+  // Review extension request (admin only)
+  reviewExtension: async (extensionId: string | number, data: { status: 'approved' | 'rejected'; review_notes?: string }) => {
+    const result = await apiService.put(`/tasks/extensions/${extensionId}/review`, data);
+    return result.data;
+  },
+
+  // =====================================================
+  // TASK REMARKS
+  // =====================================================
+
+  // Add task remark
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+    const result = await apiService.post(`/tasks/${taskId}/remarks`, data);
+    return result.data;
+  },
+
+  // Get task remarks
+  getRemarks: async (taskId: string | number) => {
+    const result = await apiService.get(`/tasks/${taskId}/remarks`);
+    return result.data;
+  },
+
+  // Delete task remark
+  deleteRemark: async (remarkId: string | number) => {
+    const result = await apiService.delete(`/tasks/remarks/${remarkId}`);
+    return result.data;
+  },
 };
 
 // Team-specific task service
@@ -478,6 +503,44 @@ export const teamTaskService = {
   // Update task progress (team member access)
   updateProgress: async (id: string | number, progress: number) => {
     const result = await teamApiService.put(`/tasks/${id}`, { progress });
+    return result.data;
+  },
+
+  // =====================================================
+  // TEAM TASK EXTENSIONS
+  // =====================================================
+
+  // Request task extension (team member access)
+  requestExtension: async (taskId: string | number, data: { requested_due_date: string; reason: string }) => {
+    const result = await teamApiService.post(`/tasks/${taskId}/extensions`, data);
+    return result.data;
+  },
+
+  // Get task extensions (team member access)
+  getExtensions: async (taskId: string | number) => {
+    const result = await teamApiService.get(`/tasks/${taskId}/extensions`);
+    return result.data;
+  },
+
+  // =====================================================
+  // TEAM TASK REMARKS
+  // =====================================================
+
+  // Add task remark (team member access)
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+    const result = await teamApiService.post(`/tasks/${taskId}/remarks`, data);
+    return result.data;
+  },
+
+  // Get task remarks (team member access)
+  getRemarks: async (taskId: string | number) => {
+    const result = await teamApiService.get(`/tasks/${taskId}/remarks`);
+    return result.data;
+  },
+
+  // Delete task remark (team member access)
+  deleteRemark: async (remarkId: string | number) => {
+    const result = await teamApiService.delete(`/tasks/remarks/${remarkId}`);
     return result.data;
   },
 };
@@ -544,11 +607,70 @@ export const stageService = {
     return result.data;
   },
 
-  // Get stages by project
-  getByProject: async (projectId: string | number) => {
-    const result = await apiService.get(`/stages?project_id=${projectId}`);
+  // Update stage
+  update: async (id: string | number, stageData: any) => {
+    const result = await apiService.put(`/stages/${id}`, stageData);
     return result.data;
   },
+
+  // Delete stage
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/stages/${id}`);
+    return result.data;
+  },
+
+  // Get stages by category
+  getByCategory: async (categoryId: string | number) => {
+    const result = await apiService.get(`/stages/category/${categoryId}`);
+    return result.data;
+  },
+
+  // Reorder stages within a category
+  reorder: async (categoryId: string | number, stageOrders: any[]) => {
+    const result = await apiService.post(`/stages/category/${categoryId}/reorder`, { stage_orders: stageOrders });
+    return result.data;
+  }
+};
+
+
+
+// Stage Template Service
+export const stageTemplateService = {
+  // Get all stage templates for a category
+  getByCategory: async (categoryId: string | number) => {
+    const result = await apiService.get(`/stage-templates/category/${categoryId}`);
+    return result.data;
+  },
+
+  // Get stage template by ID
+  getById: async (id: string | number) => {
+    const result = await apiService.get(`/stage-templates/${id}`);
+    return result.data;
+  },
+
+  // Create new stage template
+  create: async (templateData: any) => {
+    const result = await apiService.post('/stage-templates', templateData);
+    return result.data;
+  },
+
+  // Update stage template
+  update: async (id: string | number, templateData: any) => {
+    const result = await apiService.put(`/stage-templates/${id}`, templateData);
+    return result.data;
+  },
+
+  // Delete stage template
+  delete: async (id: string | number) => {
+    const result = await apiService.delete(`/stage-templates/${id}`);
+    return result.data;
+  },
+
+  // Bulk create stage templates for a category
+  bulkCreate: async (categoryId: string | number, templates: any[]) => {
+    const result = await apiService.post(`/stage-templates/category/${categoryId}/bulk`, { templates });
+    return result.data;
+  }
 };
 
 // Grade Service
@@ -769,15 +891,6 @@ export const dashboardService = {
         }
       });
 
-      // Debug logging
-      console.log('🔍 Dashboard data received:', {
-        projects: projects.length,
-        teamMembers: teamMembers.length,
-        categories: categories.length,
-        skills: skills.length,
-        tasks: tasks.length
-      });
-
       // Calculate statistics
       const stats = {
         totalProjects: projects.length,
@@ -829,5 +942,52 @@ export const dashboardService = {
   getRecentActivity: async () => {
     // TODO: Implement when we have activity/audit logs
     return [];
+  }
+};
+
+// Performance Flags Service
+export const performanceFlagService = {
+  // Get performance flags for a team member
+  getByTeamMember: async (teamMemberId: string | number) => {
+    const result = await apiService.get(`/performance-flags/team-member/${teamMemberId}`);
+    return result.data;
+  },
+
+  // Get performance flags for a task
+  getByTask: async (taskId: string | number) => {
+    const result = await apiService.get(`/performance-flags/task/${taskId}`);
+    return result.data;
+  },
+
+  // Get performance summary for a team member
+  getSummary: async (teamMemberId: string | number) => {
+    const result = await apiService.get(`/performance-flags/summary/${teamMemberId}`);
+    return result.data;
+  },
+
+  // Add a new performance flag
+  add: async (data: {
+    team_member_id: number;
+    task_id?: number;
+    type: 'red' | 'orange' | 'yellow' | 'green';
+    reason: string;
+  }) => {
+    const result = await apiService.post('/performance-flags', data);
+    return result.data;
+  },
+
+  // Update a performance flag
+  update: async (flagId: string | number, data: {
+    type?: 'red' | 'orange' | 'yellow' | 'green';
+    reason?: string;
+  }) => {
+    const result = await apiService.put(`/performance-flags/${flagId}`, data);
+    return result.data;
+  },
+
+  // Delete a performance flag
+  delete: async (flagId: string | number) => {
+    const result = await apiService.delete(`/performance-flags/${flagId}`);
+    return result.data;
   }
 };

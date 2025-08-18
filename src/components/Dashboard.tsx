@@ -37,7 +37,6 @@ export function Dashboard() {
         
         if (isMounted) {
           setDashboardData(data);
-          console.log('📊 Dashboard data loaded:', data);
         }
       } catch (err: any) {
         if (isMounted) {
@@ -69,19 +68,6 @@ export function Dashboard() {
   const projects = dashboardData?.projects || [];
   const teamMembers = dashboardData?.teamMembers || [];
   const allTasks = dashboardData?.tasks || [];
-  
-  // Debug logging
-  console.log('🔍 Dashboard data:', {
-    projects: projects.length,
-    teamMembers: teamMembers.length,
-    allTasks: allTasks.length,
-    sampleTasks: allTasks.slice(0, 3).map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      assignees: t.assignees,
-      teamAssignees: t.teamAssignees
-    }))
-  });
   
   // Calculate task counts for different time periods
   const today = new Date();
@@ -343,16 +329,6 @@ export function Dashboard() {
               const memberTasks = allTasks.filter((t: any) => t.assignees && t.assignees.includes(member.id));
               const completedTasks = memberTasks.filter((t: any) => t.status === 'completed').length;
               const workloadPercentage = memberTasks.length > 0 ? (completedTasks / memberTasks.length) * 100 : 0;
-              
-              // Debug logging for first few members
-              if (member.id <= 3) {
-                console.log(`👤 Member ${member.name} (ID: ${member.id}):`, {
-                  totalTasks: allTasks.length,
-                  memberTasks: memberTasks.length,
-                  taskIds: memberTasks.map((t: any) => t.id),
-                  assignees: memberTasks.map((t: any) => t.assignees)
-                });
-              }
               
               return (
                 <div 

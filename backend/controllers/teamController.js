@@ -100,8 +100,8 @@ const getMyTasks = async (req, res) => {
         p.name as project_name,
         p.status as project_status,
         p.description as project_description,
-        s.name as stage_name,
-        s.description as stage_description,
+        cs.name as stage_name,
+        cs.description as stage_description,
         c.name as category_name,
         c.description as category_description,
         GROUP_CONCAT(DISTINCT sk.name) as required_skills,
@@ -111,7 +111,7 @@ const getMyTasks = async (req, res) => {
         GROUP_CONCAT(DISTINCT l.name) as lesson_name
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN stages s ON t.stage_id = s.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN task_skills ts ON t.id = ts.task_id
       LEFT JOIN skills sk ON ts.skill_id = sk.id
@@ -1006,9 +1006,9 @@ const addMemberToTeam = async (req, res) => {
       });
     }
 
-    // Check if member is already in team
+    // Check if member is already in team (only active assignments)
     const existingAssignment = await db.query(
-      'SELECT id FROM team_members_teams WHERE team_id = ? AND team_member_id = ?',
+      'SELECT id FROM team_members_teams WHERE team_id = ? AND team_member_id = ? AND is_active = true',
       [teamId, member_id]
     );
 
@@ -1019,11 +1019,25 @@ const addMemberToTeam = async (req, res) => {
       });
     }
 
-    // Add member to team
-    await db.execute(
-      'INSERT INTO team_members_teams (team_id, team_member_id, role, joined_date) VALUES (?, ?, ?, ?)',
-      [teamId, member_id, role || 'member', joined_date || new Date().toISOString().split('T')[0]]
+    // Check if member was previously in this team (inactive assignment)
+    const inactiveAssignment = await db.query(
+      'SELECT id FROM team_members_teams WHERE team_id = ? AND team_member_id = ? AND is_active = false',
+      [teamId, member_id]
     );
+
+    if (inactiveAssignment.length > 0) {
+      // Reactivate the existing assignment
+      await db.execute(
+        'UPDATE team_members_teams SET is_active = true, role = ?, joined_date = ? WHERE team_id = ? AND team_member_id = ?',
+        [role || 'member', joined_date || new Date().toISOString().split('T')[0], teamId, member_id]
+      );
+    } else {
+      // Add new member to team
+      await db.execute(
+        'INSERT INTO team_members_teams (team_id, team_member_id, role, joined_date) VALUES (?, ?, ?, ?)',
+        [teamId, member_id, role || 'member', joined_date || new Date().toISOString().split('T')[0]]
+      );
+    }
 
     res.json({
       success: true,

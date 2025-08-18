@@ -18,12 +18,17 @@ export interface User {
 }
 
 export interface PerformanceFlag {
-  id: string;
-  type: 'gold' | 'green' | 'orange' | 'red';
+  id: number;
+  team_member_id: number;
+  task_id?: number;
+  type: 'red' | 'orange' | 'yellow' | 'green';
   reason: string;
-  date: string;
-  addedBy: string;
-  added_by?: string; // Backend field
+  added_by: string;
+  added_by_id?: number;
+  created_at: string;
+  task_name?: string;
+  team_member_name?: string;
+  added_by_name?: string;
 }
 
 export interface Project {
@@ -32,6 +37,7 @@ export interface Project {
   description: string;
   category: string;
   category_id?: number | null; // Backend field for category ID
+  current_stage_id?: number | null; // Backend field for current stage ID
   status: ProjectStatus;
   startDate?: Date; // Frontend field (optional for backward compatibility)
   endDate?: Date; // Frontend field (optional for backward compatibility)
@@ -131,12 +137,17 @@ export interface Task {
   description: string;
   stageId?: string; // Frontend field (optional for backward compatibility)
   projectId?: string; // Frontend field (optional for backward compatibility)
-  stage_id?: string; // Backend field for stage ID
+  stage_id?: string; // Backend field for stage ID (legacy)
+  category_stage_id?: string | number; // Backend field for category stage ID
   project_id?: string; // Backend field for project ID
   gradeId?: string;
   bookId?: string;
   unitId?: string;
   lessonId?: string;
+  grade_id?: string | number | null; // Backend field
+  book_id?: string | number | null; // Backend field
+  unit_id?: string | number | null; // Backend field
+  lesson_id?: string | number | null; // Backend field
   componentPath?: string; // Human readable path
   assignees: string[]; // User IDs
   teamAssignees?: string[]; // Team IDs
@@ -217,4 +228,17 @@ export interface FilterOptions {
   dueToday?: boolean;
   dueTomorrow?: boolean;
   dueThisWeek?: boolean;
+}
+
+export interface PerformanceSummary {
+  team_member: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  summary: Array<{
+    type: 'red' | 'orange' | 'yellow' | 'green';
+    count: number;
+    last_flag_date: string;
+  }>;
 }

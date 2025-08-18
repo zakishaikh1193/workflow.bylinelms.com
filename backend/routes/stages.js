@@ -2,8 +2,12 @@ const express = require('express');
 const router = express.Router();
 const {
   getStages,
+  getStagesByCategory,
   getStage,
-  createStage
+  createStage,
+  updateStage,
+  deleteStage,
+  reorderStages
 } = require('../controllers/stageController');
 const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
@@ -25,10 +29,6 @@ const handleValidationErrors = (req, res, next) => {
 };
 
 const stageValidation = [
-  body('project_id')
-    .isInt({ min: 1 })
-    .withMessage('Project ID must be a positive integer'),
-  
   body('name')
     .trim()
     .notEmpty()
@@ -47,20 +47,50 @@ const stageValidation = [
     .isInt({ min: 0 })
     .withMessage('Order index must be a non-negative integer'),
   
-  body('weight')
+  body('is_active')
     .optional()
-    .isFloat({ min: 0, max: 100 })
-    .withMessage('Weight must be between 0 and 100'),
+    .isBoolean()
+    .withMessage('is_active must be a boolean')
+];
+
+const updateStageValidation = [
+  body('name')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Stage name cannot be empty')
+    .isLength({ max: 255 })
+    .withMessage('Stage name must not exceed 255 characters'),
   
-  body('start_date')
+  body('description')
     .optional()
-    .isISO8601()
-    .withMessage('Start date must be a valid date'),
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Description must not exceed 1000 characters'),
   
-  body('end_date')
+  body('order_index')
     .optional()
-    .isISO8601()
-    .withMessage('End date must be a valid date')
+    .isInt({ min: 0 })
+    .withMessage('Order index must be a non-negative integer'),
+  
+  body('is_active')
+    .optional()
+    .isBoolean()
+    .withMessage('is_active must be a boolean')
+];
+
+const reorderValidation = [
+  body('stage_orders')
+    .isArray()
+    .withMessage('stage_orders must be an array'),
+  
+  body('stage_orders.*.stage_id')
+    .isInt({ min: 1 })
+    .withMessage('Each stage_id must be a positive integer'),
+  
+  body('stage_orders.*.order')
+    .isInt({ min: 0 })
+    .withMessage('Each order must be a non-negative integer')
 ];
 
 const idValidation = [
@@ -69,11 +99,22 @@ const idValidation = [
     .withMessage('ID must be a positive integer')
 ];
 
+const categoryIdValidation = [
+  param('category_id')
+    .isInt({ min: 1 })
+    .withMessage('Category ID must be a positive integer')
+];
+
 const queryValidation = [
   query('project_id')
     .optional()
     .isInt({ min: 1 })
-    .withMessage('Project ID must be a positive integer')
+    .withMessage('Project ID must be a positive integer'),
+  
+  query('category_id')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Category ID must be a positive integer')
 ];
 
 // Routes
@@ -84,6 +125,14 @@ router.get('/',
   queryValidation,
   handleValidationErrors,
   getStages
+);
+
+// Get stages by category
+router.get('/category/:category_id',
+  requireAuth,
+  categoryIdValidation,
+  handleValidationErrors,
+  getStagesByCategory
 );
 
 // Get stage by ID
@@ -100,6 +149,32 @@ router.post('/',
   stageValidation,
   handleValidationErrors,
   createStage
+);
+
+// Update stage
+router.put('/:id',
+  requireAuth,
+  idValidation,
+  updateStageValidation,
+  handleValidationErrors,
+  updateStage
+);
+
+// Delete stage
+router.delete('/:id',
+  requireAuth,
+  idValidation,
+  handleValidationErrors,
+  deleteStage
+);
+
+// Reorder stages within a category
+router.post('/category/:category_id/reorder',
+  requireAuth,
+  categoryIdValidation,
+  reorderValidation,
+  handleValidationErrors,
+  reorderStages
 );
 
 module.exports = router;

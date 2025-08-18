@@ -65,11 +65,13 @@ const teamRoutes = require('./routes/team');
 const skillRoutes = require('./routes/skills');
 const taskRoutes = require('./routes/tasks');
 const stageRoutes = require('./routes/stages');
+const stageTemplateRoutes = require('./routes/stageTemplates');
 const gradeRoutes = require('./routes/grades');
 const bookRoutes = require('./routes/books');
 const unitRoutes = require('./routes/units');
 const lessonRoutes = require('./routes/lessons');
 const allocationRoutes = require('./routes/allocations');
+const performanceFlagRoutes = require('./routes/performanceFlags');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -79,11 +81,13 @@ app.use('/api/team', teamRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/stages', stageRoutes);
+app.use('/api/stage-templates', stageTemplateRoutes);
 app.use('/api/grades', gradeRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/units', unitRoutes);
 app.use('/api/lessons', lessonRoutes);
 app.use('/api/allocations', allocationRoutes);
+app.use('/api/performance-flags', performanceFlagRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {
