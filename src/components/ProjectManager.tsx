@@ -84,9 +84,6 @@ export function ProjectManager() {
         
         setProjects(projectsData);
         setCategories(categoriesData);
-        
-        console.log('📋 Projects loaded:', projectsData);
-        console.log('📂 Categories loaded:', categoriesData);
 
       } catch (err: any) {
         console.error('ProjectManager fetch error:', err);
@@ -539,7 +536,6 @@ function CreateProjectModal({ isOpen, onClose, onSubmit, categories }: CreatePro
       try {
         const stages = await stageService.getByCategory(categoryId);
         setSelectedCategoryStages(stages);
-        console.log('📋 Loaded stages for category:', categoryId, stages);
       } catch (error) {
         console.error('Failed to load stages for category:', error);
         setSelectedCategoryStages([]);

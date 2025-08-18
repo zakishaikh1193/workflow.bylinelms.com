@@ -90,9 +90,7 @@ const EducationalHierarchy: React.FC<EducationalHierarchyProps> = ({ projectId }
       setLoading(true);
       setError(null);
       
-             const gradesData = await gradeService.getByProject(projectId);
-       console.log('Grades data received:', gradesData);
-       console.log('First grade structure:', gradesData?.[0]);
+      const gradesData = await gradeService.getByProject(projectId);
        setGrades(gradesData || []);
       
       // Load books for all grades

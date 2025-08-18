@@ -288,7 +288,6 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
 
   const tabs = [
     { key: 'overview', label: 'Overview', icon: BarChart3 },
-    { key: 'stages', label: 'Stages', icon: Flag },
     { key: 'educational-hierarchy', label: 'Educational Hierarchy', icon: GraduationCap },
     { key: 'tasks', label: 'Tasks', icon: CheckSquare },
     { key: 'timeline', label: 'Timeline', icon: Calendar },

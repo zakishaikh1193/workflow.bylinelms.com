@@ -1,5 +1,5 @@
 // Modern API service for the new Node.js backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://workflow.bylinelms.com';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -8,11 +8,6 @@ const getAuthHeaders = () => {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
   };
-  
-  // Debug logging for auth headers
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔑 Auth headers:', { hasToken: !!token, headers });
-  }
   
   return headers;
 };
@@ -24,11 +19,6 @@ const getTeamAuthHeaders = () => {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
   };
-  
-  // Debug logging for team auth headers
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔑 Team auth headers:', { hasToken: !!token, headers });
-  }
   
   return headers;
 };
@@ -46,17 +36,8 @@ const handleResponse = async (response: Response) => {
 
 // Simple fetch wrapper without retries
 const simpleFetch = async (url: string, options: RequestInit) => {
-  // Debug logging for requests
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`🌐 Making request to: ${url}`, { method: options.method });
-  }
   
   const response = await fetch(url, options);
-  
-  // Debug logging for responses
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`📡 Response from ${url}:`, { status: response.status, ok: response.ok });
-  }
   
   return response;
 };
@@ -826,15 +807,6 @@ export const dashboardService = {
           console.error('❌ API call failed:', result.reason);
           return [];
         }
-      });
-
-      // Debug logging
-      console.log('🔍 Dashboard data received:', {
-        projects: projects.length,
-        teamMembers: teamMembers.length,
-        categories: categories.length,
-        skills: skills.length,
-        tasks: tasks.length
       });
 
       // Calculate statistics

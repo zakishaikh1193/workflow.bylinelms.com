@@ -181,11 +181,6 @@ export function DailyAllocations() {
       if (userId && allocation.user_id?.toString() === userId && !isInDateRange) {
         console.log(`❌ Date mismatch: Looking for ${allocDateStr}, allocation ${allocation.id} range is ${startDateStr} to ${endDateStr}`);
       }
-      
-      // Debug: Log ALL allocations for user 7 to see what we have
-      if (userId === '7' && allocation.user_id?.toString() === userId) {
-        console.log(`🔍 User 7 allocation ${allocation.id}: date ${allocDateStr}, range ${startDateStr} to ${endDateStr}, inRange: ${isInDateRange}`);
-      }
 
       return isInDateRange && isForUser && isForProject;
     });
@@ -323,9 +318,7 @@ export function DailyAllocations() {
                 </div>
 
                                   {/* Daily Allocations */}
-                  {weekDates.map(date => {
-                    console.log(`🎯 Rendering date ${date.toISOString().split('T')[0]} for user ${user.id}`);
-       
+                  {weekDates.map(date => {       
                     const allocations = getAllocationsForDate(date, user.id);
                     const totalHours = getTotalHoursForUserOnDate(user.id, date);
                   const status = getUserWorkloadStatus(user.id, date);

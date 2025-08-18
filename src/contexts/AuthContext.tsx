@@ -54,11 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           setUser(parsedUser);
           setSession(sessionData);
-          console.log('🔑 Session restored from localStorage');
         }
       } catch (error) {
-        console.error('❌ Error restoring session:', error);
-        // Clear invalid data
         localStorage.removeItem('access_token');
         localStorage.removeItem('user_data');
         localStorage.removeItem('refresh_token');

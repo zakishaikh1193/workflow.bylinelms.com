@@ -13,7 +13,7 @@ interface EditProjectModalProps {
 }
 
 export function EditProjectModal({ isOpen, onClose, onSubmit, project, categories }: EditProjectModalProps) {
-  console.log('🎯 EditProjectModal props:', { isOpen, project, categories });
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -29,17 +29,7 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
 
   useEffect(() => {
     if (project && isOpen) {
-      console.log('🔄 Loading project data for edit:', project);
-      console.log('🔍 Project fields:', {
-        name: project.name,
-        description: project.description,
-        category_id: project.category_id,
-        current_stage_id: project.current_stage_id,
-        status: project.status,
-        start_date: project.start_date,
-        end_date: project.end_date
-      });
-      
+            
       // Helper function to safely format date
       const formatDate = (dateValue: any): string => {
         if (!dateValue) return new Date().toISOString().split('T')[0];
@@ -69,8 +59,6 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
         start_date: formatDate(startDate),
         end_date: formatDate(endDate),
       };
-
-      console.log('📝 Setting form data:', newFormData);
       setFormData(newFormData);
 
       // Load stages if category exists
@@ -85,7 +73,6 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
     if (selectedCategoryStages.length > 0 && project.current_stage_id) {
       const currentStage = selectedCategoryStages.find((stage: any) => stage.id === project.current_stage_id);
       if (currentStage) {
-        console.log('✅ Found current stage, updating form data:', currentStage);
         setFormData(prev => ({
           ...prev,
           current_stage_id: project.current_stage_id || null
@@ -100,12 +87,10 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
     try {
       const stages = await stageService.getByCategory(categoryId);
       setSelectedCategoryStages(stages);
-      console.log('📋 Loaded stages for category:', categoryId, stages);
       
       // Check if current_stage_id exists in the loaded stages
       if (project.current_stage_id) {
         const currentStage = stages.find((stage: any) => stage.id === project.current_stage_id);
-        console.log('🎯 Current stage found:', currentStage);
         if (!currentStage) {
           console.warn('⚠️ Current stage ID not found in loaded stages:', project.current_stage_id);
         }
@@ -129,7 +114,6 @@ export function EditProjectModal({ isOpen, onClose, onSubmit, project, categorie
       try {
         const stages = await stageService.getByCategory(categoryId);
         setSelectedCategoryStages(stages);
-        console.log('📋 Loaded stages for category:', categoryId, stages);
       } catch (error) {
         console.error('Failed to load stages for category:', error);
         setSelectedCategoryStages([]);

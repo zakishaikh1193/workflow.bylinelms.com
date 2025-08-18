@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Aug 14, 2025 at 07:06 AM
+-- Generation Time: Aug 18, 2025 at 06:36 AM
 -- Server version: 9.1.0
 -- PHP Version: 8.1.31
 
@@ -158,7 +158,11 @@ INSERT INTO `admin_sessions` (`id`, `user_id`, `access_token`, `refresh_token`, 
 ('admin_1_1755088395281', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg4Mzk1LCJleHAiOjE3NTUxNzQ3OTV9.DOEsxK-JkMbmvZ7dBBkcVS7Pc1MS9Btca_7mRww7ZSY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MDg4Mzk1LCJleHAiOjE3NTU2OTMxOTV9.E7WqwqqSbVTu6ldINhqtFW4OhXJbOIV1skwcdzXOjVM', '2025-08-14 12:33:15', '2025-08-13 12:33:15', '2025-08-13 12:33:15'),
 ('admin_1_1755149150352', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MTUwLCJleHAiOjE3NTUyMzU1NTB9.4OMeSl_PRihUxDUC9SwZoE3CCyo6s0lw9AruK6u-73Y', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MTUwLCJleHAiOjE3NTU3NTM5NTB9.9O1aifybqlugU7m_9hkeerPQReWu0dItMC8Z5fzYmQ0', '2025-08-15 05:25:50', '2025-08-14 05:25:50', '2025-08-14 05:25:50'),
 ('admin_1_1755149241552', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MjQxLCJleHAiOjE3NTUyMzU2NDF9._Cb7EPp9h52sUji1xab0GDk-McmBomygYtcKhxtvfeA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTQ5MjQxLCJleHAiOjE3NTU3NTQwNDF9.3tcfQlN39zXjtwgOkj6kbRRyhTl64qMWk7OF35cKH5Y', '2025-08-15 05:27:21', '2025-08-14 05:27:21', '2025-08-14 05:27:21'),
-('admin_1_1755150909434', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTUwOTA5LCJleHAiOjE3NTUyMzczMDl9.iIcn9fmNZPnUGanYPTcDjBz_IdtzXwk9izdDxkzvqKA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTUwOTA5LCJleHAiOjE3NTU3NTU3MDl9.ET12OW-Vs621n3jRtoVLMI_-u_84abFbUt5IFN9f780', '2025-08-15 05:55:09', '2025-08-14 05:55:09', '2025-08-14 05:55:09');
+('admin_1_1755150909434', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTUwOTA5LCJleHAiOjE3NTUyMzczMDl9.iIcn9fmNZPnUGanYPTcDjBz_IdtzXwk9izdDxkzvqKA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTUwOTA5LCJleHAiOjE3NTU3NTU3MDl9.ET12OW-Vs621n3jRtoVLMI_-u_84abFbUt5IFN9f780', '2025-08-15 05:55:09', '2025-08-14 05:55:09', '2025-08-14 05:55:09'),
+('admin_1_1755164331512', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTY0MzMxLCJleHAiOjE3NTUyNTA3MzF9.XuRo6b7J5M2RzSQO3YYzUefHoabV4NlEID-P3vvK1Fo', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTY0MzMxLCJleHAiOjE3NTU3NjkxMzF9.99eETFhQWAaFgM6e7eOZux51aMFs4cBl8wkImhnXAHA', '2025-08-15 09:38:51', '2025-08-14 09:38:51', '2025-08-14 09:38:51'),
+('admin_1_1755174539046', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTc0NTM5LCJleHAiOjE3NTUyNjA5Mzl9.M5qLEEx90Bt0Wsc7ZIIs33jwoI7ep94jq7HTgPg7PcY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTc0NTM5LCJleHAiOjE3NTU3NzkzMzl9.ZxpKy0wqJn_PoObdhFjWaEfSpEcddB85Xw0IfFth0hM', '2025-08-15 12:28:59', '2025-08-14 12:28:59', '2025-08-14 12:28:59'),
+('admin_1_1755496926925', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk2OTI2LCJleHAiOjE3NTU1ODMzMjZ9.cFxceAPZLn-WW5rel0Av2gmW6c5dVhSlvQmlGHlMWUA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk2OTI2LCJleHAiOjE3NTYxMDE3MjZ9.aqsIuCskjzOSZCXYehAtlo51gJsAnlLCuHAH3Pzs8Pc', '2025-08-19 06:02:06', '2025-08-18 06:02:06', '2025-08-18 06:02:06'),
+('admin_1_1755497909012', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk3OTA5LCJleHAiOjE3NTU1ODQzMDl9.m7k7UkHBO_thi-eujQ6iUH4k8SsMazaZydJOG-5pOhk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk3OTA5LCJleHAiOjE3NTYxMDI3MDl9.I2s_7MxVoN7TZSXw4lcvwcwoP-Bi0SiGW_0bFbAfn-0', '2025-08-19 06:18:29', '2025-08-18 06:18:29', '2025-08-18 06:18:29');
 
 -- --------------------------------------------------------
 
@@ -189,7 +193,7 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
 --
 
 INSERT INTO `admin_users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `is_active`, `last_login_at`, `email_verified_at`, `created_at`, `updated_at`) VALUES
-(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-08-14 05:55:09', '2025-08-09 06:56:11', '2025-08-09 06:56:11', '2025-08-14 05:55:09');
+(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-08-18 06:18:29', '2025-08-09 06:56:11', '2025-08-09 06:56:11', '2025-08-18 06:18:29');
 
 -- --------------------------------------------------------
 
@@ -444,6 +448,7 @@ CREATE TABLE IF NOT EXISTS `projects` (
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `category_id` int DEFAULT NULL,
+  `current_stage_id` int DEFAULT NULL,
   `status` enum('planning','active','on-hold','completed','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'planning',
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
@@ -458,19 +463,21 @@ CREATE TABLE IF NOT EXISTS `projects` (
   KEY `idx_status` (`status`),
   KEY `idx_dates` (`start_date`,`end_date`),
   KEY `idx_parent` (`parent_id`),
-  KEY `idx_projects_category_status` (`category_id`,`status`)
+  KEY `idx_projects_category_status` (`category_id`,`status`),
+  KEY `idx_current_stage` (`current_stage_id`)
 ) ;
 
 --
 -- Dumping data for table `projects`
 --
 
-INSERT INTO `projects` (`id`, `name`, `description`, `category_id`, `status`, `start_date`, `end_date`, `progress`, `created_by`, `parent_id`, `created_at`, `updated_at`) VALUES
-(1, 'E-commerce Website', 'Modern e-commerce platform with payment integration', 1, 'active', '2024-01-15', '2024-06-30', 50, 1, NULL, '2025-08-09 09:45:32', '2025-08-12 08:10:41'),
-(2, 'Mobile Fitness App', 'Cross-platform fitness tracking application', 2, 'planning', '2024-02-01', '2024-08-15', 15, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
-(3, 'Sales Dashboard', 'Real-time sales analytics and reporting dashboard', 3, 'active', '2024-01-01', '2024-04-30', 75, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
-(4, 'Company Website Redesign', 'Complete redesign of corporate website with modern UI/UX', 1, 'completed', '2023-10-01', '2024-01-15', 100, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
-(8, 'Workflow App', 'Workflow App', 3, 'active', '2025-09-09', '2025-09-11', 56, 1, NULL, '2025-08-09 10:14:57', '2025-08-13 12:45:20');
+INSERT INTO `projects` (`id`, `name`, `description`, `category_id`, `current_stage_id`, `status`, `start_date`, `end_date`, `progress`, `created_by`, `parent_id`, `created_at`, `updated_at`) VALUES
+(1, 'E-commerce Website', 'Modern e-commerce platform with payment integration', 1, NULL, 'active', '2024-01-15', '2024-06-30', 0, 1, NULL, '2025-08-09 09:45:32', '2025-08-18 06:26:57'),
+(2, 'Mobile Fitness App', 'Cross-platform fitness tracking application', 2, NULL, 'planning', '2024-02-01', '2024-08-15', 0, 1, NULL, '2025-08-09 09:45:32', '2025-08-18 06:13:01'),
+(3, 'Sales Dashboard', 'Real-time sales analytics and reporting dashboard', 3, NULL, 'active', '2024-01-01', '2024-04-30', 75, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
+(4, 'Company Website Redesign', 'Complete redesign of corporate website with modern UI/UX', 1, NULL, 'completed', '2023-10-01', '2024-01-15', 100, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
+(8, 'Workflow App', 'Workflow App', 3, 1, 'active', '2025-09-11', '2025-09-20', 52, 1, NULL, '2025-08-09 10:14:57', '2025-08-18 06:35:25'),
+(11, 'gfjhh', 'jghghjg', 3, 1, 'planning', '2025-08-14', '2025-09-13', 0, 1, NULL, '2025-08-14 12:29:45', '2025-08-18 06:12:59');
 
 -- --------------------------------------------------------
 
@@ -754,10 +761,13 @@ CREATE TABLE IF NOT EXISTS `tasks` (
 INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `stage_id`, `grade_id`, `book_id`, `unit_id`, `lesson_id`, `component_path`, `status`, `priority`, `start_date`, `end_date`, `progress`, `estimated_hours`, `actual_hours`, `created_by`, `created_at`, `updated_at`) VALUES
 (1, 'Login Page', 'Login Page', 8, 1, NULL, NULL, NULL, NULL, '', 'completed', 'medium', '2025-08-09', '2025-08-10', 0, 8.00, 0.00, 1, '2025-08-09 13:46:05', '2025-08-12 07:56:28'),
 (2, 'Register Page', 'Register Page', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'high', '2025-08-11', '2025-08-18', 0, 45.00, 75.00, 1, '2025-08-11 12:34:09', '2025-08-12 06:53:27'),
-(4, 'sdffddsdsfg', 'dfssdf', 1, 1, NULL, NULL, NULL, NULL, '', 'in-progress', 'high', '2025-08-11', '2025-08-18', 50, 8.00, 0.00, 1, '2025-08-11 13:13:04', '2025-08-12 08:10:41'),
 (5, 'Task name', 'Description', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'low', '2025-08-11', '2025-08-14', 90, 8.00, 0.00, 1, '2025-08-11 13:36:06', '2025-08-12 08:05:27'),
-(6, 'bfdfbfdv', 'bfdfbfdv', 8, 1, NULL, NULL, NULL, NULL, '', 'completed', 'high', '2025-08-12', '2025-08-19', 100, 8.00, 0.00, 1, '2025-08-12 06:51:40', '2025-08-13 12:45:20'),
-(10, 'sdsdfds', 'dsfsdf', 8, 1, 3, 1, 1, 1, '', 'under-review', 'medium', '2025-08-12', '2025-08-19', 90, 8.00, 0.00, 1, '2025-08-12 13:55:35', '2025-08-13 06:35:28');
+(6, 'bfdfbfdv', 'bfdfbfdv', 8, 1, NULL, NULL, NULL, NULL, '', 'in-progress', 'high', '2025-08-12', '2025-08-19', 50, 8.00, 0.00, 1, '2025-08-12 06:51:40', '2025-08-14 09:19:59'),
+(10, 'sdsdfds', 'dsfsdf', 8, 1, 3, 1, 1, 1, '', 'under-review', 'medium', '2025-08-12', '2025-08-19', 90, 8.00, 0.00, 1, '2025-08-12 13:55:35', '2025-08-13 06:35:28'),
+(13, 'New Test', 'New Test', 8, 1, 3, 1, NULL, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:15:07', '2025-08-18 06:23:11'),
+(14, 'asddas', 'sadasd', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'medium', '2025-08-18', '2025-08-25', 90, 8.00, 0.00, 1, '2025-08-18 06:23:59', '2025-08-18 06:23:59'),
+(15, 'asdasdasdasd', 'adsasdasd', 8, 1, 3, 1, 1, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:24:39', '2025-08-18 06:24:39'),
+(16, 'sadasd', 'adasda', 8, 1, 3, 1, 1, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:35:25', '2025-08-18 06:35:45');
 
 -- --------------------------------------------------------
 
@@ -777,24 +787,33 @@ CREATE TABLE IF NOT EXISTS `task_assignees` (
   KEY `idx_task` (`task_id`),
   KEY `idx_assignee` (`assignee_id`,`assignee_type`),
   KEY `idx_tasks_assignee_status` (`assignee_id`,`assignee_type`)
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=51 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `task_assignees`
 --
 
 INSERT INTO `task_assignees` (`id`, `task_id`, `assignee_id`, `assignee_type`, `created_at`) VALUES
-(1, 6, 8, 'team', '2025-08-12 07:44:36'),
-(2, 6, 7, 'team', '2025-08-12 07:44:36'),
-(3, 6, 1, 'team', '2025-08-12 07:44:36'),
 (4, 5, 8, 'team', '2025-08-12 08:05:27'),
 (5, 5, 7, 'team', '2025-08-12 08:05:27'),
 (6, 5, 2, 'team', '2025-08-12 08:05:27'),
-(7, 4, 3, 'team', '2025-08-12 08:10:41'),
-(8, 4, 4, 'team', '2025-08-12 08:10:41'),
-(9, 4, 1, 'team', '2025-08-12 08:10:41'),
 (20, 10, 2, 'team', '2025-08-13 06:35:28'),
-(21, 10, 6, 'team', '2025-08-13 06:35:28');
+(21, 10, 6, 'team', '2025-08-13 06:35:28'),
+(22, 6, 1, 'team', '2025-08-14 09:19:59'),
+(23, 6, 7, 'team', '2025-08-14 09:19:59'),
+(24, 6, 8, 'team', '2025-08-14 09:19:59'),
+(35, 13, 1, 'team', '2025-08-18 06:23:11'),
+(36, 13, 8, 'team', '2025-08-18 06:23:11'),
+(37, 13, 7, 'team', '2025-08-18 06:23:11'),
+(38, 14, 7, 'team', '2025-08-18 06:23:59'),
+(39, 14, 2, 'team', '2025-08-18 06:23:59'),
+(40, 15, 2, 'team', '2025-08-18 06:24:39'),
+(41, 15, 8, 'team', '2025-08-18 06:24:39'),
+(42, 15, 7, 'team', '2025-08-18 06:24:39'),
+(47, 16, 2, 'team', '2025-08-18 06:35:45'),
+(48, 16, 5, 'team', '2025-08-18 06:35:45'),
+(49, 16, 7, 'team', '2025-08-18 06:35:45'),
+(50, 16, 8, 'team', '2025-08-18 06:35:45');
 
 -- --------------------------------------------------------
 
@@ -811,7 +830,7 @@ CREATE TABLE IF NOT EXISTS `task_skills` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_task_skill` (`task_id`,`skill_id`),
   KEY `skill_id` (`skill_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `task_skills`
@@ -821,17 +840,18 @@ INSERT INTO `task_skills` (`id`, `task_id`, `skill_id`, `created_at`) VALUES
 (16, 2, 4, '2025-08-12 06:53:27'),
 (17, 2, 6, '2025-08-12 06:53:27'),
 (18, 2, 3, '2025-08-12 06:53:27'),
-(27, 6, 2, '2025-08-12 07:44:36'),
-(28, 6, 10, '2025-08-12 07:44:36'),
 (29, 1, 4, '2025-08-12 07:56:28'),
 (30, 1, 6, '2025-08-12 07:56:28'),
 (35, 5, 2, '2025-08-12 08:05:27'),
 (36, 5, 3, '2025-08-12 08:05:27'),
 (37, 5, 8, '2025-08-12 08:05:27'),
 (38, 5, 10, '2025-08-12 08:05:27'),
-(39, 4, 1, '2025-08-12 08:10:41'),
-(40, 4, 2, '2025-08-12 08:10:41'),
-(41, 4, 10, '2025-08-12 08:10:41');
+(42, 6, 2, '2025-08-14 09:19:59'),
+(43, 6, 10, '2025-08-14 09:19:59'),
+(48, 13, 2, '2025-08-18 06:23:11'),
+(49, 13, 7, '2025-08-18 06:23:11'),
+(50, 16, 1, '2025-08-18 06:35:45'),
+(51, 16, 10, '2025-08-18 06:35:45');
 
 -- --------------------------------------------------------
 
@@ -928,13 +948,7 @@ INSERT INTO `team_allocations` (`id`, `user_id`, `user_type`, `project_id`, `tas
 (9, 7, 'team', 8, 5, 2.67, '2025-08-11', '2025-08-14', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
 (10, 7, 'team', 8, 5, 2.67, '2025-08-11', '2025-08-14', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
 (11, 8, 'team', 8, 5, 2.67, '2025-08-11', '2025-08-14', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(12, 8, 'team', 8, 5, 2.67, '2025-08-11', '2025-08-14', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(13, 1, 'admin', 1, 4, 1.14, '2025-08-11', '2025-08-18', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(14, 1, 'admin', 1, 4, 1.14, '2025-08-11', '2025-08-18', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(15, 3, 'team', 1, 4, 1.14, '2025-08-11', '2025-08-18', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(16, 3, 'team', 1, 4, 1.14, '2025-08-11', '2025-08-18', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(17, 4, 'team', 1, 4, 1.14, '2025-08-11', '2025-08-18', '2025-08-12 08:52:27', '2025-08-12 08:52:27'),
-(18, 4, 'team', 1, 4, 1.14, '2025-08-11', '2025-08-18', '2025-08-12 08:52:27', '2025-08-12 08:52:27');
+(12, 8, 'team', 8, 5, 2.67, '2025-08-11', '2025-08-14', '2025-08-12 08:52:27', '2025-08-12 08:52:27');
 
 -- --------------------------------------------------------
 
@@ -970,7 +984,7 @@ INSERT INTO `team_members` (`id`, `email`, `passcode`, `name`, `is_active`, `las
 (4, 'david.kim@company.com', 'DAVID123', 'David Kim', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:14'),
 (5, 'lisa.thompson@company.com', 'MARKET99', 'Lisa Thompson', 1, NULL, '2025-08-09 06:56:11', '2025-08-09 06:56:11'),
 (6, 'john.smith@company.com', 'WRITE42', 'John Smith', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:12'),
-(7, 'zaki@bylinelearning.com', 'ZAKI11', 'Zaki Shaikh', 1, '2025-08-14 05:48:50', '2025-08-09 11:36:07', '2025-08-14 05:48:50'),
+(7, 'zaki@bylinelearning.com', 'ZAKI11', 'Zaki Shaikh', 1, '2025-08-14 12:31:48', '2025-08-09 11:36:07', '2025-08-14 12:31:48'),
 (8, 'rahul.k@bylinelearning.com', 'RAHUL123', 'Rahul Kirad', 1, NULL, '2025-08-11 09:51:14', '2025-08-11 09:51:14');
 
 -- --------------------------------------------------------
@@ -1204,6 +1218,7 @@ ALTER TABLE `performance_flags`
 -- Constraints for table `projects`
 --
 ALTER TABLE `projects`
+  ADD CONSTRAINT `projects_current_stage_fk` FOREIGN KEY (`current_stage_id`) REFERENCES `category_stages` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `projects_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `projects_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `projects_ibfk_3` FOREIGN KEY (`parent_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE;

@@ -138,6 +138,10 @@ export interface Task {
   bookId?: string;
   unitId?: string;
   lessonId?: string;
+  grade_id?: string | number | null; // Backend field
+  book_id?: string | number | null; // Backend field
+  unit_id?: string | number | null; // Backend field
+  lesson_id?: string | number | null; // Backend field
   componentPath?: string; // Human readable path
   assignees: string[]; // User IDs
   teamAssignees?: string[]; // Team IDs
