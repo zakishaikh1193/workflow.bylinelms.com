@@ -18,12 +18,17 @@ export interface User {
 }
 
 export interface PerformanceFlag {
-  id: string;
-  type: 'gold' | 'green' | 'orange' | 'red';
+  id: number;
+  team_member_id: number;
+  task_id?: number;
+  type: 'red' | 'orange' | 'yellow' | 'green';
   reason: string;
-  date: string;
-  addedBy: string;
-  added_by?: string; // Backend field
+  added_by: string;
+  added_by_id?: number;
+  created_at: string;
+  task_name?: string;
+  team_member_name?: string;
+  added_by_name?: string;
 }
 
 export interface Project {
@@ -223,4 +228,17 @@ export interface FilterOptions {
   dueToday?: boolean;
   dueTomorrow?: boolean;
   dueThisWeek?: boolean;
+}
+
+export interface PerformanceSummary {
+  team_member: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  summary: Array<{
+    type: 'red' | 'orange' | 'yellow' | 'green';
+    count: number;
+    last_flag_date: string;
+  }>;
 }

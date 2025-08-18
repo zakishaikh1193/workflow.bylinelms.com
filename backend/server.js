@@ -71,6 +71,7 @@ const bookRoutes = require('./routes/books');
 const unitRoutes = require('./routes/units');
 const lessonRoutes = require('./routes/lessons');
 const allocationRoutes = require('./routes/allocations');
+const performanceFlagRoutes = require('./routes/performanceFlags');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -86,6 +87,7 @@ app.use('/api/books', bookRoutes);
 app.use('/api/units', unitRoutes);
 app.use('/api/lessons', lessonRoutes);
 app.use('/api/allocations', allocationRoutes);
+app.use('/api/performance-flags', performanceFlagRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {

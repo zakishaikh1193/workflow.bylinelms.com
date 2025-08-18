@@ -313,10 +313,27 @@ const optionalAuth = async (req, res, next) => {
 // Alias for requireAdminAuth (commonly used for admin-only routes)
 const authenticateToken = requireAdminAuth;
 
+// Validation middleware for express-validator
+const validateRequest = (req, res, next) => {
+  const errors = require('express-validator').validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid input data',
+        details: errors.array()
+      }
+    });
+  }
+  next();
+};
+
 module.exports = {
   requireAdminAuth,
   requireTeamAuth,
   requireAuth,
   optionalAuth,
-  authenticateToken
+  authenticateToken,
+  validateRequest
 };

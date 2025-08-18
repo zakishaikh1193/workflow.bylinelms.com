@@ -29,10 +29,10 @@ import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Task, TaskStatus, Priority } from '../types';
+import { Task, TaskStatus, Priority, PerformanceFlag } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
-import { taskService, teamService, projectService, skillService, stageService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
+import { taskService, teamService, projectService, skillService, stageService, gradeService, bookService, unitService, lessonService, performanceFlagService } from '../services/apiService';
 
 interface TaskDetailsProps {
   taskId: string;
@@ -99,6 +99,13 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
   const [extensionNotes, setExtensionNotes] = useState('');
   const [approvedDate, setApprovedDate] = useState('');
 
+  // Performance Flags
+  const [performanceFlags, setPerformanceFlags] = useState<PerformanceFlag[]>([]);
+  const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState<any>(null);
+  const [flagType, setFlagType] = useState<'red' | 'orange' | 'yellow' | 'green'>('green');
+  const [flagReason, setFlagReason] = useState('');
+
   // Check if user is admin
   const isAdmin = user?.id !== undefined; // Assuming any authenticated user is admin in this context
 
@@ -125,7 +132,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       setTask(taskData);
 
       // Load related data
-      const [projectData, stageData, allTeamMembersData, teamsData, skillsData, gradesData, booksData, unitsData, lessonsData, extensionsData, remarksData] = await Promise.all([
+      const [projectData, stageData, allTeamMembersData, teamsData, skillsData, gradesData, booksData, unitsData, lessonsData, extensionsData, remarksData, flagsData] = await Promise.all([
         projectService.getById(taskData.project_id),
         stageService.getById(taskData.category_stage_id || taskData.stage_id),
         teamService.getMembers(),
@@ -136,7 +143,8 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
         unitService.getAll(),
         lessonService.getAll(),
         taskService.getExtensions(taskId),
-        taskService.getRemarks(taskId)
+        taskService.getRemarks(taskId),
+        performanceFlagService.getByTask(taskId)
       ]);
 
       setProject(projectData);
@@ -148,8 +156,9 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       setBooks(booksData);
       setUnits(unitsData);
       setLessons(lessonsData);
-      setExtensions(extensionsData);
-      setRemarks(remarksData);
+              setExtensions(extensionsData);
+        setRemarks(remarksData);
+        setPerformanceFlags(flagsData);
 
       // Filter assignees based on task assignees
       console.log('🔍 Task assignees data:', taskData.assignees);
@@ -269,6 +278,60 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
     } catch (err: any) {
       console.error('Failed to delete remark:', err);
       setError(err.message || 'Failed to delete remark');
+    }
+  };
+
+  // Performance Flag Functions
+  const openFlagModal = (assignee: any) => {
+    setSelectedAssignee(assignee);
+    setFlagType('green');
+    setFlagReason('');
+    setIsFlagModalOpen(true);
+  };
+
+  const handleAddFlag = async () => {
+    if (!selectedAssignee || !flagReason.trim()) return;
+
+    try {
+      await performanceFlagService.add({
+        team_member_id: selectedAssignee.id,
+        task_id: parseInt(taskId),
+        type: flagType,
+        reason: flagReason.trim()
+      });
+
+      // Reload flags
+      const flagsData = await performanceFlagService.getByTask(taskId);
+      setPerformanceFlags(flagsData);
+
+      // Close modal
+      setIsFlagModalOpen(false);
+      setSelectedAssignee(null);
+      setFlagType('green');
+      setFlagReason('');
+    } catch (error) {
+      console.error('Failed to add performance flag:', error);
+    }
+  };
+
+  const handleDeleteFlag = async (flagId: number) => {
+    try {
+      await performanceFlagService.delete(flagId);
+      // Reload flags
+      const flagsData = await performanceFlagService.getByTask(taskId);
+      setPerformanceFlags(flagsData);
+    } catch (error) {
+      console.error('Failed to delete performance flag:', error);
+    }
+  };
+
+  const getFlagColor = (type: string) => {
+    switch (type) {
+      case 'red': return 'bg-red-100 text-red-800 border-red-200';
+      case 'orange': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'yellow': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'green': return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -649,14 +712,27 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
               {assignees.length > 0 ? (
                 <div className="space-y-3">
                   {assignees.map((assignee) => (
-                    <div key={assignee.id} className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                        {assignee.name?.charAt(0) || 'U'}
+                    <div key={assignee.id} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                          {assignee.name?.charAt(0) || 'U'}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{assignee.name}</p>
+                          <p className="text-sm text-gray-600">{assignee.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{assignee.name}</p>
-                        <p className="text-sm text-gray-600">{assignee.email}</p>
-                      </div>
+                      {isAdmin && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openFlagModal(assignee)}
+                          className="text-gray-600 hover:text-gray-800"
+                        >
+                          <Flag className="w-4 h-4 mr-1" />
+                          Flag
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -665,6 +741,49 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* Performance Flags */}
+          {isAdmin && performanceFlags.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Flag className="w-5 h-5 mr-2" />
+                  Performance Flags ({performanceFlags.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {performanceFlags.map((flag) => (
+                    <div key={flag.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          flag.type === 'red' ? 'bg-red-500' :
+                          flag.type === 'orange' ? 'bg-orange-500' :
+                          flag.type === 'yellow' ? 'bg-yellow-500' :
+                          'bg-green-500'
+                        }`}></div>
+                        <div>
+                          <p className="font-medium text-gray-900">{flag.team_member_name}</p>
+                          <p className="text-sm text-gray-600">{flag.reason}</p>
+                          <p className="text-xs text-gray-500">
+                            Added by {flag.added_by_name} on {new Date(flag.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteFlag(flag.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Required Skills */}
           <Card>
@@ -802,6 +921,81 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       {/* Add Remark Modal */}
       <Modal isOpen={isRemarkModalOpen} onClose={() => setIsRemarkModalOpen(false)} title="Add Remark">
         <AddRemarkForm onSubmit={handleAddRemark} onCancel={() => setIsRemarkModalOpen(false)} />
+      </Modal>
+
+      {/* Performance Flag Modal */}
+      <Modal isOpen={isFlagModalOpen} onClose={() => setIsFlagModalOpen(false)} title="Add Performance Flag">
+        <div className="space-y-4">
+          {selectedAssignee && (
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">Flagging:</p>
+              <p className="font-medium">{selectedAssignee.name}</p>
+              <p className="text-sm text-gray-500">{selectedAssignee.email}</p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Flag Type
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['green', 'yellow', 'orange', 'red'] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setFlagType(type)}
+                  className={`p-3 border rounded-lg text-left transition-colors ${
+                    flagType === type
+                      ? type === 'red' ? 'border-red-500 bg-red-50' :
+                        type === 'orange' ? 'border-orange-500 bg-orange-50' :
+                        type === 'yellow' ? 'border-yellow-500 bg-yellow-50' :
+                        'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      type === 'red' ? 'bg-red-500' :
+                      type === 'orange' ? 'bg-orange-500' :
+                      type === 'yellow' ? 'bg-yellow-500' :
+                      'bg-green-500'
+                    }`}></div>
+                    <span className="capitalize font-medium">{type}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason
+            </label>
+            <textarea
+              value={flagReason}
+              onChange={(e) => setFlagReason(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter the reason for this performance flag..."
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsFlagModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleAddFlag}
+              disabled={!flagReason.trim()}
+            >
+              Add Flag
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
