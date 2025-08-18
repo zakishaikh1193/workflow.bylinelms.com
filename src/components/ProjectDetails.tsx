@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -14,7 +14,9 @@ import {
   Layers,
   UserPlus,
   X,
-  GraduationCap
+  GraduationCap,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -23,11 +25,11 @@ import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
 import { Project, Task, Stage, TaskStatus, Priority } from '../types';
-import { calculateProjectProgress, calculateStageProgress } from '../utils/progressCalculator';
-import { calculateTaskProgress } from '../utils/progressCalculator';
+import { calculateProjectProgress, calculateStageProgress, calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
 import EducationalHierarchy from './EducationalHierarchy';
+import { TaskDetails } from './TaskDetails';
 import { projectService, teamService, taskService, skillService, stageService, categoryService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
 interface ProjectDetailsProps {
@@ -61,6 +63,11 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const [books, setBooks] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [lessons, setLessons] = useState<any[]>([]);
+  
+  // Task management state
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Use the progress calculated by the backend, or calculate from tasks if not available
   const projectProgress = currentProject.progress !== undefined ? 
@@ -192,19 +199,19 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       // Build component path for display
       let componentPath = '';
       if (taskData.gradeId) {
-        const grade = project.grades?.find(g => g.id === taskData.gradeId);
+        const grade = grades.find(g => g.id === parseInt(taskData.gradeId || '0'));
         if (grade) {
           componentPath = grade.name;
           if (taskData.bookId) {
-            const book = grade.books.find(b => b.id === taskData.bookId);
+            const book = books.find(b => b.id === parseInt(taskData.bookId || '0'));
             if (book) {
               componentPath += ` > ${book.name}`;
               if (taskData.unitId) {
-                const unit = book.units.find(u => u.id === taskData.unitId);
+                const unit = units.find(u => u.id === parseInt(taskData.unitId || '0'));
                 if (unit) {
                   componentPath += ` > ${unit.name}`;
                   if (taskData.lessonId) {
-                    const lesson = unit.lessons.find(l => l.id === taskData.lessonId);
+                    const lesson = lessons.find(l => l.id === parseInt(taskData.lessonId || '0'));
                     if (lesson) {
                       componentPath += ` > ${lesson.name}`;
                     }
@@ -236,10 +243,22 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         assignees: taskData.assignees || [],
         teamAssignees: taskData.teamAssignees || [],
         skills: skillIds,
-        component_path: componentPath
+        component_path: componentPath,
+        // Add educational hierarchy IDs
+        grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+        book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+        unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+        lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null
       };
       
       console.log('🚀 Creating task from ProjectDetails:', createData);
+      console.log('📚 Educational hierarchy IDs being sent:', {
+        grade_id: createData.grade_id,
+        book_id: createData.book_id,
+        unit_id: createData.unit_id,
+        lesson_id: createData.lesson_id,
+        component_path: createData.component_path
+      });
       
       const newTask = await taskService.create(createData);
       
@@ -761,120 +780,305 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     </div>
   );
 
-  const renderTasks = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Project Tasks</h3>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
-          Add Task
-        </Button>
-      </div>
+  const renderTasks = () => {
+    // Show task details if a task is selected
+    if (selectedTaskId) {
+      return (
+        <TaskDetails 
+          taskId={selectedTaskId} 
+          onBack={() => setSelectedTaskId(null)}
+        />
+      );
+    }
 
-      {projectTasks.length > 0 ? (
-        <div className="space-y-4">
-          {projectTasks.map((task) => {
-            const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
-            const assignedTeams = allTeams.filter((t: any) => task.teamAssignees && task.teamAssignees.includes(t.id));
-            const stage = project.stages?.find(s => s.id === task.stageId);
-            
-            return (
-              <Card key={task.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{task.name}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-                      {stage && (
-                        <p className="text-xs text-blue-600 mt-1">Stage: {stage.name}</p>
-                      )}
-                      {task.componentPath && (
-                        <p className="text-xs text-purple-600 mt-1">{task.componentPath}</p>
-                      )}
-                      
-                      <div className="flex items-center space-x-4 mt-2">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          Due: {new Date(task.endDate).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Clock className="w-4 h-4 mr-1" />
-                          {task.estimatedHours}h estimated
-                        </div>
-                      </div>
+    const handleEditTask = (task: any) => {
+      setEditingTask(task);
+      setIsEditModalOpen(true);
+    };
 
-                      <div className="space-y-2 mt-2">
-                        {/* All Assignees (Individuals + Team Members) */}
-                        {assignedUsers.length > 0 && (
-                          <div className="flex items-center space-x-2">
-                            {assignedUsers.slice(0, 5).map(user => (
-                              <div 
-                                key={user.id}
-                                className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
-                                title={user.name}
-                              >
-                                {user.name.charAt(0)}
-                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                  {user.name}
-                                </div>
-                              </div>
-                            ))}
-                            {assignedUsers.length > 5 && (
-                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
-                                +{assignedUsers.length - 5}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {assignedUsers.length === 0 && (
-                          <span className="text-xs text-gray-400">No assignees</span>
-                        )}
-                      </div>
-                    </div>
+    const handleUpdateTask = async (taskData: Partial<Task>) => {
+      try {
+        if (editingTask) {
+          // Update existing task
+          const updateData = {
+            name: taskData.name,
+            description: taskData.description,
+            project_id: parseInt(taskData.projectId || '1'),
+            category_stage_id: parseInt(taskData.stageId || '1'),
+            status: taskData.status,
+            priority: taskData.priority,
+            start_date: taskData.startDate,
+            end_date: taskData.endDate,
+            estimated_hours: parseInt(String(taskData.estimatedHours || 0)),
+            actual_hours: parseInt(String(taskData.actualHours || 0)),
+            assignees: taskData.assignees || [],
+            skills: taskData.skills,
+            // Add educational hierarchy IDs
+            grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+            book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+            unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+            lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
+            component_path: taskData.componentPath
+          };
+          
+          await taskService.update(editingTask.id, updateData);
+          
+          // Refresh project tasks
+          const tasksData = await taskService.getAll();
+          setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+        }
+        
+        setIsEditModalOpen(false);
+        setEditingTask(null);
+      } catch (error) {
+        console.error('❌ Failed to update task:', error);
+      }
+    };
 
-                    <div className="flex flex-col items-end space-y-2">
-                      <Badge variant={
-                        task.status === 'completed' ? 'success' :
-                        task.status === 'in-progress' ? 'primary' :
-                        task.status === 'under-review' ? 'warning' :
-                        task.status === 'blocked' ? 'danger' : 'default'
-                      }>
-                        {task.status.replace('-', ' ')}
-                      </Badge>
-                      <Badge variant={
-                        task.priority === 'urgent' ? 'danger' :
-                        task.priority === 'high' ? 'warning' :
-                        task.priority === 'medium' ? 'primary' : 'default'
-                      } size="sm">
-                        {task.priority}
-                      </Badge>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">{task.progress}%</div>
-                        <div className="w-20">
-                          <ProgressBar value={task.progress} showLabel={false} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+    const handleDeleteTask = async (task: any) => {
+      if (!confirm(`Are you sure you want to delete the task "${task.name}"? This action cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        await taskService.delete(task.id);
+        
+        // Refresh project tasks
+        const tasksData = await taskService.getAll();
+        setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+        
+        console.log('✅ Task deleted successfully:', task.name);
+      } catch (err: any) {
+        console.error('❌ Delete task error:', err);
+      }
+    };
+
+    const getStatusVariant = (status: TaskStatus) => {
+      switch (status) {
+        case 'not-started': return 'default';
+        case 'in-progress': return 'primary';
+        case 'under-review': return 'warning';
+        case 'completed': return 'success';
+        case 'blocked': return 'danger';
+        default: return 'default';
+      }
+    };
+
+    const getPriorityVariant = (priority: Priority) => {
+      switch (priority) {
+        case 'low': return 'default';
+        case 'medium': return 'primary';
+        case 'high': return 'warning';
+        case 'urgent': return 'danger';
+        default: return 'default';
+      }
+    };
+
+    const isOverdue = (task: any) => {
+      const endDate = task.end_date || task.endDate;
+      if (!endDate) return false;
+      return new Date(endDate) < new Date() && task.status !== 'completed';
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Project Tasks</h3>
+          <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
+            Add Task
+          </Button>
         </div>
-      ) : (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Tasks Yet</h3>
-            <p className="text-gray-600 mb-4">Start by creating your first task for this project.</p>
-            <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
-              Create First Task
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+
+        {projectTasks.length > 0 ? (
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Task Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Stage
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Priority
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Assignees
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Due Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Progress
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {projectTasks.map((task) => {
+                      const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
+                      const overdue = isOverdue(task);
+                      const stage = stages.find(s => s.id === task.category_stage_id || task.stage_id);
+                      
+                      return (
+                        <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900 flex items-center">
+                                {task.name}
+                                {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {task.component_path && <div className="text-xs text-purple-600 mt-1 bg-purple-100 p-1 rounded-md"> {task.component_path}</div>}
+                                {task.description && <div className="mt-1">{task.description}</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {stage ? (
+                                <div className="font-medium text-blue-600">{stage.name}</div>
+                              ) : (
+                                <span className="text-gray-400">Unknown Stage</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge variant={getStatusVariant(task.status)}>
+                              {task.status.replace('-', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge variant={getPriorityVariant(task.priority)}>
+                              {task.priority}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="space-y-1">
+                              {assignedUsers.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {assignedUsers.slice(0, 3).map(user => (
+                                    <span 
+                                      key={user.id}
+                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                    >
+                                      {user.name}
+                                    </span>
+                                  ))}
+                                  {assignedUsers.length > 3 && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                      +{assignedUsers.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {assignedUsers.length === 0 && (
+                                <span className="text-xs text-gray-400">No assignees</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <Calendar className="w-4 h-4 mr-1 text-gray-400" />
+                              {task.end_date || task.endDate ? new Date(task.end_date || task.endDate || '').toLocaleDateString() : 'No due date'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full"
+                                  style={{ width: `${calculateTaskProgress(task.status)}%` }}
+                                />
+                              </div>
+                              <span className="text-sm text-gray-600">{calculateTaskProgress(task.status)}%</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTaskId(task.id);
+                                }}
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditTask(task);
+                                }}
+                                title="Edit Task"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTask(task);
+                                }}
+                                title="Delete Task"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Tasks Yet</h3>
+              <p className="text-gray-600 mb-4">Start by creating your first task for this project.</p>
+              <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
+                Create First Task
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Edit Task Modal */}
+        <CreateTaskModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingTask(null);
+          }}
+          onSubmit={handleUpdateTask}
+          users={teamMembers}
+          teams={allTeams}
+          skills={skills}
+          projects={projects}
+          stages={stages}
+          grades={grades}
+          books={books}
+          units={units}
+          lessons={lessons}
+          editingTask={editingTask}
+        />
+      </div>
+    );
+  };
 
   const renderTeam = () => (
     <div className="space-y-6">

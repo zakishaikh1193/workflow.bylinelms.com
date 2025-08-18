@@ -785,29 +785,6 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
             </Card>
           )}
 
-          {/* Required Skills */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Tag className="w-5 h-5 mr-2" />
-                Required Skills ({task.skills?.length || 0})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {task.skills && task.skills.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {task.skills.map((skill: any) => (
-                    <Badge key={skill.id} variant="secondary">
-                      {skill.name}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No skills required</p>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Task Statistics */}
           <Card>
             <CardHeader>

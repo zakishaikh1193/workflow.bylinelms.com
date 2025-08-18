@@ -90,52 +90,30 @@ const EducationalHierarchy: React.FC<EducationalHierarchyProps> = ({ projectId }
       setLoading(true);
       setError(null);
       
-      const gradesData = await gradeService.getByProject(projectId);
-       setGrades(gradesData || []);
+      // Fetch all data in parallel using bulk endpoints
+      const [gradesData, booksData, unitsData, lessonsData] = await Promise.all([
+        gradeService.getByProject(projectId),
+        bookService.getAll(), // Get all books and filter by project grades
+        unitService.getAll(), // Get all units and filter by project books
+        lessonService.getAll() // Get all lessons and filter by project units
+      ]);
       
-      // Load books for all grades
-      const allBooks: Book[] = [];
-      if (gradesData && Array.isArray(gradesData)) {
-        for (const grade of gradesData) {
-          try {
-            const booksData = await bookService.getByGrade(grade.id);
-            if (booksData && Array.isArray(booksData)) {
-              allBooks.push(...booksData);
-            }
-          } catch (err) {
-            console.warn(`Failed to load books for grade ${grade.id}:`, err);
-          }
-        }
-      }
-      setBooks(allBooks);
+      setGrades(gradesData || []);
       
-      // Load units for all books
-      const allUnits: Unit[] = [];
-      for (const book of allBooks) {
-        try {
-          const unitsData = await unitService.getByBook(book.id);
-          if (unitsData && Array.isArray(unitsData)) {
-            allUnits.push(...unitsData);
-          }
-        } catch (err) {
-          console.warn(`Failed to load units for book ${book.id}:`, err);
-        }
-      }
-      setUnits(allUnits);
+      // Filter books to only include those from this project's grades
+      const projectGradeIds = new Set((gradesData || []).map((grade: Grade) => grade.id));
+      const projectBooks = (booksData || []).filter((book: Book) => projectGradeIds.has(book.grade_id));
+      setBooks(projectBooks);
       
-      // Load lessons for all units
-      const allLessons: Lesson[] = [];
-      for (const unit of allUnits) {
-        try {
-          const lessonsData = await lessonService.getByUnit(unit.id);
-          if (lessonsData && Array.isArray(lessonsData)) {
-            allLessons.push(...lessonsData);
-          }
-        } catch (err) {
-          console.warn(`Failed to load lessons for unit ${unit.id}:`, err);
-        }
-      }
-      setLessons(allLessons);
+      // Filter units to only include those from this project's books
+      const projectBookIds = new Set(projectBooks.map((book: Book) => book.id));
+      const projectUnits = (unitsData || []).filter((unit: Unit) => projectBookIds.has(unit.book_id));
+      setUnits(projectUnits);
+      
+      // Filter lessons to only include those from this project's units
+      const projectUnitIds = new Set(projectUnits.map((unit: Unit) => unit.id));
+      const projectLessons = (lessonsData || []).filter((lesson: Lesson) => projectUnitIds.has(lesson.unit_id));
+      setLessons(projectLessons);
       
     } catch (err: any) {
       console.error('Error loading educational hierarchy:', err);

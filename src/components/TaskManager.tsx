@@ -7,7 +7,8 @@ import {
   Calendar,
   Search,
   Edit2,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
@@ -717,7 +718,7 @@ export function TaskManager() {
                             }}
                             title="View Details"
                           >
-                            👁️
+                            <Eye className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -1344,7 +1345,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
           </div>
         </div>
 
-        <div>
+        {/* <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Team Assignees (Auto-selects all team members)
           </label>
@@ -1387,7 +1388,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
               );
             })}
           </div>
-        </div>
+        </div> */}
 
         <div className="flex justify-end space-x-3 pt-4">
           <Button type="button" variant="outline" onClick={onClose}>
