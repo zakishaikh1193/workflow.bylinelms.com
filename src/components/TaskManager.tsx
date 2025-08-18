@@ -75,6 +75,8 @@ export function TaskManager() {
         }
         
         console.log('🔍 Sending filters to API:', filters);
+        console.log('🔍 Selected assignee:', selectedAssignee);
+        console.log('🔍 State filters:', state.filters);
         
         const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
           taskService.getAll(filters),
@@ -89,6 +91,7 @@ export function TaskManager() {
           lessonService.getAll()
         ]);
         
+        console.log('🔍 Tasks received from API:', tasksData);
         setTasks(tasksData);
         setTeamMembers(teamMembersData);
         setTeams(teamsData);

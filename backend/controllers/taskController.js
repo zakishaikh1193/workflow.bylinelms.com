@@ -70,7 +70,7 @@ const getTasks = async (req, res) => {
     
     // Add JOIN for assignee sorting or filtering if needed
     if (sort === 'assignees' || assignee_id) {
-      query += ' LEFT JOIN task_assignees ta ON t.id = ta.task_id LEFT JOIN admin_users au ON ta.assignee_id = au.id AND ta.assignee_type = "admin"';
+      query += ' LEFT JOIN task_assignees ta ON t.id = ta.task_id LEFT JOIN admin_users au ON ta.assignee_id = au.id AND ta.assignee_type = "admin" LEFT JOIN team_members tm ON ta.assignee_id = tm.id AND ta.assignee_type = "team"';
     }
     
     query += ' WHERE 1=1';
@@ -106,8 +106,8 @@ const getTasks = async (req, res) => {
     const validOrders = ['asc', 'desc'];
     
     if (sort === 'assignees') {
-      // Special handling for assignee sorting
-      query += ` ORDER BY COALESCE(au.name, '') ${order.toUpperCase()}, t.created_at DESC`;
+      // Special handling for assignee sorting - consider both admin users and team members
+      query += ` ORDER BY COALESCE(au.name, tm.name, '') ${order.toUpperCase()}, t.created_at DESC`;
     } else if (validSortFields.includes(sort) && validOrders.includes(order.toLowerCase())) {
       query += ` ORDER BY t.${sort} ${order.toUpperCase()}`;
     } else {

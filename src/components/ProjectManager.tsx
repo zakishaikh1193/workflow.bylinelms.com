@@ -9,7 +9,9 @@ import {
   Grid,
   List,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -348,7 +350,7 @@ export function ProjectManager() {
                       }}
                       title="Edit Project"
                     >
-                      ✏️
+                      <Pencil className="w-4 h-4" />
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -360,7 +362,7 @@ export function ProjectManager() {
                       title="Delete Project"
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
-                      🗑️
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -471,7 +473,7 @@ export function ProjectManager() {
                             }}
                             title="Edit Project"
                           >
-                            ✏️
+                            <Pencil className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -483,7 +485,7 @@ export function ProjectManager() {
                             title="Delete Project"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
-                            🗑️
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>
