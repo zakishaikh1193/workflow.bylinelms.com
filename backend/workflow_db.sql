@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Aug 18, 2025 at 06:36 AM
+-- Generation Time: Aug 18, 2025 at 08:17 AM
 -- Server version: 9.1.0
 -- PHP Version: 8.1.31
 
@@ -20,6 +20,27 @@ SET time_zone = "+00:00";
 --
 -- Database: `workflow_db`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `active_extension_requests`
+-- (See below for the actual view)
+--
+DROP VIEW IF EXISTS `active_extension_requests`;
+CREATE TABLE IF NOT EXISTS `active_extension_requests` (
+`created_at` timestamp
+,`current_due_date` date
+,`id` int
+,`reason` text
+,`requested_by` int
+,`requested_by_type` enum('admin','team')
+,`requested_due_date` date
+,`requester_name` varchar(255)
+,`status` enum('pending','approved','rejected')
+,`task_id` int
+,`task_name` varchar(255)
+);
 
 -- --------------------------------------------------------
 
@@ -162,7 +183,11 @@ INSERT INTO `admin_sessions` (`id`, `user_id`, `access_token`, `refresh_token`, 
 ('admin_1_1755164331512', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTY0MzMxLCJleHAiOjE3NTUyNTA3MzF9.XuRo6b7J5M2RzSQO3YYzUefHoabV4NlEID-P3vvK1Fo', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTY0MzMxLCJleHAiOjE3NTU3NjkxMzF9.99eETFhQWAaFgM6e7eOZux51aMFs4cBl8wkImhnXAHA', '2025-08-15 09:38:51', '2025-08-14 09:38:51', '2025-08-14 09:38:51'),
 ('admin_1_1755174539046', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTc0NTM5LCJleHAiOjE3NTUyNjA5Mzl9.M5qLEEx90Bt0Wsc7ZIIs33jwoI7ep94jq7HTgPg7PcY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1MTc0NTM5LCJleHAiOjE3NTU3NzkzMzl9.ZxpKy0wqJn_PoObdhFjWaEfSpEcddB85Xw0IfFth0hM', '2025-08-15 12:28:59', '2025-08-14 12:28:59', '2025-08-14 12:28:59'),
 ('admin_1_1755496926925', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk2OTI2LCJleHAiOjE3NTU1ODMzMjZ9.cFxceAPZLn-WW5rel0Av2gmW6c5dVhSlvQmlGHlMWUA', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk2OTI2LCJleHAiOjE3NTYxMDE3MjZ9.aqsIuCskjzOSZCXYehAtlo51gJsAnlLCuHAH3Pzs8Pc', '2025-08-19 06:02:06', '2025-08-18 06:02:06', '2025-08-18 06:02:06'),
-('admin_1_1755497909012', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk3OTA5LCJleHAiOjE3NTU1ODQzMDl9.m7k7UkHBO_thi-eujQ6iUH4k8SsMazaZydJOG-5pOhk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk3OTA5LCJleHAiOjE3NTYxMDI3MDl9.I2s_7MxVoN7TZSXw4lcvwcwoP-Bi0SiGW_0bFbAfn-0', '2025-08-19 06:18:29', '2025-08-18 06:18:29', '2025-08-18 06:18:29');
+('admin_1_1755497909012', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk3OTA5LCJleHAiOjE3NTU1ODQzMDl9.m7k7UkHBO_thi-eujQ6iUH4k8SsMazaZydJOG-5pOhk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk3OTA5LCJleHAiOjE3NTYxMDI3MDl9.I2s_7MxVoN7TZSXw4lcvwcwoP-Bi0SiGW_0bFbAfn-0', '2025-08-19 06:18:29', '2025-08-18 06:18:29', '2025-08-18 06:18:29'),
+('admin_1_1755499722525', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk5NzIyLCJleHAiOjE3NTU1ODYxMjJ9.1MsGB-JzoCtrKR8mmD8xgVkgWDFIWhk00oj0UgkxUOk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk5NzIyLCJleHAiOjE3NTYxMDQ1MjJ9.5WQrCQQtrUHDQ8Y--vncOock3sUN8Elt6zCV_WSasV4', '2025-08-19 06:48:42', '2025-08-18 06:48:42', '2025-08-18 06:48:42'),
+('admin_1_1755499820971', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk5ODIwLCJleHAiOjE3NTU1ODYyMjB9.uVnG345YDRRhVIpuXzGoTOM4cJ-4sDRToP-k805RLYk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NDk5ODIwLCJleHAiOjE3NTYxMDQ2MjB9.ZdWW-XGjwAT14Qx1IZC2VuMIjL59chhygEQ6m9DGU9Y', '2025-08-19 06:50:20', '2025-08-18 06:50:20', '2025-08-18 06:50:20'),
+('admin_1_1755501860436', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NTAxODYwLCJleHAiOjE3NTU1ODgyNjB9.Qmrlca826vFelsDSTmg3wFzTzrRMBXrtXIYJzpVtxZQ', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NTAxODYwLCJleHAiOjE3NTYxMDY2NjB9.KDzl4plYLu9h0JY7UuMQPT06N_11jWsu-zVP-s6T4g4', '2025-08-19 07:24:20', '2025-08-18 07:24:20', '2025-08-18 07:24:20'),
+('admin_1_1755504281295', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NTA0MjgxLCJleHAiOjE3NTU1OTA2ODF9.7qA2vajg-XL8dr67D9VBccR3nEL4a-3xdosnBHUQWB8', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU1NTA0MjgxLCJleHAiOjE3NTYxMDkwODF9.i57vdH9Q_s8xiuvQF48kdfKRIdywlS9y7kO-3TuM3lg', '2025-08-19 08:04:41', '2025-08-18 08:04:41', '2025-08-18 08:04:41');
 
 -- --------------------------------------------------------
 
@@ -193,7 +218,7 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
 --
 
 INSERT INTO `admin_users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `is_active`, `last_login_at`, `email_verified_at`, `created_at`, `updated_at`) VALUES
-(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-08-18 06:18:29', '2025-08-09 06:56:11', '2025-08-09 06:56:11', '2025-08-18 06:18:29');
+(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-08-18 08:04:41', '2025-08-09 06:56:11', '2025-08-09 06:56:11', '2025-08-18 08:04:41');
 
 -- --------------------------------------------------------
 
@@ -476,7 +501,7 @@ INSERT INTO `projects` (`id`, `name`, `description`, `category_id`, `current_sta
 (2, 'Mobile Fitness App', 'Cross-platform fitness tracking application', 2, NULL, 'planning', '2024-02-01', '2024-08-15', 0, 1, NULL, '2025-08-09 09:45:32', '2025-08-18 06:13:01'),
 (3, 'Sales Dashboard', 'Real-time sales analytics and reporting dashboard', 3, NULL, 'active', '2024-01-01', '2024-04-30', 75, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
 (4, 'Company Website Redesign', 'Complete redesign of corporate website with modern UI/UX', 1, NULL, 'completed', '2023-10-01', '2024-01-15', 100, 1, NULL, '2025-08-09 09:45:32', '2025-08-09 09:45:32'),
-(8, 'Workflow App', 'Workflow App', 3, 1, 'active', '2025-09-11', '2025-09-20', 52, 1, NULL, '2025-08-09 10:14:57', '2025-08-18 06:35:25'),
+(8, 'Workflow App', 'Workflow App', 3, 1, 'active', '2025-09-11', '2025-09-20', 54, 1, NULL, '2025-08-09 10:14:57', '2025-08-18 06:47:08'),
 (11, 'gfjhh', 'jghghjg', 3, 1, 'planning', '2025-08-14', '2025-09-13', 0, 1, NULL, '2025-08-14 12:29:45', '2025-08-18 06:12:59');
 
 -- --------------------------------------------------------
@@ -761,13 +786,12 @@ CREATE TABLE IF NOT EXISTS `tasks` (
 INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `stage_id`, `grade_id`, `book_id`, `unit_id`, `lesson_id`, `component_path`, `status`, `priority`, `start_date`, `end_date`, `progress`, `estimated_hours`, `actual_hours`, `created_by`, `created_at`, `updated_at`) VALUES
 (1, 'Login Page', 'Login Page', 8, 1, NULL, NULL, NULL, NULL, '', 'completed', 'medium', '2025-08-09', '2025-08-10', 0, 8.00, 0.00, 1, '2025-08-09 13:46:05', '2025-08-12 07:56:28'),
 (2, 'Register Page', 'Register Page', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'high', '2025-08-11', '2025-08-18', 0, 45.00, 75.00, 1, '2025-08-11 12:34:09', '2025-08-12 06:53:27'),
-(5, 'Task name', 'Description', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'low', '2025-08-11', '2025-08-14', 90, 8.00, 0.00, 1, '2025-08-11 13:36:06', '2025-08-12 08:05:27'),
+(5, 'Task name', 'Description', 8, 1, NULL, NULL, NULL, NULL, '', 'completed', 'low', '2025-08-11', '2025-08-14', 100, 8.00, 0.00, 1, '2025-08-11 13:36:06', '2025-08-18 06:42:01'),
 (6, 'bfdfbfdv', 'bfdfbfdv', 8, 1, NULL, NULL, NULL, NULL, '', 'in-progress', 'high', '2025-08-12', '2025-08-19', 50, 8.00, 0.00, 1, '2025-08-12 06:51:40', '2025-08-14 09:19:59'),
 (10, 'sdsdfds', 'dsfsdf', 8, 1, 3, 1, 1, 1, '', 'under-review', 'medium', '2025-08-12', '2025-08-19', 90, 8.00, 0.00, 1, '2025-08-12 13:55:35', '2025-08-13 06:35:28'),
 (13, 'New Test', 'New Test', 8, 1, 3, 1, NULL, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:15:07', '2025-08-18 06:23:11'),
 (14, 'asddas', 'sadasd', 8, 1, NULL, NULL, NULL, NULL, '', 'under-review', 'medium', '2025-08-18', '2025-08-25', 90, 8.00, 0.00, 1, '2025-08-18 06:23:59', '2025-08-18 06:23:59'),
-(15, 'asdasdasdasd', 'adsasdasd', 8, 1, 3, 1, 1, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:24:39', '2025-08-18 06:24:39'),
-(16, 'sadasd', 'adasda', 8, 1, 3, 1, 1, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:35:25', '2025-08-18 06:35:45');
+(15, 'asdasdasdasd', 'adsasdasd', 8, 1, 3, 1, 1, NULL, '', 'in-progress', 'medium', '2025-08-18', '2025-08-25', 50, 8.00, 0.00, 1, '2025-08-18 06:24:39', '2025-08-18 06:40:24');
 
 -- --------------------------------------------------------
 
@@ -787,16 +811,13 @@ CREATE TABLE IF NOT EXISTS `task_assignees` (
   KEY `idx_task` (`task_id`),
   KEY `idx_assignee` (`assignee_id`,`assignee_type`),
   KEY `idx_tasks_assignee_status` (`assignee_id`,`assignee_type`)
-) ENGINE=InnoDB AUTO_INCREMENT=51 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `task_assignees`
 --
 
 INSERT INTO `task_assignees` (`id`, `task_id`, `assignee_id`, `assignee_type`, `created_at`) VALUES
-(4, 5, 8, 'team', '2025-08-12 08:05:27'),
-(5, 5, 7, 'team', '2025-08-12 08:05:27'),
-(6, 5, 2, 'team', '2025-08-12 08:05:27'),
 (20, 10, 2, 'team', '2025-08-13 06:35:28'),
 (21, 10, 6, 'team', '2025-08-13 06:35:28'),
 (22, 6, 1, 'team', '2025-08-14 09:19:59'),
@@ -807,13 +828,107 @@ INSERT INTO `task_assignees` (`id`, `task_id`, `assignee_id`, `assignee_type`, `
 (37, 13, 7, 'team', '2025-08-18 06:23:11'),
 (38, 14, 7, 'team', '2025-08-18 06:23:59'),
 (39, 14, 2, 'team', '2025-08-18 06:23:59'),
-(40, 15, 2, 'team', '2025-08-18 06:24:39'),
-(41, 15, 8, 'team', '2025-08-18 06:24:39'),
-(42, 15, 7, 'team', '2025-08-18 06:24:39'),
-(47, 16, 2, 'team', '2025-08-18 06:35:45'),
-(48, 16, 5, 'team', '2025-08-18 06:35:45'),
-(49, 16, 7, 'team', '2025-08-18 06:35:45'),
-(50, 16, 8, 'team', '2025-08-18 06:35:45');
+(54, 15, 2, 'team', '2025-08-18 06:40:24'),
+(55, 15, 7, 'team', '2025-08-18 06:40:24'),
+(56, 15, 8, 'team', '2025-08-18 06:40:24'),
+(57, 5, 2, 'team', '2025-08-18 06:42:01'),
+(58, 5, 7, 'team', '2025-08-18 06:42:01'),
+(59, 5, 8, 'team', '2025-08-18 06:42:01');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `task_extensions`
+--
+
+DROP TABLE IF EXISTS `task_extensions`;
+CREATE TABLE IF NOT EXISTS `task_extensions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `task_id` int NOT NULL,
+  `requested_by` int NOT NULL COMMENT 'ID of the user requesting extension (team_member_id or admin_user_id)',
+  `requested_by_type` enum('admin','team') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of user requesting extension',
+  `current_due_date` date NOT NULL COMMENT 'Original due date before extension',
+  `requested_due_date` date NOT NULL COMMENT 'New requested due date',
+  `reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Reason for extension request',
+  `status` enum('pending','approved','rejected') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending' COMMENT 'Status of extension request',
+  `reviewed_by` int DEFAULT NULL COMMENT 'ID of admin who reviewed the request',
+  `reviewed_at` timestamp NULL DEFAULT NULL COMMENT 'When the request was reviewed',
+  `review_notes` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Notes from admin review',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_task` (`task_id`),
+  KEY `idx_requested_by` (`requested_by`,`requested_by_type`),
+  KEY `idx_status` (`status`),
+  KEY `idx_reviewed_by` (`reviewed_by`),
+  KEY `idx_dates` (`current_due_date`,`requested_due_date`),
+  KEY `idx_task_extensions_task_status` (`task_id`,`status`),
+  KEY `idx_task_extensions_requester` (`requested_by`,`requested_by_type`,`status`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Track extension requests for tasks - allows team members to request deadline extensions';
+
+--
+-- Dumping data for table `task_extensions`
+--
+
+INSERT INTO `task_extensions` (`id`, `task_id`, `requested_by`, `requested_by_type`, `current_due_date`, `requested_due_date`, `reason`, `status`, `reviewed_by`, `reviewed_at`, `review_notes`, `created_at`, `updated_at`) VALUES
+(1, 6, 7, 'admin', '2025-08-19', '2025-08-22', 'Please Update this', 'pending', NULL, NULL, NULL, '2025-08-18 07:32:44', '2025-08-18 07:32:44');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `task_remarks`
+--
+
+DROP TABLE IF EXISTS `task_remarks`;
+CREATE TABLE IF NOT EXISTS `task_remarks` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `task_id` int NOT NULL,
+  `added_by` int NOT NULL COMMENT 'ID of the user adding remark (team_member_id or admin_user_id)',
+  `added_by_type` enum('admin','team') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of user adding remark',
+  `remark_date` date NOT NULL COMMENT 'Date for the remark (can be current date or selected date)',
+  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'The remark/comment content',
+  `remark_type` enum('general','progress','issue','update','other') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'general' COMMENT 'Type of remark for categorization',
+  `is_private` tinyint(1) DEFAULT '0' COMMENT 'Whether remark is private (only visible to admins)',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_task` (`task_id`),
+  KEY `idx_added_by` (`added_by`,`added_by_type`),
+  KEY `idx_remark_date` (`remark_date`),
+  KEY `idx_remark_type` (`remark_type`),
+  KEY `idx_private` (`is_private`),
+  KEY `idx_task_remarks_task_date` (`task_id`,`remark_date`),
+  KEY `idx_task_remarks_user` (`added_by`,`added_by_type`),
+  KEY `idx_task_remarks_type` (`remark_type`,`is_private`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Track remarks/comments on tasks - allows users to add notes and updates';
+
+--
+-- Dumping data for table `task_remarks`
+--
+
+INSERT INTO `task_remarks` (`id`, `task_id`, `added_by`, `added_by_type`, `remark_date`, `remark`, `remark_type`, `is_private`, `created_at`, `updated_at`) VALUES
+(1, 13, 7, 'admin', '2025-08-18', 'Hello', 'progress', 0, '2025-08-18 08:04:13', '2025-08-18 08:04:13');
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `task_remarks_with_users`
+-- (See below for the actual view)
+--
+DROP VIEW IF EXISTS `task_remarks_with_users`;
+CREATE TABLE IF NOT EXISTS `task_remarks_with_users` (
+`added_by` int
+,`added_by_type` enum('admin','team')
+,`created_at` timestamp
+,`id` int
+,`is_private` tinyint(1)
+,`remark` text
+,`remark_date` date
+,`remark_type` enum('general','progress','issue','update','other')
+,`task_id` int
+,`task_name` varchar(255)
+,`user_name` varchar(255)
+);
 
 -- --------------------------------------------------------
 
@@ -830,7 +945,7 @@ CREATE TABLE IF NOT EXISTS `task_skills` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_task_skill` (`task_id`,`skill_id`),
   KEY `skill_id` (`skill_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `task_skills`
@@ -842,16 +957,16 @@ INSERT INTO `task_skills` (`id`, `task_id`, `skill_id`, `created_at`) VALUES
 (18, 2, 3, '2025-08-12 06:53:27'),
 (29, 1, 4, '2025-08-12 07:56:28'),
 (30, 1, 6, '2025-08-12 07:56:28'),
-(35, 5, 2, '2025-08-12 08:05:27'),
-(36, 5, 3, '2025-08-12 08:05:27'),
-(37, 5, 8, '2025-08-12 08:05:27'),
-(38, 5, 10, '2025-08-12 08:05:27'),
 (42, 6, 2, '2025-08-14 09:19:59'),
 (43, 6, 10, '2025-08-14 09:19:59'),
 (48, 13, 2, '2025-08-18 06:23:11'),
 (49, 13, 7, '2025-08-18 06:23:11'),
-(50, 16, 1, '2025-08-18 06:35:45'),
-(51, 16, 10, '2025-08-18 06:35:45');
+(54, 15, 4, '2025-08-18 06:40:24'),
+(55, 15, 6, '2025-08-18 06:40:24'),
+(56, 5, 2, '2025-08-18 06:42:01'),
+(57, 5, 3, '2025-08-18 06:42:01'),
+(58, 5, 8, '2025-08-18 06:42:01'),
+(59, 5, 10, '2025-08-18 06:42:01');
 
 -- --------------------------------------------------------
 
@@ -984,7 +1099,7 @@ INSERT INTO `team_members` (`id`, `email`, `passcode`, `name`, `is_active`, `las
 (4, 'david.kim@company.com', 'DAVID123', 'David Kim', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:14'),
 (5, 'lisa.thompson@company.com', 'MARKET99', 'Lisa Thompson', 1, NULL, '2025-08-09 06:56:11', '2025-08-09 06:56:11'),
 (6, 'john.smith@company.com', 'WRITE42', 'John Smith', 0, NULL, '2025-08-09 06:56:11', '2025-08-14 05:32:12'),
-(7, 'zaki@bylinelearning.com', 'ZAKI11', 'Zaki Shaikh', 1, '2025-08-14 12:31:48', '2025-08-09 11:36:07', '2025-08-14 12:31:48'),
+(7, 'zaki@bylinelearning.com', 'ZAKI11', 'Zaki Shaikh', 1, '2025-08-18 07:32:13', '2025-08-09 11:36:07', '2025-08-18 07:32:13'),
 (8, 'rahul.k@bylinelearning.com', 'RAHUL123', 'Rahul Kirad', 1, NULL, '2025-08-11 09:51:14', '2025-08-11 09:51:14');
 
 -- --------------------------------------------------------
@@ -1142,6 +1257,26 @@ CREATE TABLE IF NOT EXISTS `units` (
 INSERT INTO `units` (`id`, `book_id`, `name`, `description`, `order_index`, `weight`, `created_at`, `updated_at`) VALUES
 (1, 1, 'Unit 1', 'Unit 1', 1, 0.00, '2025-08-11 07:53:12', '2025-08-11 07:53:12');
 
+-- --------------------------------------------------------
+
+--
+-- Structure for view `active_extension_requests`
+--
+DROP TABLE IF EXISTS `active_extension_requests`;
+
+DROP VIEW IF EXISTS `active_extension_requests`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `active_extension_requests`  AS SELECT `te`.`id` AS `id`, `te`.`task_id` AS `task_id`, `t`.`name` AS `task_name`, `te`.`requested_by` AS `requested_by`, `te`.`requested_by_type` AS `requested_by_type`, (case when (`te`.`requested_by_type` = 'team') then `tm`.`name` when (`te`.`requested_by_type` = 'admin') then `au`.`name` else 'Unknown' end) AS `requester_name`, `te`.`current_due_date` AS `current_due_date`, `te`.`requested_due_date` AS `requested_due_date`, `te`.`reason` AS `reason`, `te`.`status` AS `status`, `te`.`created_at` AS `created_at` FROM (((`task_extensions` `te` join `tasks` `t` on((`te`.`task_id` = `t`.`id`))) left join `team_members` `tm` on(((`te`.`requested_by` = `tm`.`id`) and (`te`.`requested_by_type` = 'team')))) left join `admin_users` `au` on(((`te`.`requested_by` = `au`.`id`) and (`te`.`requested_by_type` = 'admin')))) WHERE (`te`.`status` = 'pending') ORDER BY `te`.`created_at` DESC ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `task_remarks_with_users`
+--
+DROP TABLE IF EXISTS `task_remarks_with_users`;
+
+DROP VIEW IF EXISTS `task_remarks_with_users`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `task_remarks_with_users`  AS SELECT `tr`.`id` AS `id`, `tr`.`task_id` AS `task_id`, `t`.`name` AS `task_name`, `tr`.`added_by` AS `added_by`, `tr`.`added_by_type` AS `added_by_type`, (case when (`tr`.`added_by_type` = 'team') then `tm`.`name` when (`tr`.`added_by_type` = 'admin') then `au`.`name` else 'Unknown' end) AS `user_name`, `tr`.`remark_date` AS `remark_date`, `tr`.`remark` AS `remark`, `tr`.`remark_type` AS `remark_type`, `tr`.`is_private` AS `is_private`, `tr`.`created_at` AS `created_at` FROM (((`task_remarks` `tr` join `tasks` `t` on((`tr`.`task_id` = `t`.`id`))) left join `team_members` `tm` on(((`tr`.`added_by` = `tm`.`id`) and (`tr`.`added_by_type` = 'team')))) left join `admin_users` `au` on(((`tr`.`added_by` = `au`.`id`) and (`tr`.`added_by_type` = 'admin')))) ORDER BY `tr`.`remark_date` DESC, `tr`.`created_at` DESC ;
+
 --
 -- Indexes for dumped tables
 --
@@ -1272,6 +1407,19 @@ ALTER TABLE `tasks`
 --
 ALTER TABLE `task_assignees`
   ADD CONSTRAINT `task_assignees_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `task_extensions`
+--
+ALTER TABLE `task_extensions`
+  ADD CONSTRAINT `fk_task_extensions_reviewed_by` FOREIGN KEY (`reviewed_by`) REFERENCES `admin_users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_task_extensions_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `task_remarks`
+--
+ALTER TABLE `task_remarks`
+  ADD CONSTRAINT `fk_task_remarks_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `task_skills`

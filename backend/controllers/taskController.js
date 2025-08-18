@@ -172,10 +172,10 @@ const getTask = async (req, res) => {
       SELECT 
         t.*,
         p.name as project_name,
-        s.name as stage_name
+        cs.name as stage_name
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN stages s ON t.stage_id = s.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
       WHERE t.id = ?
     `;
 
@@ -241,12 +241,16 @@ const getTask = async (req, res) => {
 
 // Create new task
 const createTask = async (req, res) => {
+  console.log('🔍 CREATE TASK - Starting task creation process');
+  console.log('📥 Request body:', JSON.stringify(req.body, null, 2));
+  console.log('👤 User:', req.user);
+  
   try {
     const {
       name,
       description,
       project_id,
-      stage_id,
+      category_stage_id,
       status = 'not-started',
       priority = 'medium',
       start_date,
@@ -263,26 +267,37 @@ const createTask = async (req, res) => {
     } = req.body;
 
     const created_by = req.user?.id || 1;
+    console.log('🔧 Extracted parameters:', {
+      name, description, project_id, category_stage_id, status, priority,
+      start_date, end_date, progress, estimated_hours, component_path,
+      grade_id, book_id, unit_id, lesson_id, assignees, skills, created_by
+    });
 
     // Validate required fields
-    if (!name || !project_id || !stage_id || !start_date || !end_date) {
+    console.log('✅ Validating required fields...');
+    if (!name || !project_id || !category_stage_id || !start_date || !end_date) {
+      console.log('❌ Validation failed - missing required fields');
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Missing required fields: name, project_id, stage_id, start_date, end_date'
+          message: 'Missing required fields: name, project_id, category_stage_id, start_date, end_date'
         }
       });
     }
+    console.log('✅ Validation passed');
 
     // Format dates to YYYY-MM-DD
+    console.log('📅 Formatting dates...');
     const formattedStartDate = new Date(start_date).toISOString().split('T')[0];
     const formattedEndDate = new Date(end_date).toISOString().split('T')[0];
+    console.log('📅 Formatted dates:', { formattedStartDate, formattedEndDate });
 
     // Create the task
+    console.log('🗄️ Preparing database insert...');
     const insertQuery = `
       INSERT INTO tasks (
-        name, description, project_id, stage_id, status, priority, 
+        name, description, project_id, category_stage_id, status, priority, 
         start_date, end_date, progress, estimated_hours, component_path, 
         grade_id, book_id, unit_id, lesson_id, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -290,22 +305,28 @@ const createTask = async (req, res) => {
 
     // Auto-calculate progress based on status
     const calculatedProgress = calculateTaskProgress(status);
+    console.log('📊 Calculated progress:', calculatedProgress);
     
     const insertParams = [
-      name, description, project_id, stage_id, status, priority,
+      name, description, project_id, category_stage_id, status, priority,
       formattedStartDate, formattedEndDate, calculatedProgress, parseInt(estimated_hours) || 0, component_path,
       grade_id || null, book_id || null, unit_id || null, lesson_id || null, created_by
     ];
 
     console.log('🚀 Creating task with params:', insertParams);
     console.log('📚 Educational hierarchy data:', { grade_id, book_id, unit_id, lesson_id, component_path });
+    console.log('🔍 Insert query:', insertQuery);
 
+    console.log('💾 Executing database insert...');
     const result = await db.insert(insertQuery, insertParams);
     const taskId = result.insertId;
+    console.log('✅ Task inserted successfully with ID:', taskId);
 
     // Add assignees if provided
     if (assignees && assignees.length > 0) {
+      console.log('👥 Processing assignees:', assignees);
       for (const assigneeId of assignees) {
+        console.log(`🔍 Checking assignee type for ID: ${assigneeId}`);
         // Determine assignee type by checking if it's a team member or admin
         const teamMemberCheck = await db.query(
           'SELECT id FROM team_members WHERE id = ? AND is_active = true',
@@ -313,33 +334,47 @@ const createTask = async (req, res) => {
         );
         
         const assigneeType = teamMemberCheck.length > 0 ? 'team' : 'admin';
+        console.log(`👤 Assignee ${assigneeId} is type: ${assigneeType}`);
         
+        console.log(`💾 Inserting task assignee: task_id=${taskId}, assignee_id=${assigneeId}, assignee_type=${assigneeType}`);
         await db.insert(
           'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
           [taskId, assigneeId, assigneeType]
         );
         
-        console.log(`👤 Assigned task ${taskId} to ${assigneeType} user ${assigneeId}`);
+        console.log(`✅ Assigned task ${taskId} to ${assigneeType} user ${assigneeId}`);
       }
+    } else {
+      console.log('👥 No assignees to process');
     }
 
     // Add skills if provided
     if (skills && skills.length > 0) {
+      console.log('🎯 Processing skills:', skills);
       for (const skillId of skills) {
+        console.log(`💾 Inserting task skill: task_id=${taskId}, skill_id=${skillId}`);
         await db.insert(
           'INSERT INTO task_skills (task_id, skill_id) VALUES (?, ?)',
           [taskId, skillId]
         );
+        console.log(`✅ Added skill ${skillId} to task ${taskId}`);
       }
+    } else {
+      console.log('🎯 No skills to process');
     }
 
     // Get the created task with all related data
+    console.log('📋 Fetching created task data...');
     const createdTask = await getTaskById(taskId);
+    console.log('✅ Retrieved created task:', createdTask);
 
     // Recalculate project progress
+    console.log('📊 Recalculating project progress...');
     await recalculateProjectProgress(project_id);
+    console.log('✅ Project progress recalculated');
 
-    console.log('✅ Task created with ID:', taskId);
+    console.log('🎉 Task creation completed successfully!');
+    console.log('📤 Sending success response...');
 
     res.status(201).json({
       success: true,
@@ -348,12 +383,29 @@ const createTask = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create task error:', error);
+    console.error('💥 CREATE TASK ERROR - Full error details:');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Error code:', error.code);
+    console.error('Error errno:', error.errno);
+    console.error('Error sqlState:', error.sqlState);
+    console.error('Error sqlMessage:', error.sqlMessage);
+    
+    // Log additional database error details if available
+    if (error.sql) {
+      console.error('Failed SQL query:', error.sql);
+    }
+    if (error.sqlMessage) {
+      console.error('SQL Error message:', error.sqlMessage);
+    }
+    
     res.status(500).json({
       success: false,
       error: {
         code: 'DATABASE_ERROR',
-        message: 'Failed to create task'
+        message: 'Failed to create task',
+        details: error.message,
+        sqlError: error.sqlMessage || null
       }
     });
   }
@@ -361,6 +413,11 @@ const createTask = async (req, res) => {
 
 // Update task
 const updateTask = async (req, res) => {
+  console.log('🔍 UPDATE TASK - Starting task update process');
+  console.log('📥 Request params:', req.params);
+  console.log('📥 Request body:', JSON.stringify(req.body, null, 2));
+  console.log('👤 User:', req.user);
+  
   try {
     const { id } = req.params;
     const {
@@ -382,9 +439,19 @@ const updateTask = async (req, res) => {
       skills
     } = req.body;
 
+    console.log('🔧 Extracted parameters:', {
+      id, name, description, status, priority, start_date, end_date,
+      progress, estimated_hours, actual_hours, component_path,
+      grade_id, book_id, unit_id, lesson_id, assignees, skills
+    });
+
     // Check if task exists
+    console.log('🔍 Checking if task exists...');
     const existing = await db.query('SELECT id FROM tasks WHERE id = ?', [id]);
+    console.log('🔍 Task existence check result:', existing);
+    
     if (existing.length === 0) {
+      console.log('❌ Task not found');
       return res.status(404).json({
         success: false,
         error: {
@@ -393,34 +460,42 @@ const updateTask = async (req, res) => {
         }
       });
     }
+    console.log('✅ Task exists');
 
     // Build update query dynamically for provided fields
+    console.log('🔧 Building update query...');
     let updateQuery = 'UPDATE tasks SET updated_at = CURRENT_TIMESTAMP';
     const updateParams = [];
 
     if (name !== undefined) {
       updateQuery += ', name = ?';
       updateParams.push(name);
+      console.log('📝 Adding name to update');
     }
     if (description !== undefined) {
       updateQuery += ', description = ?';
       updateParams.push(description);
+      console.log('📝 Adding description to update');
     }
     if (status !== undefined) {
       updateQuery += ', status = ?';
       updateParams.push(status);
+      console.log('📝 Adding status to update');
     }
     if (priority !== undefined) {
       updateQuery += ', priority = ?';
       updateParams.push(priority);
+      console.log('📝 Adding priority to update');
     }
     if (start_date !== undefined) {
       updateQuery += ', start_date = ?';
       updateParams.push(new Date(start_date).toISOString().split('T')[0]);
+      console.log('📝 Adding start_date to update');
     }
     if (end_date !== undefined) {
       updateQuery += ', end_date = ?';
       updateParams.push(new Date(end_date).toISOString().split('T')[0]);
+      console.log('📝 Adding end_date to update');
     }
     // Auto-calculate progress based on status if status is being updated
     if (status !== undefined) {
@@ -432,40 +507,58 @@ const updateTask = async (req, res) => {
       // If progress is explicitly provided, use it
       updateQuery += ', progress = ?';
       updateParams.push(progress);
+      console.log('📝 Adding explicit progress to update');
     }
     if (estimated_hours !== undefined) {
       updateQuery += ', estimated_hours = ?';
       updateParams.push(parseInt(estimated_hours) || 0);
+      console.log('📝 Adding estimated_hours to update');
     }
     if (actual_hours !== undefined) {
       updateQuery += ', actual_hours = ?';
       updateParams.push(parseInt(actual_hours) || 0);
+      console.log('📝 Adding actual_hours to update');
     }
     if (component_path !== undefined) {
       updateQuery += ', component_path = ?';
       updateParams.push(component_path);
+      console.log('📝 Adding component_path to update');
+    }
+    if (req.body.category_stage_id !== undefined) {
+      updateQuery += ', category_stage_id = ?';
+      updateParams.push(req.body.category_stage_id);
+      console.log('📝 Adding category_stage_id to update');
     }
     if (grade_id !== undefined) {
       updateQuery += ', grade_id = ?';
       updateParams.push(grade_id);
+      console.log('📝 Adding grade_id to update');
     }
     if (book_id !== undefined) {
       updateQuery += ', book_id = ?';
       updateParams.push(book_id);
+      console.log('📝 Adding book_id to update');
     }
     if (unit_id !== undefined) {
       updateQuery += ', unit_id = ?';
       updateParams.push(unit_id);
+      console.log('📝 Adding unit_id to update');
     }
     if (lesson_id !== undefined) {
       updateQuery += ', lesson_id = ?';
       updateParams.push(lesson_id);
+      console.log('📝 Adding lesson_id to update');
     }
 
     updateQuery += ' WHERE id = ?';
     updateParams.push(id);
 
+    console.log('🔍 Final update query:', updateQuery);
+    console.log('🔍 Update parameters:', updateParams);
+
+    console.log('💾 Executing task update...');
     await db.query(updateQuery, updateParams);
+    console.log('✅ Task update executed successfully');
 
     // Update assignees if provided
     if (assignees !== undefined || req.body.teamAssignees !== undefined) {
@@ -595,10 +688,10 @@ const getTaskById = async (taskId) => {
     SELECT 
       t.*,
       p.name as project_name,
-      s.name as stage_name
+      cs.name as stage_name
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
-    LEFT JOIN stages s ON t.stage_id = s.id
+    LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
     WHERE t.id = ?
   `;
 

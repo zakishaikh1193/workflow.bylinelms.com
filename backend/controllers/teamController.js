@@ -100,8 +100,8 @@ const getMyTasks = async (req, res) => {
         p.name as project_name,
         p.status as project_status,
         p.description as project_description,
-        s.name as stage_name,
-        s.description as stage_description,
+        cs.name as stage_name,
+        cs.description as stage_description,
         c.name as category_name,
         c.description as category_description,
         GROUP_CONCAT(DISTINCT sk.name) as required_skills,
@@ -111,7 +111,7 @@ const getMyTasks = async (req, res) => {
         GROUP_CONCAT(DISTINCT l.name) as lesson_name
       FROM tasks t
       LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN stages s ON t.stage_id = s.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN task_skills ts ON t.id = ts.task_id
       LEFT JOIN skills sk ON ts.skill_id = sk.id

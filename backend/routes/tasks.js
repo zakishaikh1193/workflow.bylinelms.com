@@ -53,9 +53,9 @@ const taskValidation = [
     .isInt({ min: 1 })
     .withMessage('Project ID must be a positive integer'),
   
-  body('stage_id')
+  body('category_stage_id')
     .isInt({ min: 1 })
-    .withMessage('Stage ID must be a positive integer'),
+    .withMessage('Category Stage ID must be a positive integer'),
   
   body('status')
     .optional()

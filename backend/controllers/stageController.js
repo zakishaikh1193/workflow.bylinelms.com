@@ -5,7 +5,7 @@ const getStages = async (req, res) => {
   try {
     const { project_id, category_id } = req.query;
 
-    let query = 'SELECT * FROM stages';
+    let query = 'SELECT * FROM category_stages';
     const queryParams = [];
 
     if (project_id) {
@@ -71,7 +71,7 @@ const getStage = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const stages = await db.query('SELECT * FROM stages WHERE id = ?', [id]);
+    const stages = await db.query('SELECT * FROM category_stages WHERE id = ?', [id]);
 
     if (stages.length === 0) {
       return res.status(404).json({

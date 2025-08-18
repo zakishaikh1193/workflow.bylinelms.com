@@ -227,7 +227,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         name: taskData.name || '',
         description: taskData.description || '',
         project_id: parseInt(project.id),
-        stage_id: parseInt(taskData.stageId || '1'), 
+        category_stage_id: parseInt(taskData.stageId || '1'), 
         status: taskData.status || 'not-started',
         priority: taskData.priority || 'medium',
         start_date: taskData.startDate || new Date().toISOString().split('T')[0],

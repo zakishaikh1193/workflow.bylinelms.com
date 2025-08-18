@@ -76,7 +76,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       // Load related data
       const [projectData, stageData, allTeamMembersData, teamsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
         projectService.getById(taskData.project_id),
-        stageService.getById(taskData.stage_id),
+        stageService.getById(taskData.category_stage_id || taskData.stage_id),
         teamService.getMembers(),
         teamService.getTeams(),
         skillService.getAll(),

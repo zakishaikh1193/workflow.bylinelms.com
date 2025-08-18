@@ -132,7 +132,8 @@ export interface Task {
   description: string;
   stageId?: string; // Frontend field (optional for backward compatibility)
   projectId?: string; // Frontend field (optional for backward compatibility)
-  stage_id?: string; // Backend field for stage ID
+  stage_id?: string; // Backend field for stage ID (legacy)
+  category_stage_id?: string | number; // Backend field for category stage ID
   project_id?: string; // Backend field for project ID
   gradeId?: string;
   bookId?: string;
