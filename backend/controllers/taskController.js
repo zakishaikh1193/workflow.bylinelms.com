@@ -845,18 +845,18 @@ const getTaskExtensions = async (req, res) => {
     const query = `
       SELECT 
         te.*,
-        CASE 
-          WHEN te.requested_by_type = 'team' THEN tm.name
-          WHEN te.requested_by_type = 'admin' THEN au.name
-          ELSE 'Unknown'
-        END as requester_name,
+        COALESCE(
+          tm.name,
+          au.name,
+          'Unknown User'
+        ) as requester_name,
         CASE 
           WHEN te.reviewed_by IS NOT NULL THEN admin_reviewer.name
           ELSE NULL
         END as reviewer_name
       FROM task_extensions te
-      LEFT JOIN team_members tm ON te.requested_by = tm.id AND te.requested_by_type = 'team'
-      LEFT JOIN admin_users au ON te.requested_by = au.id AND te.requested_by_type = 'admin'
+      LEFT JOIN team_members tm ON te.requested_by = tm.id
+      LEFT JOIN admin_users au ON te.requested_by = au.id
       LEFT JOIN admin_users admin_reviewer ON te.reviewed_by = admin_reviewer.id
       WHERE te.task_id = ?
       ORDER BY te.created_at DESC
@@ -1047,14 +1047,14 @@ const getTaskRemarks = async (req, res) => {
     let query = `
       SELECT 
         tr.*,
-        CASE 
-          WHEN tr.added_by_type = 'team' THEN tm.name
-          WHEN tr.added_by_type = 'admin' THEN au.name
-          ELSE 'Unknown'
-        END as user_name
+        COALESCE(
+          tm.name,
+          au.name,
+          'Unknown User'
+        ) as user_name
       FROM task_remarks tr
-      LEFT JOIN team_members tm ON tr.added_by = tm.id AND tr.added_by_type = 'team'
-      LEFT JOIN admin_users au ON tr.added_by = au.id AND tr.added_by_type = 'admin'
+      LEFT JOIN team_members tm ON tr.added_by = tm.id
+      LEFT JOIN admin_users au ON tr.added_by = au.id
       WHERE tr.task_id = ?
     `;
 

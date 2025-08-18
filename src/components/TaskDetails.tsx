@@ -14,7 +14,13 @@ import {
   FileText,
   User,
   Tag,
-  Flag
+  Flag,
+  MessageSquare,
+  Clock as ClockIcon,
+  CheckCircle,
+  XCircle,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -22,6 +28,7 @@ import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Task, TaskStatus, Priority } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
 import { CreateTaskModal } from './TaskManager';
@@ -32,7 +39,38 @@ interface TaskDetailsProps {
   onBack: () => void;
 }
 
+interface TaskExtension {
+  id: number;
+  task_id: number;
+  requested_by: number;
+  requested_by_type: 'admin' | 'team';
+  current_due_date: string;
+  requested_due_date: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requester_name: string;
+  reviewed_by?: number;
+  reviewed_at?: string;
+  review_notes?: string;
+  created_at: string;
+}
+
+interface TaskRemark {
+  id: number;
+  task_id: number;
+  added_by: number;
+  added_by_type: 'admin' | 'team';
+  remark_date: string;
+  remark: string;
+  remark_type: 'general' | 'progress' | 'issue' | 'update' | 'other';
+  is_private: boolean;
+  user_name: string;
+  created_at: string;
+}
+
 export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
+  const { state } = useApp();
+  const { user } = useAuth();
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +88,19 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
   const [units, setUnits] = useState<any[]>([]);
   const [lessons, setLessons] = useState<any[]>([]);
   const [educationalHierarchy, setEducationalHierarchy] = useState<any>(null);
+
+  // Extensions and Remarks
+  const [extensions, setExtensions] = useState<TaskExtension[]>([]);
+  const [remarks, setRemarks] = useState<TaskRemark[]>([]);
+  const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
+  const [isRemarkModalOpen, setIsRemarkModalOpen] = useState(false);
+  const [selectedExtension, setSelectedExtension] = useState<TaskExtension | null>(null);
+  const [extensionAction, setExtensionAction] = useState<'approved' | 'rejected'>('approved');
+  const [extensionNotes, setExtensionNotes] = useState('');
+  const [approvedDate, setApprovedDate] = useState('');
+
+  // Check if user is admin
+  const isAdmin = user?.id !== undefined; // Assuming any authenticated user is admin in this context
 
   useEffect(() => {
     loadTaskDetails();
@@ -74,7 +125,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       setTask(taskData);
 
       // Load related data
-      const [projectData, stageData, allTeamMembersData, teamsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
+      const [projectData, stageData, allTeamMembersData, teamsData, skillsData, gradesData, booksData, unitsData, lessonsData, extensionsData, remarksData] = await Promise.all([
         projectService.getById(taskData.project_id),
         stageService.getById(taskData.category_stage_id || taskData.stage_id),
         teamService.getMembers(),
@@ -83,7 +134,9 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
         gradeService.getAll(),
         bookService.getAll(),
         unitService.getAll(),
-        lessonService.getAll()
+        lessonService.getAll(),
+        taskService.getExtensions(taskId),
+        taskService.getRemarks(taskId)
       ]);
 
       setProject(projectData);
@@ -95,6 +148,8 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       setBooks(booksData);
       setUnits(unitsData);
       setLessons(lessonsData);
+      setExtensions(extensionsData);
+      setRemarks(remarksData);
 
       // Filter assignees based on task assignees
       console.log('🔍 Task assignees data:', taskData.assignees);
@@ -157,6 +212,66 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
     }
   };
 
+  // Extension handling
+  const handleReviewExtension = async () => {
+    if (!selectedExtension) return;
+
+    try {
+      const reviewData: any = {
+        status: extensionAction
+      };
+
+      if (extensionAction === 'approved' && approvedDate) {
+        reviewData.review_notes = `Approved until ${approvedDate}. ${extensionNotes}`;
+      } else if (extensionAction === 'rejected') {
+        reviewData.review_notes = extensionNotes;
+      }
+
+      await taskService.reviewExtension(selectedExtension.id, reviewData);
+      
+      // Refresh data
+      await loadTaskDetails();
+      setIsExtensionModalOpen(false);
+      setSelectedExtension(null);
+      setExtensionAction('approved');
+      setExtensionNotes('');
+      setApprovedDate('');
+    } catch (err: any) {
+      console.error('Failed to review extension:', err);
+      setError(err.message || 'Failed to review extension');
+    }
+  };
+
+  const openExtensionModal = (extension: TaskExtension, action: 'approved' | 'rejected') => {
+    setSelectedExtension(extension);
+    setExtensionAction(action);
+    setExtensionNotes('');
+    setApprovedDate(action === 'approved' ? extension.requested_due_date : '');
+    setIsExtensionModalOpen(true);
+  };
+
+  // Remark handling
+  const handleAddRemark = async (remarkData: { remark: string; remark_date: string; remark_type: string; is_private: boolean }) => {
+    try {
+      await taskService.addRemark(taskId, remarkData);
+      await loadTaskDetails(); // Refresh remarks
+      setIsRemarkModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to add remark:', err);
+      setError(err.message || 'Failed to add remark');
+    }
+  };
+
+  const handleDeleteRemark = async (remarkId: number) => {
+    try {
+      await taskService.deleteRemark(remarkId);
+      await loadTaskDetails(); // Refresh remarks
+    } catch (err: any) {
+      console.error('Failed to delete remark:', err);
+      setError(err.message || 'Failed to delete remark');
+    }
+  };
+
   const getStatusVariant = (status: TaskStatus) => {
     switch (status) {
       case 'not-started': return 'default';
@@ -175,6 +290,25 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
       case 'high': return 'warning';
       case 'urgent': return 'danger';
       default: return 'default';
+    }
+  };
+
+  const getExtensionStatusVariant = (status: string) => {
+    switch (status) {
+      case 'pending': return 'warning';
+      case 'approved': return 'success';
+      case 'rejected': return 'danger';
+      default: return 'default';
+    }
+  };
+
+  const getRemarkTypeVariant = (type: string) => {
+    switch (type) {
+      case 'progress': return 'success';
+      case 'issue': return 'danger';
+      case 'update': return 'primary';
+      case 'general': return 'default';
+      default: return 'secondary';
     }
   };
 
@@ -316,6 +450,132 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Extension Requests */}
+          {isAdmin && extensions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <ClockIcon className="w-5 h-5 mr-2" />
+                  Extension Requests ({extensions.filter(e => e.status === 'pending').length} pending)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {extensions.map((extension) => (
+                    <div key={extension.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Badge variant={getExtensionStatusVariant(extension.status)}>
+                              {extension.status}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              Requested by {extension.requester_name}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 mb-2">{extension.reason}</p>
+                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                            <div>
+                              <span className="font-medium">Current Due:</span> {new Date(extension.current_due_date).toLocaleDateString()}
+                            </div>
+                            <div>
+                              <span className="font-medium">Requested Due:</span> {new Date(extension.requested_due_date).toLocaleDateString()}
+                            </div>
+                          </div>
+                          {extension.review_notes && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                              <span className="font-medium">Review Notes:</span> {extension.review_notes}
+                            </div>
+                          )}
+                        </div>
+                        {extension.status === 'pending' && (
+                          <div className="flex space-x-2">
+                                                         <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={() => openExtensionModal(extension, 'approved')}
+                               className="text-green-600 hover:text-green-700"
+                             >
+                               <CheckCircle className="w-4 h-4 mr-1" />
+                               Approve
+                             </Button>
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={() => openExtensionModal(extension, 'rejected')}
+                               className="text-red-600 hover:text-red-700"
+                             >
+                               <XCircle className="w-4 h-4 mr-1" />
+                               Reject
+                             </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Task Remarks */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center">
+                  <MessageSquare className="w-5 h-5 mr-2" />
+                  Remarks ({remarks.length})
+                </CardTitle>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    onClick={() => setIsRemarkModalOpen(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Remark
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {remarks.length > 0 ? (
+                <div className="space-y-4">
+                  {remarks.map((remark) => (
+                    <div key={remark.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={getRemarkTypeVariant(remark.remark_type)}>
+                            {remark.remark_type}
+                          </Badge>
+                          {remark.is_private && (
+                            <Badge variant="secondary">Private</Badge>
+                          )}
+                        </div>
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteRemark(remark.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-gray-700 mb-2">{remark.remark}</p>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>By {remark.user_name}</span>
+                        <span>{new Date(remark.remark_date).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No remarks yet</p>
+              )}
             </CardContent>
           </Card>
 
@@ -480,6 +740,163 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
         lessons={lessons}
         editingTask={task}
       />
+
+      {/* Extension Review Modal */}
+      <Modal isOpen={isExtensionModalOpen} onClose={() => setIsExtensionModalOpen(false)} title={`${extensionAction === 'approved' ? 'Approve' : 'Reject'} Extension Request`}>
+        <div className="space-y-4">
+          {selectedExtension && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium mb-2">Extension Details</h4>
+              <div className="space-y-2 text-sm">
+                <p><span className="font-medium">Requested by:</span> {selectedExtension.requester_name}</p>
+                <p><span className="font-medium">Reason:</span> {selectedExtension.reason}</p>
+                <p><span className="font-medium">Current due date:</span> {new Date(selectedExtension.current_due_date).toLocaleDateString()}</p>
+                <p><span className="font-medium">Requested due date:</span> {new Date(selectedExtension.requested_due_date).toLocaleDateString()}</p>
+              </div>
+            </div>
+          )}
+
+          {extensionAction === 'approved' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Approved Until Date
+              </label>
+              <input
+                type="date"
+                value={approvedDate}
+                onChange={(e) => setApprovedDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                min={selectedExtension?.current_due_date}
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review Notes
+            </label>
+            <textarea
+              value={extensionNotes}
+              onChange={(e) => setExtensionNotes(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder={`Add notes for ${extensionAction === 'approved' ? 'approval' : 'rejection'}...`}
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button variant="outline" onClick={() => setIsExtensionModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant={extensionAction === 'approved' ? 'primary' : 'danger'}
+              onClick={handleReviewExtension}
+              disabled={extensionAction === 'approved' && !approvedDate}
+            >
+              {extensionAction === 'approved' ? 'Approve' : 'Reject'} Extension
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Remark Modal */}
+      <Modal isOpen={isRemarkModalOpen} onClose={() => setIsRemarkModalOpen(false)} title="Add Remark">
+        <AddRemarkForm onSubmit={handleAddRemark} onCancel={() => setIsRemarkModalOpen(false)} />
+      </Modal>
     </div>
+  );
+}
+
+// Add Remark Form Component
+interface AddRemarkFormProps {
+  onSubmit: (data: { remark: string; remark_date: string; remark_type: string; is_private: boolean }) => void;
+  onCancel: () => void;
+}
+
+function AddRemarkForm({ onSubmit, onCancel }: AddRemarkFormProps) {
+  const [remark, setRemark] = useState('');
+  const [remarkDate, setRemarkDate] = useState(new Date().toISOString().split('T')[0]);
+  const [remarkType, setRemarkType] = useState('general');
+  const [isPrivate, setIsPrivate] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (remark.trim()) {
+      onSubmit({
+        remark: remark.trim(),
+        remark_date: remarkDate,
+        remark_type: remarkType,
+        is_private: isPrivate
+      });
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Remark
+        </label>
+        <textarea
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          rows={4}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Enter your remark..."
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Date
+        </label>
+        <input
+          type="date"
+          value={remarkDate}
+          onChange={(e) => setRemarkDate(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Type
+        </label>
+        <select
+          value={remarkType}
+          onChange={(e) => setRemarkType(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="general">General</option>
+          <option value="progress">Progress</option>
+          <option value="issue">Issue</option>
+          <option value="update">Update</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          id="isPrivate"
+          checked={isPrivate}
+          onChange={(e) => setIsPrivate(e.target.checked)}
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+        <label htmlFor="isPrivate" className="ml-2 block text-sm text-gray-700">
+          Private remark (only visible to admins)
+        </label>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!remark.trim()}>
+          Add Remark
+        </Button>
+      </div>
+    </form>
   );
 }
