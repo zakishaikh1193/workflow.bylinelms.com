@@ -22,7 +22,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
-import { teamTaskService, teamProjectService, teamService } from '../services/apiService';
+import { teamTaskService, teamProjectService, teamService, performanceFlagService } from '../services/apiService';
 import type { Task, User as UserType } from '../types';
 
 interface TeamMemberPortalProps {
@@ -43,6 +43,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [remarkType, setRemarkType] = useState('general');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [performanceFlags, setPerformanceFlags] = useState<any[]>([]);
 
   // Load user's data
   useEffect(() => {
@@ -53,14 +54,16 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     try {
       setLoading(true);
       
-      // Load user's tasks and projects using team-specific APIs
-      const [tasksData, projectsData] = await Promise.all([
+      // Load user's tasks, projects, and performance flags using team-specific APIs
+      const [tasksData, projectsData, flagsData] = await Promise.all([
         teamService.getMyTasks(),
-        teamProjectService.getAll()
+        teamProjectService.getAll(),
+        performanceFlagService.getByTeamMember(user.id)
       ]);
       
       setUserTasks(tasksData);
       setUserProjects(projectsData);
+      setPerformanceFlags(flagsData);
     } catch (error) {
       console.error('Failed to load user data:', error);
     } finally {
@@ -86,7 +89,6 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const onTimeCompletions = completedTasks.filter(task => 
     task.updated_at && task.end_date && new Date(task.updated_at) <= new Date(task.end_date)
   ).length;
-  const performanceFlags = user.performance_flags || [];
 
   const handleMarkComplete = async (taskId: string) => {
     try {
@@ -312,17 +314,17 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 <div className="space-y-4">
                   {/* Flag Counts Summary */}
                   <div className="grid grid-cols-2 gap-3 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-                    <div className="text-center p-3 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
-                      <div className="text-2xl font-bold text-yellow-700">
-                        {performanceFlags.filter(f => f.type === 'gold').length}
-                      </div>
-                      <div className="text-xs text-yellow-600 font-medium">🥇 Gold Flags</div>
-                    </div>
                     <div className="text-center p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
                       <div className="text-2xl font-bold text-green-700">
                         {performanceFlags.filter(f => f.type === 'green').length}
                       </div>
                       <div className="text-xs text-green-600 font-medium">🟢 Green Flags</div>
+                    </div>
+                    <div className="text-center p-3 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                      <div className="text-2xl font-bold text-yellow-700">
+                        {performanceFlags.filter(f => f.type === 'yellow').length}
+                      </div>
+                      <div className="text-xs text-yellow-600 font-medium">🟡 Yellow Flags</div>
                     </div>
                     <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200">
                       <div className="text-2xl font-bold text-orange-700">
@@ -346,7 +348,8 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                         <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                           <div className="flex items-center space-x-3">
                             <Badge variant={
-                              flag.type === 'gold' || flag.type === 'green' ? 'success' :
+                              flag.type === 'green' ? 'success' :
+                              flag.type === 'yellow' ? 'warning' :
                               flag.type === 'orange' ? 'warning' : 'danger'
                             } size="sm" className="shadow-sm">
                               <Flag className="w-3 h-3 mr-1" />
@@ -355,7 +358,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                             <div>
                               <p className="text-sm font-medium text-gray-900">{flag.reason}</p>
                               <p className="text-xs text-gray-500">
-                                {new Date(flag.date).toLocaleDateString()} by {flag.added_by}
+                                {new Date(flag.created_at).toLocaleDateString()} by {flag.added_by}
                               </p>
                             </div>
                           </div>

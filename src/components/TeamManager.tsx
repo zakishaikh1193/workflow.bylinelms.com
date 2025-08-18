@@ -21,9 +21,11 @@ import {
   Clock,
   X,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Eye,
+  UserMinus
 } from 'lucide-react';
-import { teamService, skillService, taskService } from '../services/apiService';
+import { teamService, skillService, taskService, performanceFlagService } from '../services/apiService';
 import { useApp } from '../contexts/AppContext';
 
 interface TeamMember {
@@ -35,6 +37,12 @@ interface TeamMember {
   team_names?: string[];
   team_ids?: number[];
   performance_flags_count: number;
+  performance_flags_summary?: {
+    red: number;
+    orange: number;
+    yellow: number;
+    green: number;
+  };
   is_active: boolean;
   created_at: string;
   task_count?: number; // Number of tasks assigned to this member
@@ -83,6 +91,8 @@ export function TeamManager() {
   const [showTeamDetailsModal, setShowTeamDetailsModal] = useState(false);
   const [showAddMemberToTeamModal, setShowAddMemberToTeamModal] = useState(false);
   const [availableMembersForTeam, setAvailableMembersForTeam] = useState<TeamMember[]>([]);
+  const [showMemberDetailsModal, setShowMemberDetailsModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
   
   // Form States
   const [memberFormData, setMemberFormData] = useState({
@@ -152,19 +162,44 @@ export function TeamManager() {
         console.log('✅ Team members fetched:', membersData);
         console.log('✅ Tasks fetched:', tasksData);
         
-        // Add task counts to team members
-        const membersWithTaskCounts = (membersData || []).map((member: TeamMember) => {
+        // Add task counts and performance flag summaries to team members
+        const membersWithDetails = await Promise.all((membersData || []).map(async (member: TeamMember) => {
           const memberTasks = tasksData.filter((task: any) => 
             task.assignees && task.assignees.includes(member.id)
           );
+          
+          // Fetch performance flag summary for this member
+          let performanceFlagsSummary = null;
+          try {
+            const summaryData = await performanceFlagService.getSummary(member.id);
+            // Convert array format to object format
+            if (summaryData && summaryData.summary) {
+              performanceFlagsSummary = {
+                red: 0,
+                orange: 0,
+                yellow: 0,
+                green: 0
+              };
+              
+              summaryData.summary.forEach((item: any) => {
+                if (item.type && item.count) {
+                  performanceFlagsSummary[item.type] = item.count;
+                }
+              });
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch performance flags for member ${member.id}:`, error);
+          }
+          
           return {
             ...member,
-            task_count: memberTasks.length
+            task_count: memberTasks.length,
+            performance_flags_summary: performanceFlagsSummary
           };
-        });
+        }));
         
-        setTeamMembers(membersWithTaskCounts);
-        setFilteredMembers(membersWithTaskCounts);
+        setTeamMembers(membersWithDetails);
+        setFilteredMembers(membersWithDetails);
       } else {
         const teamsData = await teamService.getTeams();
         
@@ -413,6 +448,35 @@ export function TeamManager() {
       console.error('Error adding member to team:', error);
       setError('Failed to add member to team');
     }
+  };
+
+  const handleRemoveMemberFromTeam = async (memberId: number) => {
+    if (!selectedTeam) return;
+    
+    if (!confirm(`Are you sure you want to remove this member from ${selectedTeam.name}?`)) {
+      return;
+    }
+    
+    try {
+      await teamService.removeMemberFromTeam(selectedTeam.id.toString(), memberId.toString());
+      
+      // Refresh team details
+      const result = await teamService.getTeamById(selectedTeam.id.toString());
+      setSelectedTeam(result);
+      
+      // Refresh team members list
+      await fetchData();
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error removing member from team:', error);
+      setError('Failed to remove member from team');
+    }
+  };
+
+  const handleViewMemberDetails = (member: any) => {
+    setSelectedMember(member);
+    setShowMemberDetailsModal(true);
   };
 
   if (loading) {
@@ -743,20 +807,19 @@ export function TeamManager() {
               <p className="text-gray-600">{selectedTeam.description}</p>
       </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Functional Unit</label>
-                <p className="text-gray-900">{selectedTeam.functional_unit_name || 'Not assigned'}</p>
-                    </div>
-                    <div>
-                <label className="block text-sm font-medium text-gray-700">Team Lead</label>
-                <p className="text-gray-900">{selectedTeam.team_lead_name}</p>
-                    </div>
+            <div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Members</label>
-                <p className="text-gray-900">{selectedTeam.member_count} / {selectedTeam.max_capacity}</p>
-                  </div>
-                </div>
+                <p className="text-gray-900 font-semibold">
+                  <span className="text-blue-600">{selectedTeam.members?.length || selectedTeam.member_count || 0}</span> / <span className="text-gray-600">{selectedTeam.max_capacity}</span>
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {(!selectedTeam.members?.length && !selectedTeam.member_count) || (selectedTeam.members?.length === 0 && selectedTeam.member_count === 0) ? 'No members' : 
+                   (selectedTeam.members?.length || selectedTeam.member_count) === 1 ? '1 member' : 
+                   `${selectedTeam.members?.length || selectedTeam.member_count} members`} assigned
+                </p>
+              </div>
+            </div>
               
             {selectedTeam.skills && selectedTeam.skills.length > 0 && (
                 <div>
@@ -790,9 +853,45 @@ export function TeamManager() {
                       <div>
                         <p className="font-medium text-gray-900">{member.name}</p>
                         <p className="text-sm text-gray-600">{member.team_role}</p>
-                  </div>
-                      <Badge variant="secondary">{member.skills?.length || 0} skills</Badge>
-                  </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="secondary">{member.skills?.length || 0} skills</Badge>
+                        <div className="relative group">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewMemberDetails(member);
+                            }}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                            View Details
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                        <div className="relative group">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveMemberFromTeam(member.id);
+                            }}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <UserMinus className="w-3 h-3" />
+                          </Button>
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                            Remove User
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -878,6 +977,66 @@ export function TeamManager() {
             </Button>
           </div>
         </div>
+        </Modal>
+      )}
+
+      {/* Member Details Modal */}
+      {selectedMember && (
+        <Modal
+          isOpen={showMemberDetailsModal}
+          onClose={() => {
+            setShowMemberDetailsModal(false);
+            setSelectedMember(null);
+          }}
+          title={`${selectedMember.name} - Member Details`}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-semibold text-lg">
+                  {selectedMember.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">{selectedMember.name}</h3>
+                <p className="text-gray-600">{selectedMember.team_role || 'Member'}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <p className="text-gray-900">{selectedMember.email || 'Not provided'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Skills</label>
+                <p className="text-gray-900">{selectedMember.skills?.length || 0} skills</p>
+              </div>
+            </div>
+
+            {selectedMember.skills && selectedMember.skills.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Skill Details</label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedMember.skills.map((skill: string, index: number) => (
+                    <Badge key={index} variant="secondary">{skill}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setShowMemberDetailsModal(false);
+                  setSelectedMember(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
       </div>
@@ -991,10 +1150,20 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                       {member.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                     {member.performance_flags_count > 0 && (
-                      <Badge variant="danger" className="px-3 py-1">
-                        <AlertTriangle className="w-3 h-3 mr-1" />
-                        {member.performance_flags_count} flags
-                      </Badge>
+                      <div className="flex items-center space-x-1">
+                        <Badge variant="danger" className="px-2 py-1 text-xs">
+                          🔴 {member.performance_flags_summary?.red || 0}
+                        </Badge>
+                        <Badge variant="warning" className="px-2 py-1 text-xs">
+                          🟠 {member.performance_flags_summary?.orange || 0}
+                        </Badge>
+                        <Badge variant="warning" className="px-2 py-1 text-xs">
+                          🟡 {member.performance_flags_summary?.yellow || 0}
+                        </Badge>
+                        <Badge variant="success" className="px-2 py-1 text-xs">
+                          🟢 {member.performance_flags_summary?.green || 0}
+                        </Badge>
+                      </div>
                     )}
       </div>
 
