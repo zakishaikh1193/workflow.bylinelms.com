@@ -5,7 +5,15 @@ const {
   getTask,
   createTask,
   updateTask,
-  deleteTask
+  deleteTask,
+  // Extension endpoints
+  requestTaskExtension,
+  getTaskExtensions,
+  reviewExtensionRequest,
+  // Remark endpoints
+  addTaskRemark,
+  getTaskRemarks,
+  deleteTaskRemark
 } = require('../controllers/taskController');
 const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
@@ -292,6 +300,109 @@ router.delete('/:id',
   idValidation,
   handleValidationErrors,
   deleteTask
+);
+
+// =====================================================
+// TASK EXTENSIONS ROUTES
+// =====================================================
+
+// Request task extension
+router.post('/:id/extensions',
+  requireAuth,
+  idValidation,
+  [
+    body('requested_due_date')
+      .isISO8601()
+      .withMessage('Requested due date must be a valid date'),
+    body('reason')
+      .trim()
+      .notEmpty()
+      .withMessage('Reason is required')
+      .isLength({ max: 1000 })
+      .withMessage('Reason must not exceed 1000 characters')
+  ],
+  handleValidationErrors,
+  requestTaskExtension
+);
+
+// Get task extensions
+router.get('/:id/extensions',
+  requireAuth,
+  idValidation,
+  handleValidationErrors,
+  getTaskExtensions
+);
+
+// Review extension request (admin only)
+router.put('/extensions/:extensionId/review',
+  requireAuth,
+  [
+    param('extensionId')
+      .isInt({ min: 1 })
+      .withMessage('Extension ID must be a positive integer'),
+    body('status')
+      .isIn(['approved', 'rejected'])
+      .withMessage('Status must be either "approved" or "rejected"'),
+    body('review_notes')
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('Review notes must not exceed 500 characters')
+  ],
+  handleValidationErrors,
+  reviewExtensionRequest
+);
+
+// =====================================================
+// TASK REMARKS ROUTES
+// =====================================================
+
+// Add task remark
+router.post('/:id/remarks',
+  requireAuth,
+  idValidation,
+  [
+    body('remark')
+      .trim()
+      .notEmpty()
+      .withMessage('Remark content is required')
+      .isLength({ max: 1000 })
+      .withMessage('Remark must not exceed 1000 characters'),
+    body('remark_date')
+      .optional()
+      .isISO8601()
+      .withMessage('Remark date must be a valid date'),
+    body('remark_type')
+      .optional()
+      .isIn(['general', 'progress', 'issue', 'update', 'other'])
+      .withMessage('Remark type must be one of: general, progress, issue, update, other'),
+    body('is_private')
+      .optional()
+      .isBoolean()
+      .withMessage('is_private must be a boolean')
+  ],
+  handleValidationErrors,
+  addTaskRemark
+);
+
+// Get task remarks
+router.get('/:id/remarks',
+  requireAuth,
+  idValidation,
+  handleValidationErrors,
+  getTaskRemarks
+);
+
+// Delete task remark
+router.delete('/remarks/:remarkId',
+  requireAuth,
+  [
+    param('remarkId')
+      .isInt({ min: 1 })
+      .withMessage('Remark ID must be a positive integer')
+  ],
+  handleValidationErrors,
+  deleteTaskRemark
 );
 
 module.exports = router;

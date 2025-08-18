@@ -436,6 +436,50 @@ export const taskService = {
     const result = await apiService.put(`/tasks/${id}`, { progress });
     return result.data;
   },
+
+  // =====================================================
+  // TASK EXTENSIONS
+  // =====================================================
+
+  // Request task extension
+  requestExtension: async (taskId: string | number, data: { requested_due_date: string; reason: string }) => {
+    const result = await apiService.post(`/tasks/${taskId}/extensions`, data);
+    return result.data;
+  },
+
+  // Get task extensions
+  getExtensions: async (taskId: string | number) => {
+    const result = await apiService.get(`/tasks/${taskId}/extensions`);
+    return result.data;
+  },
+
+  // Review extension request (admin only)
+  reviewExtension: async (extensionId: string | number, data: { status: 'approved' | 'rejected'; review_notes?: string }) => {
+    const result = await apiService.put(`/tasks/extensions/${extensionId}/review`, data);
+    return result.data;
+  },
+
+  // =====================================================
+  // TASK REMARKS
+  // =====================================================
+
+  // Add task remark
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+    const result = await apiService.post(`/tasks/${taskId}/remarks`, data);
+    return result.data;
+  },
+
+  // Get task remarks
+  getRemarks: async (taskId: string | number) => {
+    const result = await apiService.get(`/tasks/${taskId}/remarks`);
+    return result.data;
+  },
+
+  // Delete task remark
+  deleteRemark: async (remarkId: string | number) => {
+    const result = await apiService.delete(`/tasks/remarks/${remarkId}`);
+    return result.data;
+  },
 };
 
 // Team-specific task service
@@ -459,6 +503,44 @@ export const teamTaskService = {
   // Update task progress (team member access)
   updateProgress: async (id: string | number, progress: number) => {
     const result = await teamApiService.put(`/tasks/${id}`, { progress });
+    return result.data;
+  },
+
+  // =====================================================
+  // TEAM TASK EXTENSIONS
+  // =====================================================
+
+  // Request task extension (team member access)
+  requestExtension: async (taskId: string | number, data: { requested_due_date: string; reason: string }) => {
+    const result = await teamApiService.post(`/tasks/${taskId}/extensions`, data);
+    return result.data;
+  },
+
+  // Get task extensions (team member access)
+  getExtensions: async (taskId: string | number) => {
+    const result = await teamApiService.get(`/tasks/${taskId}/extensions`);
+    return result.data;
+  },
+
+  // =====================================================
+  // TEAM TASK REMARKS
+  // =====================================================
+
+  // Add task remark (team member access)
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+    const result = await teamApiService.post(`/tasks/${taskId}/remarks`, data);
+    return result.data;
+  },
+
+  // Get task remarks (team member access)
+  getRemarks: async (taskId: string | number) => {
+    const result = await teamApiService.get(`/tasks/${taskId}/remarks`);
+    return result.data;
+  },
+
+  // Delete task remark (team member access)
+  deleteRemark: async (remarkId: string | number) => {
+    const result = await teamApiService.delete(`/tasks/remarks/${remarkId}`);
     return result.data;
   },
 };

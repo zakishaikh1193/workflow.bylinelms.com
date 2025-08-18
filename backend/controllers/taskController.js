@@ -637,10 +637,428 @@ const getTaskById = async (taskId) => {
   return task;
 };
 
+// =====================================================
+// TASK EXTENSIONS CONTROLLERS
+// =====================================================
+
+// Request task extension
+const requestTaskExtension = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { requested_due_date, reason } = req.body;
+    const requested_by = req.user?.id || req.teamMember?.id;
+    const requested_by_type = req.user ? 'admin' : 'team';
+
+    // Validate required fields
+    if (!requested_due_date || !reason) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Missing required fields: requested_due_date, reason'
+        }
+      });
+    }
+
+    // Check if task exists and get current due date
+    const taskQuery = 'SELECT id, end_date FROM tasks WHERE id = ?';
+    const tasks = await db.query(taskQuery, [id]);
+    
+    if (tasks.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Task not found'
+        }
+      });
+    }
+
+    const task = tasks[0];
+    const current_due_date = task.end_date;
+    const formattedRequestedDate = new Date(requested_due_date).toISOString().split('T')[0];
+
+    // Check if requested date is after current due date
+    if (new Date(formattedRequestedDate) <= new Date(current_due_date)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Requested due date must be after the current due date'
+        }
+      });
+    }
+
+    // Check if there's already a pending extension request
+    const existingRequest = await db.query(
+      'SELECT id FROM task_extensions WHERE task_id = ? AND status = "pending"',
+      [id]
+    );
+
+    if (existingRequest.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'DUPLICATE_REQUEST',
+          message: 'There is already a pending extension request for this task'
+        }
+      });
+    }
+
+    // Create extension request
+    const insertQuery = `
+      INSERT INTO task_extensions (
+        task_id, requested_by, requested_by_type, current_due_date, 
+        requested_due_date, reason, status
+      ) VALUES (?, ?, ?, ?, ?, ?, 'pending')
+    `;
+
+    const result = await db.insert(insertQuery, [
+      id, requested_by, requested_by_type, current_due_date, 
+      formattedRequestedDate, reason
+    ]);
+
+    console.log('✅ Extension request created:', result.insertId);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.insertId,
+        task_id: id,
+        requested_due_date: formattedRequestedDate,
+        reason,
+        status: 'pending'
+      },
+      message: 'Extension request submitted successfully'
+    });
+
+  } catch (error) {
+    console.error('Request extension error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to submit extension request'
+      }
+    });
+  }
+};
+
+// Get task extensions
+const getTaskExtensions = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT 
+        te.*,
+        CASE 
+          WHEN te.requested_by_type = 'team' THEN tm.name
+          WHEN te.requested_by_type = 'admin' THEN au.name
+          ELSE 'Unknown'
+        END as requester_name,
+        CASE 
+          WHEN te.reviewed_by IS NOT NULL THEN admin_reviewer.name
+          ELSE NULL
+        END as reviewer_name
+      FROM task_extensions te
+      LEFT JOIN team_members tm ON te.requested_by = tm.id AND te.requested_by_type = 'team'
+      LEFT JOIN admin_users au ON te.requested_by = au.id AND te.requested_by_type = 'admin'
+      LEFT JOIN admin_users admin_reviewer ON te.reviewed_by = admin_reviewer.id
+      WHERE te.task_id = ?
+      ORDER BY te.created_at DESC
+    `;
+
+    const extensions = await db.query(query, [id]);
+
+    res.json({
+      success: true,
+      data: extensions
+    });
+
+  } catch (error) {
+    console.error('Get task extensions error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch task extensions'
+      }
+    });
+  }
+};
+
+// Review extension request (admin only)
+const reviewExtensionRequest = async (req, res) => {
+  try {
+    const { extensionId } = req.params;
+    const { status, review_notes } = req.body;
+    const reviewed_by = req.user?.id;
+
+    if (!req.user) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Only admins can review extension requests'
+        }
+      });
+    }
+
+    // Validate status
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Status must be either "approved" or "rejected"'
+        }
+      });
+    }
+
+    // Check if extension request exists
+    const extensionQuery = 'SELECT * FROM task_extensions WHERE id = ? AND status = "pending"';
+    const extensions = await db.query(extensionQuery, [extensionId]);
+    
+    if (extensions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Extension request not found or already reviewed'
+        }
+      });
+    }
+
+    const extension = extensions[0];
+
+    // Update extension request
+    const updateQuery = `
+      UPDATE task_extensions 
+      SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, review_notes = ?
+      WHERE id = ?
+    `;
+    
+    await db.query(updateQuery, [status, reviewed_by, review_notes, extensionId]);
+
+    // If approved, update task due date
+    if (status === 'approved') {
+      const taskUpdateQuery = 'UPDATE tasks SET end_date = ? WHERE id = ?';
+      await db.query(taskUpdateQuery, [extension.requested_due_date, extension.task_id]);
+      console.log(`✅ Task ${extension.task_id} due date updated to ${extension.requested_due_date}`);
+    }
+
+    res.json({
+      success: true,
+      message: `Extension request ${status} successfully`
+    });
+
+  } catch (error) {
+    console.error('Review extension error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to review extension request'
+      }
+    });
+  }
+};
+
+// =====================================================
+// TASK REMARKS CONTROLLERS
+// =====================================================
+
+// Add task remark
+const addTaskRemark = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remark, remark_date, remark_type = 'general', is_private = false } = req.body;
+    const added_by = req.user?.id || req.teamMember?.id;
+    const added_by_type = req.user ? 'admin' : 'team';
+
+    // Validate required fields
+    if (!remark) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Remark content is required'
+        }
+      });
+    }
+
+    // Check if task exists
+    const taskQuery = 'SELECT id FROM tasks WHERE id = ?';
+    const tasks = await db.query(taskQuery, [id]);
+    
+    if (tasks.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Task not found'
+        }
+      });
+    }
+
+    // Use provided date or current date
+    const formattedRemarkDate = remark_date ? 
+      new Date(remark_date).toISOString().split('T')[0] : 
+      new Date().toISOString().split('T')[0];
+
+    // Create remark
+    const insertQuery = `
+      INSERT INTO task_remarks (
+        task_id, added_by, added_by_type, remark_date, remark, remark_type, is_private
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const result = await db.insert(insertQuery, [
+      id, added_by, added_by_type, formattedRemarkDate, remark, remark_type, is_private
+    ]);
+
+    console.log('✅ Task remark added:', result.insertId);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.insertId,
+        task_id: id,
+        remark,
+        remark_date: formattedRemarkDate,
+        remark_type,
+        is_private
+      },
+      message: 'Remark added successfully'
+    });
+
+  } catch (error) {
+    console.error('Add task remark error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to add remark'
+      }
+    });
+  }
+};
+
+// Get task remarks
+const getTaskRemarks = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isAdmin = req.user; // Check if user is admin
+
+    let query = `
+      SELECT 
+        tr.*,
+        CASE 
+          WHEN tr.added_by_type = 'team' THEN tm.name
+          WHEN tr.added_by_type = 'admin' THEN au.name
+          ELSE 'Unknown'
+        END as user_name
+      FROM task_remarks tr
+      LEFT JOIN team_members tm ON tr.added_by = tm.id AND tr.added_by_type = 'team'
+      LEFT JOIN admin_users au ON tr.added_by = au.id AND tr.added_by_type = 'admin'
+      WHERE tr.task_id = ?
+    `;
+
+    const queryParams = [id];
+
+    // If not admin, exclude private remarks
+    if (!isAdmin) {
+      query += ' AND tr.is_private = 0';
+    }
+
+    query += ' ORDER BY tr.remark_date DESC, tr.created_at DESC';
+
+    const remarks = await db.query(query, queryParams);
+
+    res.json({
+      success: true,
+      data: remarks
+    });
+
+  } catch (error) {
+    console.error('Get task remarks error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch task remarks'
+      }
+    });
+  }
+};
+
+// Delete task remark (only by the user who created it or admin)
+const deleteTaskRemark = async (req, res) => {
+  try {
+    const { remarkId } = req.params;
+    const currentUserId = req.user?.id || req.teamMember?.id;
+    const isAdmin = req.user;
+
+    // Check if remark exists and get details
+    const remarkQuery = 'SELECT * FROM task_remarks WHERE id = ?';
+    const remarks = await db.query(remarkQuery, [remarkId]);
+    
+    if (remarks.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Remark not found'
+        }
+      });
+    }
+
+    const remark = remarks[0];
+
+    // Check permissions
+    if (!isAdmin && remark.added_by !== currentUserId) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'You can only delete your own remarks'
+        }
+      });
+    }
+
+    // Delete remark
+    await db.query('DELETE FROM task_remarks WHERE id = ?', [remarkId]);
+
+    res.json({
+      success: true,
+      message: 'Remark deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete task remark error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to delete remark'
+      }
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
   createTask,
   updateTask,
-  deleteTask
+  deleteTask,
+  // Extension endpoints
+  requestTaskExtension,
+  getTaskExtensions,
+  reviewExtensionRequest,
+  // Remark endpoints
+  addTaskRemark,
+  getTaskRemarks,
+  deleteTaskRemark
 };
