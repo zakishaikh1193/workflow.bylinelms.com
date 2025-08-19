@@ -521,9 +521,19 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     };
 
     const isOverdue = (item: any) => {
-      return new Date(item.endDate || item.date) < new Date() && 
-             item.status !== 'completed' && 
-             item.type !== 'milestone';
+      const endDate = item.endDate || item.date;
+      if (!endDate) return false;
+      
+      // Get today's date at midnight (start of day)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Get the end date at midnight (start of day)
+      const dueDate = new Date(endDate);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      // Item is overdue if due date is before today AND not completed AND not a milestone
+      return dueDate < today && item.status !== 'completed' && item.type !== 'milestone';
     };
 
     return (
@@ -799,6 +809,33 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     const handleUpdateTask = async (taskData: Partial<Task>) => {
       try {
         if (editingTask) {
+          // Build component path for display (same logic as handleCreateTask)
+          let componentPath = '';
+          if (taskData.gradeId) {
+            const grade = grades.find(g => g.id === parseInt(taskData.gradeId || '0'));
+            if (grade) {
+              componentPath = grade.name;
+              if (taskData.bookId) {
+                const book = books.find(b => b.id === parseInt(taskData.bookId || '0'));
+                if (book) {
+                  componentPath += ` > ${book.name}`;
+                  if (taskData.unitId) {
+                    const unit = units.find(u => u.id === parseInt(taskData.unitId || '0'));
+                    if (unit) {
+                      componentPath += ` > ${unit.name}`;
+                      if (taskData.lessonId) {
+                        const lesson = lessons.find(l => l.id === parseInt(taskData.lessonId || '0'));
+                        if (lesson) {
+                          componentPath += ` > ${lesson.name}`;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           // Update existing task
           const updateData = {
             name: taskData.name,
@@ -818,8 +855,17 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
             book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
             unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
             lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
-            component_path: taskData.componentPath
+            component_path: componentPath
           };
+          
+          console.log('🔄 Updating task with hierarchy:', {
+            taskId: editingTask.id,
+            grade_id: updateData.grade_id,
+            book_id: updateData.book_id,
+            unit_id: updateData.unit_id,
+            lesson_id: updateData.lesson_id,
+            component_path: updateData.component_path
+          });
           
           await taskService.update(editingTask.id, updateData);
           
@@ -877,7 +923,17 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     const isOverdue = (task: any) => {
       const endDate = task.end_date || task.endDate;
       if (!endDate) return false;
-      return new Date(endDate) < new Date() && task.status !== 'completed';
+      
+      // Get today's date at midnight (start of day)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Get the end date at midnight (start of day)
+      const dueDate = new Date(endDate);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      // Task is overdue if due date is before today AND not completed
+      return dueDate < today && task.status !== 'completed';
     };
 
     return (

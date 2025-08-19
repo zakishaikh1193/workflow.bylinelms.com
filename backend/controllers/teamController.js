@@ -143,7 +143,20 @@ const getMyTasks = async (req, res) => {
       unit_name: task.unit_name || null,
       lesson_name: task.lesson_name || null,
       // Add computed fields
-      is_overdue: task.end_date && new Date(task.end_date) < new Date() && task.status !== 'completed',
+      is_overdue: (() => {
+        if (!task.end_date || task.status === 'completed') return false;
+        
+        // Get today's date at midnight (start of day)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Get the end date at midnight (start of day)
+        const dueDate = new Date(task.end_date);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        // Task is overdue if due date is before today
+        return dueDate < today;
+      })(),
       days_until_due: task.end_date ? Math.ceil((new Date(task.end_date) - new Date()) / (1000 * 60 * 60 * 24)) : null,
       priority_color: task.priority === 'urgent' ? 'red' : task.priority === 'high' ? 'orange' : task.priority === 'medium' ? 'blue' : 'gray',
       status_color: task.status === 'completed' ? 'green' : task.status === 'in-progress' ? 'blue' : task.status === 'under-review' ? 'yellow' : task.status === 'blocked' ? 'red' : 'gray'
@@ -325,9 +338,9 @@ const createTeamMember = async (req, res) => {
       });
     }
 
-    // Check if email already exists
+    // Check if email already exists for active team members
     const existingMembers = await db.query(
-      'SELECT id FROM team_members WHERE email = ?',
+      'SELECT id FROM team_members WHERE email = ? AND is_active = true',
       [email]
     );
 
@@ -440,6 +453,19 @@ const updateTeamMember = async (req, res) => {
       updateValues.push(name);
     }
     if (email !== undefined) {
+      // Check if email already exists for other active team members
+      const existingEmailCheck = await db.query(
+        'SELECT id FROM team_members WHERE email = ? AND is_active = true AND id != ?',
+        [email, id]
+      );
+
+      if (existingEmailCheck.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Email already exists' }
+        });
+      }
+
       updateFields.push('email = ?');
       updateValues.push(email);
     }
@@ -562,10 +588,13 @@ const deleteTeamMember = async (req, res) => {
       });
     }
 
-    // Soft delete by setting is_active to false
+    // Generate random email to avoid conflicts when recreating team members
+    const randomEmail = `deleted_${Date.now()}_${Math.random().toString(36).substring(2, 15)}@deleted.com`;
+
+    // Soft delete by setting is_active to false and changing email to random string
     await db.execute(
-      'UPDATE team_members SET is_active = false WHERE id = ?',
-      [id]
+      'UPDATE team_members SET is_active = false, email = ? WHERE id = ?',
+      [randomEmail, id]
     );
 
     res.json({
