@@ -77,18 +77,32 @@ export function Dashboard() {
   weekFromNow.setDate(today.getDate() + 7);
   
   const todayTasks = allTasks.filter((task: any) => {
+    if (!task.end_date) return false;
     const taskDate = new Date(task.end_date);
-    return taskDate.toDateString() === today.toDateString() && task.status !== 'completed';
+    taskDate.setHours(0, 0, 0, 0);
+    const todayDate = new Date(today);
+    todayDate.setHours(0, 0, 0, 0);
+    return taskDate.getTime() === todayDate.getTime() && task.status !== 'completed';
   });
   
   const tomorrowTasks = allTasks.filter((task: any) => {
+    if (!task.end_date) return false;
     const taskDate = new Date(task.end_date);
-    return taskDate.toDateString() === tomorrow.toDateString() && task.status !== 'completed';
+    taskDate.setHours(0, 0, 0, 0);
+    const tomorrowDate = new Date(tomorrow);
+    tomorrowDate.setHours(0, 0, 0, 0);
+    return taskDate.getTime() === tomorrowDate.getTime() && task.status !== 'completed';
   });
   
   const thisWeekTasks = allTasks.filter((task: any) => {
+    if (!task.end_date) return false;
     const taskDate = new Date(task.end_date);
-    return taskDate >= today && taskDate <= weekFromNow && task.status !== 'completed';
+    taskDate.setHours(0, 0, 0, 0);
+    const todayDate = new Date(today);
+    todayDate.setHours(0, 0, 0, 0);
+    const weekFromNowDate = new Date(weekFromNow);
+    weekFromNowDate.setHours(0, 0, 0, 0);
+    return taskDate >= todayDate && taskDate <= weekFromNowDate && task.status !== 'completed';
   });
 
   const handleUserClick = (userId: string) => {

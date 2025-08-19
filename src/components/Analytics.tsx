@@ -145,7 +145,20 @@ export function Analytics() {
         total: filteredTasks.length,
         completed: filteredTasks.filter((t: any) => t.status === 'completed').length,
         inProgress: filteredTasks.filter((t: any) => t.status === 'in-progress').length,
-        overdue: filteredTasks.filter((t: any) => new Date(t.end_date) < now && t.status !== 'completed').length,
+        overdue: filteredTasks.filter((t: any) => {
+          if (!t.end_date || t.status === 'completed') return false;
+          
+          // Get today's date at midnight (start of day)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Get the end date at midnight (start of day)
+          const dueDate = new Date(t.end_date);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          // Task is overdue if due date is before today
+          return dueDate < today;
+        }).length,
         recent: recentTasks.length,
         avgCompletionTime: filteredTasks.filter((t: any) => t.status === 'completed').length > 0
           ? Math.round(filteredTasks.filter((t: any) => t.status === 'completed').reduce((sum: number, t: any) => {
@@ -217,7 +230,20 @@ export function Analytics() {
     
     // Calculate efficiency score
     const efficiencyScore = userTasks.length > 0 
-      ? Math.round((completionRate * 0.4) + ((userTasks.filter((t: any) => t.status === 'completed' && new Date(t.end_date) >= new Date()).length / userTasks.length) * 60))
+      ? Math.round((completionRate * 0.4) + ((userTasks.filter((t: any) => {
+          if (t.status !== 'completed') return false;
+          
+          // Get today's date at midnight (start of day)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Get the end date at midnight (start of day)
+          const dueDate = new Date(t.end_date);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          // Task is on time if due date is today or in the future
+          return dueDate >= today;
+        }).length / userTasks.length) * 60))
       : 0;
     
     return {
@@ -241,7 +267,20 @@ export function Analytics() {
 
   // Additional advanced metrics
   const performanceInsights = useMemo(() => {
-    const overdueTasks = data.tasks.filter((t: any) => new Date(t.end_date) < new Date() && t.status !== 'completed');
+    const overdueTasks = data.tasks.filter((t: any) => {
+      if (!t.end_date || t.status === 'completed') return false;
+      
+      // Get today's date at midnight (start of day)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Get the end date at midnight (start of day)
+      const dueDate = new Date(t.end_date);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      // Task is overdue if due date is before today
+      return dueDate < today;
+    });
     const highPriorityTasks = data.tasks.filter((t: any) => t.priority === 'high');
     const lowProgressProjects = data.projects.filter((p: any) => (p.progress || 0) < 30);
     
@@ -731,7 +770,7 @@ export function Analytics() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <Zap className="w-5 h-5 mr-2" />
@@ -758,7 +797,7 @@ export function Analytics() {
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Enhanced Task Timeline */}

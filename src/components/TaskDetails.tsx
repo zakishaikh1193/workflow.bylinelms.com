@@ -377,7 +377,17 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
   const isOverdue = () => {
     if (!task?.end_date) return false;
-    return new Date(task.end_date) < new Date() && task.status !== 'completed';
+    
+    // Get today's date at midnight (start of day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Get the end date at midnight (start of day)
+    const dueDate = new Date(task.end_date);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    // Task is overdue if due date is before today AND not completed
+    return dueDate < today && task.status !== 'completed';
   };
 
   if (loading) {
