@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, User, AlertCircle, Mail, Lock, Eye, EyeOff, ArrowLeft, Users, Shield } from 'lucide-react';
+import { LogIn, AlertCircle, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { teamService } from '../services/apiService';
@@ -44,118 +44,122 @@ export function TeamMemberLogin({ onLogin, onBackToAdmin }: TeamMemberLoginProps
   };
 
   return (
-    <div className="w-full max-w-md">
-      <Card className="shadow-xl border-0">
-        <CardHeader className="text-center pb-6">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-white" />
-            </div>
+    <div className="min-h-screen  grid grid-cols-1 lg:grid-cols-2 bg-[#FFF6EE] w-[100%]  " >
+      {/* Left - Hero image and welcome text */}
+      <div
+        className="relative hidden lg:block"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=1800&auto=format&fit=crop')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="absolute inset-0 bg-amber-900/40" />
+        <div className="relative z-10 h-full w-full flex items-center justify-center ">
+          <div className="text-center text-white max-w-2xl">
+            <h1 className="text-4xl xl:text-5xl font-extrabold drop-shadow-sm">Welcome to Byline</h1>
+            <p className="mt-4 text-white/90 text-lg">Access your personalized dashboard and manage your educational journey</p>
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            Team Member Portal
-          </CardTitle>
-          <p className="text-gray-600 mt-2">
-            Sign in to view your tasks and performance
-          </p>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
-                  placeholder="Enter your email"
-                />
-              </div>
-            </div>
+        </div>
+      </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Passcode
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type={showPasscode ? 'text' : 'password'}
-                  required
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
-                  placeholder="Enter your passcode"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasscode(!showPasscode)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+      {/* Right - Form card */}
+      <div className="flex items-center justify-center p-6 sm:p-10 !bg-[#FFF6EE]">
+        <div className="w-full max-w-md bg-[#FFF6EE]">
+          {/* Logo */}
+          <div className="flex items-center justify-center mb-6">
+            <img src="/logo.png" alt="Logo" className="h-14 w-14" />
+          </div>
 
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
-                <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
+          <Card className=" border-0 bg-[#FFF6EE]">
+            <CardHeader className="text-center pb-4 bg-[#FFF6EE]">
+              <CardTitle className="text-2xl font-bold text-gray-900">Welcome back</CardTitle>
+              <p className="text-gray-600 mt-2">Sign in to your account to continue</p>
+            </CardHeader>
 
-            <Button
-              type="submit"
-              className="w-full py-3"
-              loading={loading}
-              icon={<LogIn className="w-4 h-4" />}
-            >
-              Sign In to Team Portal
-            </Button>
-          </form>
-
-          {/* Back to Admin Section */}
-          {onBackToAdmin && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or</span>
-              </div>
-            </div>
-          )}
-
-          {onBackToAdmin && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center space-x-3 mb-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-white" />
-                </div>
+            <CardContent className="space-y-6 bg-[#FFF6EE]">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <h3 className="font-semibold text-blue-900">Admin Access?</h3>
-                  <p className="text-sm text-blue-700">Manage projects and teams</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-3 py-3 rounded-md border border-amber-200 bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-gray-400"
+                      placeholder="Email Address"
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">Password</label>
+                    <a className="text-xs text-amber-600 hover:underline cursor-pointer">Forget Password?</a>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type={showPasscode ? 'text' : 'password'}
+                      required
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value)}
+                      className="w-full pl-10 pr-12 py-3 rounded-md border border-amber-200 bg-white focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-gray-400"
+                      placeholder="Password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasscode(!showPasscode)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <input id="remember" type="checkbox" className="rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
+                  <label htmlFor="remember">Remember me</label>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center">
+                    <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-600 focus:ring-amber-500"
+                  loading={loading}
+                  icon={<LogIn className="w-4 h-4" />}
+                >
+                  Log In
+                </Button>
+              </form>
+
+              <div className="text-center text-sm text-gray-600">
+                Don't have an account yet? <a className="text-amber-600 hover:underline cursor-pointer">Sign up</a>
               </div>
-              
-              <Button
-                variant="outline"
-                className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
-                onClick={onBackToAdmin}
-                icon={<ArrowLeft className="w-4 h-4" />}
-              >
-                Back to Admin Portal
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+              {onBackToAdmin && (
+                <Button
+                  variant="outline"
+                  className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+                  onClick={onBackToAdmin}
+                  icon={<ArrowLeft className="w-4 h-4" />}
+                >
+                  Back to Dashboard Selection
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
