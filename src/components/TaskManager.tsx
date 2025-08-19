@@ -133,33 +133,56 @@ export function TaskManager() {
   const isOverdue = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
-    return new Date(endDate) < new Date() && task.status !== 'completed';
+    
+    // Get today's date at midnight (start of day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Get the end date at midnight (start of day)
+    const dueDate = new Date(endDate);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    // Task is overdue if due date is before today AND not completed
+    return dueDate < today && task.status !== 'completed';
   };
 
   const isDueToday = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
+    
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const dueDate = new Date(endDate);
-    return today.toDateString() === dueDate.toDateString() && task.status !== 'completed';
+    dueDate.setHours(0, 0, 0, 0);
+    
+    return dueDate.getTime() === today.getTime() && task.status !== 'completed';
   };
 
   const isDueTomorrow = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
+    
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
     const dueDate = new Date(endDate);
-    return tomorrow.toDateString() === dueDate.toDateString() && task.status !== 'completed';
+    dueDate.setHours(0, 0, 0, 0);
+    
+    return dueDate.getTime() === tomorrow.getTime() && task.status !== 'completed';
   };
 
   const isDueThisWeek = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
+    
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const weekFromNow = new Date();
     weekFromNow.setDate(today.getDate() + 7);
+    weekFromNow.setHours(0, 0, 0, 0);
     const dueDate = new Date(endDate);
+    dueDate.setHours(0, 0, 0, 0);
+    
     return dueDate >= today && dueDate <= weekFromNow && task.status !== 'completed';
   };
 
@@ -178,6 +201,33 @@ export function TaskManager() {
   const handleCreateTask = async (taskData: Partial<Task>) => {
     try {
       if (editingTask) {
+        // Build component path for display (same logic as ProjectDetails)
+        let componentPath = '';
+        if (taskData.gradeId) {
+          const grade = grades.find(g => g.id === parseInt(taskData.gradeId || '0'));
+          if (grade) {
+            componentPath = grade.name;
+            if (taskData.bookId) {
+              const book = books.find(b => b.id === parseInt(taskData.bookId || '0'));
+              if (book) {
+                componentPath += ` > ${book.name}`;
+                if (taskData.unitId) {
+                  const unit = units.find(u => u.id === parseInt(taskData.unitId || '0'));
+                  if (unit) {
+                    componentPath += ` > ${unit.name}`;
+                    if (taskData.lessonId) {
+                      const lesson = lessons.find(l => l.id === parseInt(taskData.lessonId || '0'));
+                      if (lesson) {
+                        componentPath += ` > ${lesson.name}`;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
         // Update existing task
         const updateData = {
           name: taskData.name,
@@ -197,8 +247,17 @@ export function TaskManager() {
           book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
           unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
           lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
-          component_path: taskData.componentPath
+          component_path: componentPath
         };
+        
+        console.log('🔄 Updating task with hierarchy in TaskManager:', {
+          taskId: editingTask.id,
+          grade_id: updateData.grade_id,
+          book_id: updateData.book_id,
+          unit_id: updateData.unit_id,
+          lesson_id: updateData.lesson_id,
+          component_path: updateData.component_path
+        });
         
         await taskService.update(editingTask.id, updateData);
         
@@ -206,6 +265,33 @@ export function TaskManager() {
         const tasksData = await taskService.getAll();
         setTasks(tasksData);
       } else {
+        // Build component path for display
+        let componentPath = '';
+        if (taskData.gradeId) {
+          const grade = grades.find(g => g.id === parseInt(taskData.gradeId || '0'));
+          if (grade) {
+            componentPath = grade.name;
+            if (taskData.bookId) {
+              const book = books.find(b => b.id === parseInt(taskData.bookId || '0'));
+              if (book) {
+                componentPath += ` > ${book.name}`;
+                if (taskData.unitId) {
+                  const unit = units.find(u => u.id === parseInt(taskData.unitId || '0'));
+                  if (unit) {
+                    componentPath += ` > ${unit.name}`;
+                    if (taskData.lessonId) {
+                      const lesson = lessons.find(l => l.id === parseInt(taskData.lessonId || '0'));
+                      if (lesson) {
+                        componentPath += ` > ${lesson.name}`;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
         // Convert skill names to skill IDs
         const skillIds = (taskData.skills || []).map((skillName: string) => {
           const skill = skills.find(s => s.name === skillName);
@@ -225,7 +311,7 @@ export function TaskManager() {
           estimated_hours: taskData.estimatedHours || 8,
           assignees: taskData.assignees || [],
           skills: skillIds,
-          component_path: taskData.componentPath,
+          component_path: componentPath,
           // Add educational hierarchy IDs
           grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
           book_id: taskData.bookId ? parseInt(taskData.bookId) : null,

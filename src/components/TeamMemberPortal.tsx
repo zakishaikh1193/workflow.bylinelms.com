@@ -171,7 +171,18 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   };
 
   const isTaskOverdue = (task: Task) => {
-    return task.end_date && new Date(task.end_date) < new Date() && task.status !== 'completed';
+    if (!task.end_date) return false;
+    
+    // Get today's date at midnight (start of day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Get the end date at midnight (start of day)
+    const dueDate = new Date(task.end_date);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    // Task is overdue if due date is before today AND not completed
+    return dueDate < today && task.status !== 'completed';
   };
 
   const getDaysUntilDue = (task: Task) => {
