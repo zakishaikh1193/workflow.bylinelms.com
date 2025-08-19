@@ -35,7 +35,7 @@ function App() {
   if (showTeamPortal) {
     if (!teamMemberUser) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center ">
           <TeamMemberLogin 
             onLogin={(user) => setTeamMemberUser(user)}
             onBackToAdmin={() => setShowTeamPortal(false)}
@@ -58,7 +58,7 @@ function App() {
   // Admin/Manager Login
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center ">
         <Auth onSwitchToTeam={() => setShowTeamPortal(true)} />
       </div>
     );

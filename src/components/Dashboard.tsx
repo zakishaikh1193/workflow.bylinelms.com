@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   FolderOpen, 
   Users, 
   CheckSquare, 
-  Clock,
   TrendingUp,
   AlertTriangle,
   Calendar,
@@ -16,7 +15,7 @@ import { ProgressBar } from './ui/ProgressBar';
 import { Button } from './ui/Button';
 import { useApp } from '../contexts/AppContext';
 import { dashboardService } from '../services/apiService';
-import { calculateProjectProgress } from '../utils/progressCalculator';
+// import { calculateProjectProgress } from '../utils/progressCalculator';
 
 export function Dashboard() {
   const { state, dispatch } = useApp();
@@ -194,19 +193,42 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Overview of your project management activities</p>
+    <div className="relative min-h-screen p-6 space-y-8 bg-gradient-to-br from-amber-50 via-white to-blue-50">
+      <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:18px_18px]" />
+      <div className="relative">
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-bold">Dashboard</h1>
+              <p className="text-white/80">Overview of your project management activities</p>
+            </div>
+            <div className="hidden md:flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wider text-white/70">Projects</p>
+                <p className="text-xl font-semibold">{stats_data.totalProjects || 0}</p>
+              </div>
+              <div className="h-10 w-px bg-white/20" />
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wider text-white/70">Team</p>
+                <p className="text-xl font-semibold">{stats_data.totalTeamMembers || 0}</p>
+              </div>
+              <div className="h-10 w-px bg-white/20" />
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wider text-white/70">Categories</p>
+                <p className="text-xl font-semibold">{stats_data.totalCategories || 0}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-md transition-shadow cursor-pointer" onClick={stat.onClick}>
+          <Card key={stat.title} className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5" onClick={stat.onClick}>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className={`p-2 rounded-lg ${stat.bg}`}>
+                <div className={`p-2.5 rounded-xl ring-1 ring-inset ring-gray-200 ${stat.bg}`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
                 </div>
                 <div className="ml-4">
@@ -214,7 +236,7 @@ export function Dashboard() {
                   <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                 </div>
               </div>
-              <div className="mt-2 flex items-center text-sm text-gray-500">
+              <div className="mt-3 flex items-center text-sm text-gray-500">
                 <span>Click to view details</span>
                 <ChevronRight className="w-4 h-4 ml-1" />
               </div>
@@ -226,7 +248,7 @@ export function Dashboard() {
       {/* Task Due Dates Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card 
-          className="hover:shadow-md transition-shadow cursor-pointer"
+          className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5"
           onClick={() => handleStatClick('tasks', { dueToday: true })}
         >
           <CardContent className="p-6">
@@ -245,7 +267,7 @@ export function Dashboard() {
         </Card>
 
         <Card 
-          className="hover:shadow-md transition-shadow cursor-pointer"
+          className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5"
           onClick={() => handleStatClick('tasks', { dueTomorrow: true })}
         >
           <CardContent className="p-6">
@@ -264,7 +286,7 @@ export function Dashboard() {
         </Card>
 
         <Card 
-          className="hover:shadow-md transition-shadow cursor-pointer"
+          className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5"
           onClick={() => handleStatClick('tasks', { dueThisWeek: true })}
         >
           <CardContent className="p-6">
@@ -284,8 +306,8 @@ export function Dashboard() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Projects */}
-        <Card>
-          <CardHeader>
+        <Card className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle>Recent Projects</CardTitle>
               <Button 
@@ -297,11 +319,11 @@ export function Dashboard() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {projects.slice(0, 5).map((project: any) => (
               <div 
                 key={project.id} 
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 hover:shadow-sm hover:bg-gray-50 cursor-pointer transition-colors"
                 onClick={() => handleStatClick('projects')}
               >
                 <div className="flex-1">
@@ -325,8 +347,8 @@ export function Dashboard() {
         </Card>
 
         {/* Team Workload */}
-        <Card>
-          <CardHeader>
+        <Card className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle>Team Workload</CardTitle>
               <Button 
@@ -338,7 +360,7 @@ export function Dashboard() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {teamMembers.slice(0, 6).map((member: any) => {
               const memberTasks = allTasks.filter((t: any) => t.assignees && t.assignees.includes(member.id));
               const completedTasks = memberTasks.filter((t: any) => t.status === 'completed').length;
@@ -347,11 +369,11 @@ export function Dashboard() {
               return (
                 <div 
                   key={member.id} 
-                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="flex items-center justify-between p-2 rounded-lg border border-gray-100 bg-white hover:shadow-sm hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => handleUserClick(member.id)}
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-sm">
                       {member.name.charAt(0)}
                     </div>
                     <div>
@@ -377,32 +399,32 @@ export function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm">
+        <CardHeader className="pb-2">
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button 
               onClick={() => dispatch({ type: 'SET_SELECTED_VIEW', payload: 'projects' })}
-              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+              className="p-4 rounded-lg bg-white border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all"
             >
-              <FolderOpen className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-700">Create New Project</p>
+              <FolderOpen className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-800">Create New Project</p>
             </button>
             <button 
               onClick={() => dispatch({ type: 'SET_SELECTED_VIEW', payload: 'teams' })}
-              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
+              className="p-4 rounded-lg bg-white border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all"
             >
-              <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-700">Add Team Member</p>
+              <Users className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-800">Add Team Member</p>
             </button>
             <button 
               onClick={() => dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' })}
-              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors"
+              className="p-4 rounded-lg bg-white border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all"
             >
-              <CheckSquare className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-700">Create Task</p>
+              <CheckSquare className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-800">Create Task</p>
             </button>
           </div>
         </CardContent>
