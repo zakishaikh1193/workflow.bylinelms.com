@@ -39,8 +39,10 @@ import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Button } from './ui/Button';
 import { projectService, taskService, teamService, categoryService, skillService } from '../services/apiService';
+import { useApp } from '../contexts/AppContext';
 
 export function Analytics() {
+  const { dispatch } = useApp();
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [viewMode, setViewMode] = useState<'overview' | 'detailed' | 'trends'>('overview');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -347,22 +349,22 @@ export function Analytics() {
               <Eye className="w-4 h-4 mr-1" />
               Overview
             </Button>
-            <Button
+            {/* <Button
               variant={viewMode === 'detailed' ? 'primary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('detailed')}
             >
               <BarChart className="w-4 h-4 mr-1" />
               Detailed
-            </Button>
-            <Button
+            </Button> */}
+            {/* <Button
               variant={viewMode === 'trends' ? 'primary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('trends')}
             >
               <TrendingUp className="w-4 h-4 mr-1" />
               Trends
-            </Button>
+            </Button> */}
           </div>
 
           {/* Filters */}
@@ -770,7 +772,7 @@ export function Analytics() {
           </CardContent>
         </Card>
 
-        {/* <Card>
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <Zap className="w-5 h-5 mr-2" />
@@ -779,25 +781,49 @@ export function Analytics() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              <Button variant="outline" className="w-full justify-start">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  dispatch({ type: 'SET_FILTERS', payload: { overdue: true } });
+                  dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
+                }}
+                title="Navigate to Tasks and show overdue items"
+              >
                 <Clock className="w-4 h-4 mr-2" />
                 Review Overdue Tasks
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  dispatch({ type: 'SET_FILTERS', payload: { priority: 'high' } });
+                  dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
+                }}
+                title="Navigate to Tasks and show high priority items"
+              >
                 <Target className="w-4 h-4 mr-2" />
                 Prioritize High Priority Items
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  dispatch({ type: 'SET_SELECTED_VIEW', payload: 'teams' });
+                }}
+                title="Go to Team Management"
+              >
                 <Users className="w-4 h-4 mr-2" />
                 Reassign Underutilized Team
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              {/* <Button variant="outline" className="w-full justify-start">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Optimize Workflow
-              </Button>
+              </Button> */}
             </div>
           </CardContent>
-        </Card> */}
+        </Card>
       </div>
 
       {/* Enhanced Task Timeline */}

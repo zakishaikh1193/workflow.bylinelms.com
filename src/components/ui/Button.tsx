@@ -8,7 +8,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode;
 }
 
-export function Button({
+function ButtonBase({
   children,
   variant = 'primary',
   size = 'md',
@@ -49,3 +49,5 @@ export function Button({
     </button>
   );
 }
+
+export const Button = React.memo(ButtonBase);

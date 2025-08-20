@@ -26,6 +26,7 @@ export function TaskManager() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
@@ -44,6 +45,7 @@ export function TaskManager() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [onlyOverdue, setOnlyOverdue] = useState(false);
 
   // Fetch tasks and related data from backend
   useEffect(() => {
@@ -70,8 +72,8 @@ export function TaskManager() {
           filters.assignee_id = selectedAssignee;
           // Don't filter by assignee_type - let the backend handle both admin and team assignees
         }
-        if (searchTerm) {
-          filters.search = searchTerm;
+        if (debouncedSearch) {
+          filters.search = debouncedSearch;
         }
         
         console.log('🔍 Sending filters to API:', filters);
@@ -112,7 +114,13 @@ export function TaskManager() {
     };
 
     fetchData();
-  }, [sortField, sortOrder, selectedStatus, selectedPriority, selectedProject, selectedAssignee, searchTerm]);
+  }, [sortField, sortOrder, selectedStatus, selectedPriority, selectedProject, selectedAssignee, debouncedSearch]);
+
+  // Debounce search term to reduce API calls
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 250);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -122,6 +130,12 @@ export function TaskManager() {
       }
       if (state.filters.teamMembers) {
         setSelectedAssignee(state.filters.teamMembers.length === 1 ? state.filters.teamMembers[0] : 'all');
+      }
+      if ((state.filters as any).priority) {
+        setSelectedPriority((state.filters as any).priority);
+      }
+      if ((state.filters as any).overdue) {
+        setOnlyOverdue(true);
       }
       // Clear filters after applying - use setTimeout to avoid infinite loop
       setTimeout(() => {
@@ -192,6 +206,7 @@ export function TaskManager() {
     if (state.filters?.dueToday && !isDueToday(task)) return false;
     if (state.filters?.dueTomorrow && !isDueTomorrow(task)) return false;
     if (state.filters?.dueThisWeek && !isDueThisWeek(task)) return false;
+    if (onlyOverdue && !isOverdue(task)) return false;
     
     return true;
   });
@@ -531,7 +546,11 @@ export function TaskManager() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={`${onlyOverdue ? 'ring-2 ring-red-300' : ''} cursor-pointer hover:shadow-md`}
+          onClick={() => setOnlyOverdue(prev => !prev)}
+          // title="Click to toggle Overdue only filter"
+        >
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="p-2 rounded-lg bg-red-50">
@@ -606,6 +625,8 @@ export function TaskManager() {
               <option key={user.id} value={user.id}>{user.name}</option>
             ))}
           </select>
+
+          {/* Overdue-only checkbox temporarily disabled; use the Overdue stat card to toggle */}
         </div>
       </div>
 

@@ -224,6 +224,7 @@ export interface FilterOptions {
   skills?: string[];
   stages?: string[];
   statuses?: string[];
+  priority?: string; // e.g., 'high', 'urgent'
   overdue?: boolean;
   dueToday?: boolean;
   dueTomorrow?: boolean;
