@@ -1,10 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
-  FolderOpen, 
   Calendar, 
   Users, 
-  MoreHorizontal,
   Filter,
   Grid,
   List,
@@ -19,10 +18,8 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
-import { useApp } from '../contexts/AppContext';
 import { Project, ProjectStatus } from '../types';
 import { ProjectDetails } from './ProjectDetails';
-import { calculateProjectProgress } from '../utils/progressCalculator';
 import { projectService, categoryService, stageService, taskService } from '../services/apiService';
 
 // Category-specific stage templates
@@ -73,6 +70,7 @@ export function ProjectManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tasksByProject, setTasksByProject] = useState<Record<string, number>>({});
+  const [allStages, setAllStages] = useState<any[]>([]);
 
   // Fetch data from backend
   useEffect(() => {
@@ -81,17 +79,17 @@ export function ProjectManager() {
         setLoading(true);
         setError(null);
         
-        const [projectsData, categoriesData, allTasks] = await Promise.all([
+        const [projectsData, categoriesData, allTasks, stagesData] = await Promise.all([
           projectService.getAll(),
           categoryService.getAll(),
-          taskService.getAll()
-          
-          
+          taskService.getAll(),
+          stageService.getAll()
         ]);
         
         setProjects(projectsData);
         console.log("Data",projects, categories);
         setCategories(categoriesData);
+        setAllStages(stagesData || []);
 
         // Aggregate task counts per project (handle different id field names)
         const counts: Record<string, number> = {};
@@ -136,6 +134,16 @@ export function ProjectManager() {
     return 'Uncategorized';
   };
 
+  const stageIdToName = useMemo(() => {
+    const map: Record<string, string> = {};
+    (allStages || []).forEach((s: any) => {
+      if (s && (s.id !== undefined) && s.name) {
+        map[String(s.id)] = s.name;
+      }
+    });
+    return map;
+  }, [allStages]);
+
   const filteredProjects = projects.filter(project => {
     if (selectedCategory !== 'all' && getProjectCategoryName(project) !== selectedCategory) return false;
     if (selectedStatus !== 'all' && project.status !== selectedStatus) return false;
@@ -171,41 +179,6 @@ export function ProjectManager() {
     } catch (err: any) {
       console.error('❌ Create project error:', err);
       setError(err.message || 'Failed to create project');
-    }
-  };
-
-  const handleUpdateProject = async (projectId: string, projectData: Partial<Project> & { currentStageId?: number }) => {
-    try {
-      setError(null);
-      
-      // Find the category ID from the name if category is being updated
-      const category = projectData.category ? categories.find(c => c.name === projectData.category) : null;
-      
-      // Prepare project data for backend
-      const backendProjectData: any = {};
-      if (projectData.name) backendProjectData.name = projectData.name;
-      if (projectData.description) backendProjectData.description = projectData.description;
-      if (category) backendProjectData.category_id = category.id;
-      if (projectData.currentStageId !== undefined) backendProjectData.current_stage_id = projectData.currentStageId;
-      if (projectData.startDate) backendProjectData.start_date = projectData.startDate.toISOString().split('T')[0];
-      if (projectData.endDate) backendProjectData.end_date = projectData.endDate.toISOString().split('T')[0];
-      if (projectData.status) backendProjectData.status = projectData.status;
-      if (projectData.progress !== undefined) backendProjectData.progress = projectData.progress;
-      
-      console.log('🔄 Updating project:', projectId, backendProjectData);
-      
-      // Update project via API
-      const updatedProject = await projectService.update(projectId, backendProjectData);
-      
-      // Update local state
-      setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
-      
-      console.log('✅ Project updated successfully:', updatedProject);
-      return updatedProject;
-    } catch (err: any) {
-      console.error('❌ Update project error:', err);
-      setError(err.message || 'Failed to update project');
-      throw err;
     }
   };
 
@@ -326,7 +299,7 @@ export function ProjectManager() {
           <Button 
             icon={<Plus className="w-4 h-4" />} 
             onClick={() => setIsCreateModalOpen(true)}
-            className="bg-white/90 text-indigo-900 hover:text-blue-800 hover:bg-white"
+            className="bg-white/90 text-indigo-900 hover:text-blue-800 hover:bg:white"
           >
             New Project
           </Button>
@@ -401,7 +374,19 @@ export function ProjectManager() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
+                      {project.name}
+                      {/* current stage badge if available */}
+                      {(() => {
+                        const id = (project as any).current_stage_id ?? (project as any).currentStageId;
+                        const name = id !== undefined && id !== null ? stageIdToName[String(id)] : null;
+                        return name ? (
+                          <Badge variant="secondary" className="text-[11px] px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200">
+                            {name}
+                          </Badge>
+                        ) : null;
+                      })()}
+                    </CardTitle>
                     <div className="mt-1">
                       <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border border-blue-200">{getProjectCategoryName(project)}</Badge>
                     </div>
@@ -480,16 +465,6 @@ export function ProjectManager() {
                       <span className="font-medium">{project.userCount || 0}</span>
                       <span className="ml-1 text-gray-500">team</span>
                     </div>
-                    {/* <div className="inline-flex items-center text-gray-700">
-                      <Calendar className="w-4 h-4 mr-1 text-emerald-600" />
-                      {(() => {
-                        const days = getDaysLeft((project.end_date as any) || (project.endDate as any));
-                        if (days === null) return <span className="text-gray-500">No due date</span>;
-                        const label = days < 0 ? `${Math.abs(days)} overdue` : days === 0 ? 'Due today' : `${days} days`;
-                        const cls = days < 0 ? 'text-red-600' : days <= 3 ? 'text-orange-600' : 'text-emerald-600';
-                        return <span className={`font-medium ${cls}`}>{label}</span>;
-                      })()}
-                    </div> */}
                   </div>
                 </div>
 
@@ -555,7 +530,18 @@ export function ProjectManager() {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{project.name}</div>
+                          <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                            {project.name}
+                            {(() => {
+                              const id = (project as any).current_stage_id ?? (project as any).currentStageId;
+                              const name = id !== undefined && id !== null ? stageIdToName[String(id)] : null;
+                              return name ? (
+                                <Badge variant="secondary" className="text-[11px] px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200">
+                                  {name}
+                                </Badge>
+                              ) : null;
+                            })()}
+                          </div>
                           <div className="text-sm text-gray-500">{project.description}</div>
                         </div>
                       </td>

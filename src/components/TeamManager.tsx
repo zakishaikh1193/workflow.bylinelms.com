@@ -10,6 +10,8 @@ import {
   Edit,
   Trash2,
   Search,
+  Grid,
+  List,
   // Filter,
   // MoreVertical,
   UserPlus,
@@ -83,6 +85,8 @@ export function TeamManager() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [visibleMembers, setVisibleMembers] = useState(24);
   const [visibleTeams, setVisibleTeams] = useState(24);
+  const [teamViewMode, setTeamViewMode] = useState<'grid' | 'list'>('grid');
+  const [memberViewMode, setMemberViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateMemberModal, setShowCreateMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
 
@@ -584,40 +588,104 @@ export function TeamManager() {
           </div>
         </div>
 
-        <Button
-          onClick={() => {
-            if (activeTab === 'members') {
-              setEditingMember(null);
-              resetMemberForm();
-              setShowCreateMemberModal(true);
-            } else {
-              setEditingTeam(null);
-              resetTeamForm();
-              setShowCreateTeamModal(true);
-            }
-          }}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add {activeTab === 'members' ? 'Member' : 'Team'}</span>
-        </Button>
+        <div className="flex items-center space-x-2">
+          {activeTab === 'teams' && (
+            <>
+              <Button
+                variant={teamViewMode === 'grid' ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => setTeamViewMode('grid')}
+                className={teamViewMode === 'grid' ? '' : 'hover:bg-gray-100'}
+                title="Grid view"
+              >
+                <Grid className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={teamViewMode === 'list' ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => setTeamViewMode('list')}
+                className={teamViewMode === 'list' ? '' : 'hover:bg-gray-100'}
+                title="List view"
+              >
+                <List className="w-4 h-4" />
+              </Button>
+            </>
+          )}
+          {activeTab === 'members' && (
+            <>
+              <Button
+                variant={memberViewMode === 'grid' ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => setMemberViewMode('grid')}
+                className={memberViewMode === 'grid' ? '' : 'hover:bg-gray-100'}
+                title="Grid view"
+              >
+                <Grid className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={memberViewMode === 'list' ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => setMemberViewMode('list')}
+                className={memberViewMode === 'list' ? '' : 'hover:bg-gray-100'}
+                title="List view"
+              >
+                <List className="w-4 h-4" />
+              </Button>
+            </>
+          )}
+          <Button
+            onClick={() => {
+              if (activeTab === 'members') {
+                setEditingMember(null);
+                resetMemberForm();
+                setShowCreateMemberModal(true);
+              } else {
+                setEditingTeam(null);
+                resetTeamForm();
+                setShowCreateTeamModal(true);
+              }
+            }}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add {activeTab === 'members' ? 'Member' : 'Team'}</span>
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
       {activeTab === 'members' ? (
-        <TeamMembersTab
-          members={filteredMembers.slice(0, visibleMembers)}
-          onEdit={openEditMember}
-          onDelete={handleDeleteMember}
-          onMemberClick={handleMemberClick}
-        />
+        memberViewMode === 'grid' ? (
+          <TeamMembersTab
+            members={filteredMembers.slice(0, visibleMembers)}
+            onEdit={openEditMember}
+            onDelete={handleDeleteMember}
+            onMemberClick={handleMemberClick}
+          />
+        ) : (
+          <MembersList
+            members={filteredMembers.slice(0, visibleMembers)}
+            onEdit={openEditMember}
+            onDelete={handleDeleteMember}
+            onMemberClick={handleMemberClick}
+          />
+        )
       ) : (
-        <TeamsTab
-          teams={filteredTeams.slice(0, visibleTeams)}
-          onEdit={openEditTeam}
-          onDelete={handleDeleteTeam}
-          onViewDetails={openTeamDetails}
-        />
+        teamViewMode === 'grid' ? (
+          <TeamsTab
+            teams={filteredTeams.slice(0, visibleTeams)}
+            onEdit={openEditTeam}
+            onDelete={handleDeleteTeam}
+            onViewDetails={openTeamDetails}
+          />
+        ) : (
+          <TeamsList
+            teams={filteredTeams.slice(0, visibleTeams)}
+            onEdit={openEditTeam}
+            onDelete={handleDeleteTeam}
+            onViewDetails={openTeamDetails}
+          />
+        )
       )}
 
       {/* Load more for basic virtualization */}
@@ -1104,20 +1172,21 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
       {members.map((member) => (
         <Card
           key={member.id}
-          className="hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+          className={`relative overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 bg-white/90 backdrop-blur-sm ${member.is_active ? 'ring-1 ring-emerald-200' : ''}`}
           onClick={() => onMemberClick && onMemberClick(member)}
         >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500" />
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
                     <span className="text-white font-semibold text-sm">
                       {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 text-lg">{member.name}</h3>
+                    <h3 className="font-semibold text-gray-900 text-lg tracking-tight">{member.name}</h3>
                     <p className="text-sm text-gray-600 flex items-center">
                       <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                       {member.email}
@@ -1135,13 +1204,13 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700">Tasks</span>
-                      <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full border border-orange-200">
                         {member.task_count || 0} tasks
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                       <div
-                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                        className="h-2 rounded-full transition-all duration-700 bg-gradient-to-r from-amber-500 to-orange-600"
                         style={{ width: `${Math.min((member.task_count || 0) * 10, 100)}%` }}
                       />
                     </div>
@@ -1150,7 +1219,7 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700">Skills</span>
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full border border-blue-200">
                         {member.skills.length} skills
                       </span>
                     </div>
@@ -1158,12 +1227,12 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                     {member.skills.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {member.skills.slice(0, 3).map((skill, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs px-2 py-1">
+                          <Badge key={index} variant="secondary" className="text-[11px] px-2 py-0.5">
                             {skill}
                           </Badge>
                         ))}
                         {member.skills.length > 3 && (
-                          <Badge variant="secondary" className="text-xs px-2 py-1">
+                          <Badge variant="secondary" className="text-[11px] px-2 py-0.5">
                             +{member.skills.length - 3} more
                           </Badge>
                         )}
@@ -1175,14 +1244,14 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-700">Teams</span>
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                        <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full border border-green-200">
                           {member.team_names.length} team{member.team_names.length > 1 ? 's' : ''}
                         </span>
                       </div>
 
                       <div className="flex flex-wrap gap-1">
                         {member.team_names.map((teamName, index) => (
-                          <Badge key={index} variant="default" className="text-xs px-2 py-1 bg-green-100 text-green-800">
+                          <Badge key={index} variant="default" className="text-[11px] px-2 py-0.5 bg-green-50 text-green-800 border border-green-200">
                             {teamName}
                           </Badge>
                         ))}
@@ -1198,16 +1267,16 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                     </Badge>
                     {member.performance_flags_count > 0 && (
                       <div className="flex items-center space-x-1">
-                        <Badge variant="danger" className="px-2 py-1 text-xs">
+                        <Badge variant="danger" className="px-2 py-1 text-[11px]">
                           🔴 {member.performance_flags_summary?.red || 0}
                         </Badge>
-                        <Badge variant="warning" className="px-2 py-1 text-xs">
+                        <Badge variant="warning" className="px-2 py-1 text-[11px]">
                           🟠 {member.performance_flags_summary?.orange || 0}
                         </Badge>
-                        <Badge variant="warning" className="px-2 py-1 text-xs">
+                        <Badge variant="warning" className="px-2 py-1 text-[11px]">
                           🟡 {member.performance_flags_summary?.yellow || 0}
                         </Badge>
-                        <Badge variant="success" className="px-2 py-1 text-xs">
+                        <Badge variant="success" className="px-2 py-1 text-[11px]">
                           🟢 {member.performance_flags_summary?.green || 0}
                         </Badge>
                       </div>
@@ -1248,6 +1317,93 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
   );
 }
 
+// Members List View
+function MembersList({ members, onEdit, onDelete, onMemberClick }: TeamMembersTabProps) {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skills</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teams</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasks</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Flags</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {members.map((m) => (
+                <tr key={m.id} className="hover:bg-gray-50 odd:bg-white even:bg-gray-50/60">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        {m.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{m.name}</div>
+                        <div className="text-xs text-gray-600">{m.email}</div>
+                      </div>
+                    </div>
+                    {m.passcode && (
+                      <div className="text-[11px] text-gray-500 mt-0.5">Passcode: <span className="font-mono bg-gray-100 px-1 rounded">{m.passcode}</span></div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {m.skills && m.skills.length > 0 ? m.skills.slice(0, 3).join(', ') : '-'}
+                    {m.skills && m.skills.length > 3 && (
+                      <span className="text-xs text-gray-500"> +{m.skills.length - 3} more</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {m.team_names && m.team_names.length > 0 ? m.team_names.slice(0, 2).join(', ') : '-'}
+                    {m.team_names && m.team_names.length > 2 && (
+                      <span className="text-xs text-gray-500"> +{m.team_names.length - 2} more</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{m.task_count || 0}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <Badge variant={m.is_active ? 'default' : 'secondary'} className="text-[11px] px-2 py-0.5">
+                      {m.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {m.performance_flags_count > 0 ? (
+                      <div className="flex items-center gap-1 text-xs">
+                        <Badge variant="danger">🔴 {m.performance_flags_summary?.red || 0}</Badge>
+                        <Badge variant="warning">🟠 {m.performance_flags_summary?.orange || 0}</Badge>
+                        <Badge variant="warning">🟡 {m.performance_flags_summary?.yellow || 0}</Badge>
+                        <Badge variant="success">🟢 {m.performance_flags_summary?.green || 0}</Badge>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">No flags</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <div className="flex items-center justify-end space-x-1">
+                      <Button variant="ghost" size="sm" onClick={() => onMemberClick && onMemberClick(m)} title="View Tasks">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(m)} title="Edit">
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onDelete(m.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 // Teams Tab Component
 interface TeamsTabProps {
   teams: Team[];
@@ -1276,12 +1432,16 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {teams.map((team) => (
-        <Card key={team.id} className="hover:shadow-lg transition-shadow duration-200">
+        <Card
+          key={team.id}
+          className="relative overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 bg-white/90 backdrop-blur-sm"
+        >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-600 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
                     <Building2 className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -1296,7 +1456,7 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
                       <Building2 className="w-4 h-4 text-gray-400" />
                       <span className="text-sm text-gray-600">{team.functional_unit_name || 'No unit'}</span>
                     </div>
-                    <Badge variant={team.is_active ? "default" : "secondary"} className="px-2 py-1 text-xs">
+                    <Badge variant={team.is_active ? 'default' : 'secondary'} className="px-2 py-1 text-xs">
                       {team.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
@@ -1307,11 +1467,11 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
                       {team.member_count || 0} / {team.max_capacity || 10} members
                     </span>
                     <div className="flex-1 ml-2">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                          className="h-2 rounded-full transition-all duration-700 bg-gradient-to-r from-blue-500 to-indigo-600"
                           style={{ width: `${Math.min(((team.member_count || 0) / (team.max_capacity || 10)) * 100, 100)}%` }}
-                        ></div>
+                        />
                       </div>
                     </div>
                   </div>
@@ -1379,5 +1539,89 @@ function TeamsTab({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
         </Card>
       ))}
     </div>
+  );
+}
+
+// Teams List View
+function TeamsList({ teams, onEdit, onDelete, onViewDetails }: TeamsTabProps) {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Members</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skills</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {teams.map((team) => (
+                <tr key={team.id} className="hover:bg-gray-50 odd:bg-white even:bg-gray-50/60">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="font-medium text-gray-900">{team.name}</div>
+                    <div className="text-[12px] text-gray-500">{team.description || '-'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {team.functional_unit_name ? (
+                      <Badge variant="secondary" className="text-[11px] px-2 py-0.5 bg-gray-50 text-gray-700 border border-gray-200">
+                        {team.functional_unit_name}
+                      </Badge>
+                    ) : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{team.team_lead_name || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[11px] px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200">
+                        {team.member_count || 0} / {team.max_capacity || 10}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 w-28 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600"
+                        style={{ width: `${Math.min(((team.member_count || 0) / (team.max_capacity || 10)) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <Badge variant={team.is_active ? 'default' : 'secondary'}>{team.is_active ? 'Active' : 'Inactive'}</Badge>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {team.skills && team.skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {team.skills.slice(0, 3).map((s, i) => (
+                          <Badge key={i} variant="secondary" className="text-[11px] px-2 py-0.5">{s}</Badge>
+                        ))}
+                        {team.skills.length > 3 && (
+                          <Badge variant="secondary" className="text-[11px] px-2 py-0.5">+{team.skills.length - 3} more</Badge>
+                        )}
+                      </div>
+                    ) : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <div className="flex items-center justify-end space-x-1">
+                      <Button variant="ghost" size="sm" onClick={() => onViewDetails(team)} title="View">
+                        <Users className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(team)} title="Edit">
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onDelete(team.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
