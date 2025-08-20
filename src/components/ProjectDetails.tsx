@@ -234,7 +234,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         name: taskData.name || '',
         description: taskData.description || '',
         project_id: parseInt(project.id),
-        category_stage_id: parseInt(taskData.stageId || '1'), 
+        category_stage_id: parseInt(taskData.stageId || ''), 
         status: taskData.status || 'not-started',
         priority: taskData.priority || 'medium',
         start_date: taskData.startDate || new Date().toISOString().split('T')[0],
@@ -841,7 +841,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
             name: taskData.name,
             description: taskData.description,
             project_id: parseInt(taskData.projectId || '1'),
-            category_stage_id: parseInt(taskData.stageId || '1'),
+            category_stage_id: parseInt(taskData.stageId || ''),
             status: taskData.status,
             priority: taskData.priority,
             start_date: taskData.startDate,
@@ -990,7 +990,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                                 {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                               </div>
                               <div className="text-sm text-gray-500">
-                                {task.component_path && <div className="text-xs text-purple-600 mt-1 bg-purple-100 p-1 rounded-md"> {task.component_path}</div>}
+                                {task.component_path && <div className="text-xs text-purple-600 mt-1 bg-purple-100 p-1 rounded-md inline-block">📚 {task.component_path}</div>}
                                 {task.description && <div className="mt-1">{task.description}</div>}
                               </div>
                             </div>
