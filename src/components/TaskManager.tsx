@@ -233,7 +233,7 @@ export function TaskManager() {
           name: taskData.name,
           description: taskData.description,
           project_id: parseInt(taskData.projectId || '1'),
-          category_stage_id: parseInt(taskData.stageId || '1'),
+          category_stage_id: parseInt(taskData.stageId || ''),
           status: taskData.status,
           priority: taskData.priority,
           start_date: taskData.startDate,
@@ -303,7 +303,7 @@ export function TaskManager() {
           name: taskData.name || '',
           description: taskData.description || '',
           project_id: parseInt(taskData.projectId || '1'),
-          category_stage_id: parseInt(taskData.stageId || '1'), 
+          category_stage_id: parseInt(taskData.stageId || ''), 
           status: taskData.status || 'not-started',
           priority: taskData.priority || 'medium',
           start_date: taskData.startDate || new Date().toISOString().split('T')[0],
@@ -411,7 +411,12 @@ export function TaskManager() {
     completed: tasks.filter((t: any) => t.status === 'completed').length,
     overdue: tasks.filter((t: any) => {
       const endDate = t.end_date || t.endDate;
-      return endDate && new Date(endDate) < new Date() && t.status !== 'completed';
+      if (!endDate || t.status === 'completed') return false;
+    
+      const taskEnd = new Date(endDate);
+      taskEnd.setHours(23, 59, 59, 999);
+    
+      return taskEnd < new Date();
     }).length,
   };
 
@@ -627,6 +632,10 @@ export function TaskManager() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Project
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Stage
+                  </th>
+
                   <th 
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('status')}
@@ -707,13 +716,8 @@ export function TaskManager() {
                     return projectId === taskId;
                   });
                   
-                  // Find stage by ID - handle both string and number types
-                  const taskStageId = task.stage_id || task.stageId;
-                  const stage = project?.stages?.find((s: any) => {
-                    const stageId = typeof s.id === 'string' ? parseInt(s.id) : s.id;
-                    const taskStage = typeof taskStageId === 'string' ? parseInt(taskStageId) : taskStageId;
-                    return stageId === taskStage;
-                  });
+                  // Use stage_name from API response directly
+                  const stageName = task.stage_name;
                   
                   return (
                     <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
@@ -724,7 +728,11 @@ export function TaskManager() {
                             {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {task.componentPath && <div className="text-xs text-purple-600 mt-1">📚 {task.componentPath}</div>}
+                            {task.component_path && (
+                              <div className="text-xs text-purple-600 mt-1 bg-purple-100 p-1 rounded-md inline-block">
+                                📚 {task.component_path}
+                              </div>
+                            )}
                             {task.description && <div className="mt-1">{task.description}</div>}
                           </div>
                         </div>
@@ -734,13 +742,22 @@ export function TaskManager() {
                           {project ? (
                             <div>
                               <div className="font-medium text-blue-600">{project.name}</div>
-                              {stage && <div className="text-xs text-gray-500">{stage.name}</div>}
                             </div>
                           ) : (
                             <span className="text-gray-400">Unknown Project</span>
                           )}
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {stageName ? (
+                            <div className="font-medium text-green-600">{stageName}</div>
+                          ) : (
+                            <span className="text-gray-400">Unknown Stage</span>
+                          )}
+                        </div>
+                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={getStatusVariant(task.status)}>
                           {task.status.replace('-', ' ')}
@@ -753,25 +770,20 @@ export function TaskManager() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="space-y-1">
-                          {/* All Assignees (Individuals + Team Members) */}
                           {assignedUsers.length > 0 && (
-                            <div className="flex items-center space-x-2">
-                              {assignedUsers.slice(0, 5).map(user => (
-                                <div 
+                            <div className="flex flex-wrap gap-1">
+                              {assignedUsers.slice(0, 3).map(user => (
+                                <span 
                                   key={user.id}
-                                  className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium relative group"
-                                  title={user.name}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                 >
-                                  {user.name.charAt(0)}
-                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                    {user.name}
-                                  </div>
-                                </div>
+                                  {user.name}
+                                </span>
                               ))}
-                              {assignedUsers.length > 5 && (
-                                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
-                                  +{assignedUsers.length - 5}
-                                </div>
+                              {assignedUsers.length > 3 && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                  +{assignedUsers.length - 3} more
+                                </span>
                               )}
                             </div>
                           )}
@@ -902,6 +914,46 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
+
+  // State for project-specific stages
+  const [projectStages, setProjectStages] = useState<any[]>([]);
+  const [loadingStages, setLoadingStages] = useState(false);
+
+  // Function to fetch stages for the selected project's category
+  const fetchProjectStages = async (projectId: string) => {
+    if (!projectId) {
+      setProjectStages([]);
+      return;
+    }
+
+    try {
+      setLoadingStages(true);
+      const selectedProject = projects.find(p => p.id === parseInt(projectId) || p.id === projectId);
+      
+      if (selectedProject && selectedProject.category_id) {
+        // Fetch stages for this project's category
+        const stagesData = await stageService.getByCategory(selectedProject.category_id);
+        setProjectStages(stagesData);
+        console.log('📋 Fetched stages for project category:', stagesData);
+      } else {
+        setProjectStages([]);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch project stages:', error);
+      setProjectStages([]);
+    } finally {
+      setLoadingStages(false);
+    }
+  };
+
+  // Fetch stages when project changes
+  useEffect(() => {
+    if (formData.projectId) {
+      fetchProjectStages(formData.projectId);
+    } else {
+      setProjectStages([]);
+    }
+  }, [formData.projectId]);
 
   useEffect(() => {
     if (editingTask) {
@@ -1236,6 +1288,38 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Stage *
+            </label>
+            <select
+              required
+              value={formData.stageId}
+              onChange={(e) => setFormData({ ...formData, stageId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={!formData.projectId || loadingStages}
+            >
+              <option value="">
+                {loadingStages ? 'Loading stages...' : 'Select Stage'}
+              </option>
+              {projectStages.map(stage => (
+                <option key={stage.id} value={stage.id}>
+                  {stage.name} {stage.description && `- ${stage.description}`}
+                </option>
+              ))}
+            </select>
+            {!formData.projectId && (
+              <p className="text-xs text-gray-500 mt-1">
+                Please select a project first to load available stages
+              </p>
+            )}
+            {formData.projectId && projectStages.length === 0 && !loadingStages && (
+              <p className="text-xs text-gray-500 mt-1">
+                No stages found for this project's category
+              </p>
+            )}
           </div>
 
           <div>
