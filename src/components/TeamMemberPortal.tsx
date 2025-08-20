@@ -228,6 +228,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               <div className="flex flex-col space-y-1">
                 <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
                 <p className="text-gray-600 flex items-center">
+                  
                   <Home className="w-4 h-4 mr-2" />
                   {user.skills && user.skills.length > 0 ? user.skills.join(', ') : 'Team Member Portal'}
                 </p>
