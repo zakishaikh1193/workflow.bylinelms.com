@@ -216,24 +216,23 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Enhanced Header */}
       <header className="bg-white/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 sticky top-0 z-50">
-        <div className="w-full px-6 lg:px-8">
+        <div className="w-full px-6 lg:px-16">
           <div className="flex items-center justify-between h-20">
-                         <div className="flex items-center space-x-6">
-               <div className="relative">
-                 <div className="w-14 h-14 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                   {user.name.charAt(0)}
-                 </div>
-                 <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-4 border-white shadow-lg"></div>
-               </div>
-               <div className="flex flex-col items-center space-x-4">
-                 <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
-                 {/* <span className="text-gray-400">•</span> */}
-                 <p className="text-gray-600 flex items-start">
-                   <Home className="w-4 h-4 mr-2" />
-                   {user.skills && user.skills.length > 0 ? user.skills.join(', ') : 'Team Member Portal'}
-                 </p>
-               </div>
-             </div>
+            <div className="flex items-center space-x-6">
+              <div className="relative">
+                <div className="w-14 h-14 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                  {user.name.charAt(0)}
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-4 border-white shadow-lg"></div>
+              </div>
+              <div className="flex flex-col space-y-1">
+                <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
+                <p className="text-gray-600 flex items-center">
+                  <Home className="w-4 h-4 mr-2" />
+                  {user.skills && user.skills.length > 0 ? user.skills.join(', ') : 'Team Member Portal'}
+                </p>
+              </div>
+            </div>
             <div className="flex items-center space-x-4">
               <Button
                 variant="outline"
@@ -245,21 +244,21 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
               </Button>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="relative p-3 hover:bg-gray-100 rounded-xl transition-all duration-200"
               >
                 <Bell className="w-5 h-5 text-gray-600" />
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
               </Button>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="p-3 hover:bg-gray-100 rounded-xl transition-all duration-200"
               >
                 <Settings className="w-5 h-5 text-gray-600" />
               </Button>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={() => {
                   localStorage.removeItem('teamToken');
                   onLogout();
@@ -500,23 +499,23 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
                   return (
                     <div key={task.id} className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-500 hover:shadow-xl transform hover:-translate-y-1 ${isOverdue ? 'border-red-300 bg-gradient-to-br from-red-50 to-red-100 shadow-red-200' :
-                        'border-gray-200 bg-white hover:border-blue-400 shadow-lg'
+                      'border-gray-200 bg-white hover:border-blue-400 shadow-lg'
                       }`}>
                       {/* Priority indicator bar */}
                       <div className={`absolute top-0 left-0 right-0 h-2 ${task.priority === 'urgent' ? 'bg-gradient-to-r from-red-500 via-red-600 to-red-700' :
-                          task.priority === 'high' ? 'bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700' :
-                            task.priority === 'medium' ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700' :
-                              'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600'
+                        task.priority === 'high' ? 'bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700' :
+                          task.priority === 'medium' ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700' :
+                            'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600'
                         }`} />
 
-                                             <div className="p-4 pt-6">
-                         {/* Header */}
-                         <div className="flex items-start justify-between mb-3">
-                           <div className="flex-1 min-w-0">
-                             <h4 className="font-bold text-gray-900 text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                               {task.name}
-                             </h4>
-                             <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                      <div className="p-4 pt-6">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-gray-900 text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                              {task.name}
+                            </h4>
+                            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                               <span className="font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">{project?.name}</span>
                               <span className="text-gray-400">•</span>
                               <span className="font-semibold text-purple-600 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">{task.stage_name || 'No Stage'}</span>
@@ -554,13 +553,13 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                           </div>
                         </div>
 
-                                                 {/* Description */}
-                         {task.description && (
-                           <p className="text-sm text-gray-700 mb-3 line-clamp-2 bg-gradient-to-r from-gray-50 to-blue-50 p-2 rounded-lg border-l-4 border-blue-300">{task.description}</p>
-                         )}
+                        {/* Description */}
+                        {task.description && (
+                          <p className="text-sm text-gray-700 mb-3 line-clamp-2 bg-gradient-to-r from-gray-50 to-blue-50 p-2 rounded-lg border-l-4 border-blue-300">{task.description}</p>
+                        )}
 
-                         {/* Progress Section */}
-                         <div className="mb-3">
+                        {/* Progress Section */}
+                        <div className="mb-3">
                           <div className="flex items-center justify-between text-sm mb-4">
                             <span className="text-gray-700 font-bold text-lg">Progress</span>
                             <span className="font-bold text-gray-900 text-2xl">{task.progress}%</span>
@@ -568,88 +567,88 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                           <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
                             <div
                               className={`h-4 rounded-full transition-all duration-700 shadow-sm ${task.progress >= 80 ? 'bg-gradient-to-r from-green-500 via-green-600 to-green-700' :
-                                  task.progress >= 50 ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700' :
-                                    task.progress >= 25 ? 'bg-gradient-to-r from-yellow-500 via-orange-500 to-orange-600' :
-                                      'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600'
+                                task.progress >= 50 ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700' :
+                                  task.progress >= 25 ? 'bg-gradient-to-r from-yellow-500 via-orange-500 to-orange-600' :
+                                    'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600'
                                 }`}
                               style={{ width: `${task.progress}%` }}
                             />
                           </div>
                         </div>
 
-                                                 {/* Educational Hierarchy */}
-                         {(task.grade_name || task.book_name || task.unit_name || task.lesson_name) && (
-                           <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg border-2 border-blue-200 shadow-sm">
-                             <div className="flex items-center mb-2">
-                               <Target className="w-4 h-4 text-blue-600 mr-2" />
-                               <span className="text-sm font-bold text-blue-900">Educational Hierarchy</span>
-                             </div>
-                             <div className="flex flex-wrap gap-1">
-                                                             {task.grade_name && (
-                                 <Badge variant="primary" className="text-xs bg-blue-100 text-blue-800 border-2 border-blue-200 font-semibold px-2 py-1">
-                                   {task.grade_name}
-                                 </Badge>
-                               )}
-                               {task.book_name && (
-                                 <Badge variant="primary" className="text-xs bg-indigo-100 text-indigo-800 border-2 border-indigo-200 font-semibold px-2 py-1">
-                                   {task.book_name}
-                                 </Badge>
-                               )}
-                               {task.unit_name && (
-                                 <Badge variant="primary" className="text-xs bg-purple-100 text-purple-800 border-2 border-purple-200 font-semibold px-2 py-1">
-                                   {task.unit_name}
-                                 </Badge>
-                               )}
-                               {task.lesson_name && (
-                                 <Badge variant="primary" className="text-xs bg-pink-100 text-pink-800 border-2 border-pink-200 font-semibold px-2 py-1">
-                                   {task.lesson_name}
-                                 </Badge>
-                               )}
+                        {/* Educational Hierarchy */}
+                        {(task.grade_name || task.book_name || task.unit_name || task.lesson_name) && (
+                          <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg border-2 border-blue-200 shadow-sm">
+                            <div className="flex items-center mb-2">
+                              <Target className="w-4 h-4 text-blue-600 mr-2" />
+                              <span className="text-sm font-bold text-blue-900">Educational Hierarchy</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {task.grade_name && (
+                                <Badge variant="primary" className="text-xs bg-blue-100 text-blue-800 border-2 border-blue-200 font-semibold px-2 py-1">
+                                  {task.grade_name}
+                                </Badge>
+                              )}
+                              {task.book_name && (
+                                <Badge variant="primary" className="text-xs bg-indigo-100 text-indigo-800 border-2 border-indigo-200 font-semibold px-2 py-1">
+                                  {task.book_name}
+                                </Badge>
+                              )}
+                              {task.unit_name && (
+                                <Badge variant="primary" className="text-xs bg-purple-100 text-purple-800 border-2 border-purple-200 font-semibold px-2 py-1">
+                                  {task.unit_name}
+                                </Badge>
+                              )}
+                              {task.lesson_name && (
+                                <Badge variant="primary" className="text-xs bg-pink-100 text-pink-800 border-2 border-pink-200 font-semibold px-2 py-1">
+                                  {task.lesson_name}
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         )}
 
-                                                 {/* Required Skills */}
-                         {task.required_skills && task.required_skills.length > 0 && (
-                           <div className="mb-3 p-3 bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 rounded-lg border-2 border-green-200 shadow-sm">
-                             <div className="flex items-center mb-2">
-                               <Activity className="w-4 h-4 text-green-600 mr-2" />
-                               <span className="text-sm font-bold text-green-900">Required Skills</span>
-                             </div>
-                             <div className="flex flex-wrap gap-1">
-                                                             {task.required_skills.map((skill: string, index: number) => (
-                                 <Badge key={index} variant="secondary" className="text-xs bg-green-100 text-green-800 border-2 border-green-200 font-semibold px-2 py-1">
-                                   {skill}
-                                 </Badge>
-                               ))}
+                        {/* Required Skills */}
+                        {task.required_skills && task.required_skills.length > 0 && (
+                          <div className="mb-3 p-3 bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 rounded-lg border-2 border-green-200 shadow-sm">
+                            <div className="flex items-center mb-2">
+                              <Activity className="w-4 h-4 text-green-600 mr-2" />
+                              <span className="text-sm font-bold text-green-900">Required Skills</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {task.required_skills.map((skill: string, index: number) => (
+                                <Badge key={index} variant="secondary" className="text-xs bg-green-100 text-green-800 border-2 border-green-200 font-semibold px-2 py-1">
+                                  {skill}
+                                </Badge>
+                              ))}
                             </div>
                           </div>
                         )}
 
-                                                 {/* Time & Hours Info */}
-                         <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-gradient-to-r from-gray-50 via-gray-100 to-gray-200 rounded-lg border border-gray-300 shadow-sm">
-                           <div className="text-center">
-                             <div className="text-xs text-gray-600 mb-1 font-semibold">Due Date</div>
-                             <div className="text-sm font-bold text-gray-900">
-                               {task.end_date ? new Date(task.end_date).toLocaleDateString() : 'No due date'}
-                             </div>
-                           </div>
-                           <div className="text-center">
-                             <div className="text-xs text-gray-600 mb-1 font-semibold">Time Left</div>
-                             <div className={`text-sm font-bold ${isOverdue ? 'text-red-600' :
-                                 daysUntilDue <= 1 ? 'text-orange-600' :
-                                   daysUntilDue <= 3 ? 'text-yellow-600' : 'text-green-600'
-                               }`}>
-                               {isOverdue ? `${Math.abs(daysUntilDue)} days overdue` :
-                                 daysUntilDue === 0 ? 'Due today' :
-                                   daysUntilDue === 1 ? 'Due tomorrow' :
-                                     `${daysUntilDue} days left`}
-                             </div>
-                           </div>
-                         </div>
+                        {/* Time & Hours Info */}
+                        <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-gradient-to-r from-gray-50 via-gray-100 to-gray-200 rounded-lg border border-gray-300 shadow-sm">
+                          <div className="text-center">
+                            <div className="text-xs text-gray-600 mb-1 font-semibold">Due Date</div>
+                            <div className="text-sm font-bold text-gray-900">
+                              {task.end_date ? new Date(task.end_date).toLocaleDateString() : 'No due date'}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-gray-600 mb-1 font-semibold">Time Left</div>
+                            <div className={`text-sm font-bold ${isOverdue ? 'text-red-600' :
+                              daysUntilDue <= 1 ? 'text-orange-600' :
+                                daysUntilDue <= 3 ? 'text-yellow-600' : 'text-green-600'
+                              }`}>
+                              {isOverdue ? `${Math.abs(daysUntilDue)} days overdue` :
+                                daysUntilDue === 0 ? 'Due today' :
+                                  daysUntilDue === 1 ? 'Due tomorrow' :
+                                    `${daysUntilDue} days left`}
+                            </div>
+                          </div>
+                        </div>
 
-                         {/* Hours Info */}
-                         <div className="flex items-center justify-between text-sm text-gray-600 mb-3 p-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                        {/* Hours Info */}
+                        <div className="flex items-center justify-between text-sm text-gray-600 mb-3 p-2 bg-white rounded-lg border border-gray-200 shadow-sm">
                           <div className="flex items-center space-x-6">
                             <span className="font-semibold">Estimated: <span className="font-bold text-gray-900 text-lg">{task.estimated_hours}h</span></span>
                             {task.actual_hours && (
