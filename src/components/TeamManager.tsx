@@ -23,7 +23,8 @@ import {
   // ChevronDown,
   // ChevronRight,
   Eye,
-  UserMinus
+  UserMinus,
+  RefreshCw
 } from 'lucide-react';
 import { teamService, skillService } from '../services/apiService';
 import { useTeamMembers, useTeams } from '../services/queryHooks';
@@ -121,8 +122,8 @@ export function TeamManager() {
   const [availableSkills, setAvailableSkills] = useState<string[]>([]);
 
   // React Query caches
-  const { data: cachedMembers } = useTeamMembers({ enabled: activeTab === 'members' });
-  const { data: cachedTeams } = useTeams({ enabled: activeTab === 'teams' });
+  const { data: cachedMembers, refetch: refetchMembers, isLoading: isMembersLoading } = useTeamMembers({ enabled: activeTab === 'members' });
+  const { data: cachedTeams, refetch: refetchTeams, isLoading: isTeamsLoading } = useTeams({ enabled: activeTab === 'teams' });
 
   // Fetch data from backend
   useEffect(() => {
@@ -464,7 +465,7 @@ export function TeamManager() {
     setShowMemberDetailsModal(true);
   };
 
-  if (loading) {
+  if (loading || (activeTab === 'members' && isMembersLoading) || (activeTab === 'teams' && isTeamsLoading)) {
     return (
       <div className="space-y-6 p-6">
         {/* Header skeleton */}
@@ -584,23 +585,40 @@ export function TeamManager() {
           </div>
         </div>
 
-        <Button
-          onClick={() => {
-            if (activeTab === 'members') {
-              setEditingMember(null);
-              resetMemberForm();
-              setShowCreateMemberModal(true);
-            } else {
-              setEditingTeam(null);
-              resetTeamForm();
-              setShowCreateTeamModal(true);
-            }
-          }}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add {activeTab === 'members' ? 'Member' : 'Team'}</span>
-        </Button>
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (activeTab === 'members') {
+                refetchMembers();
+              } else {
+                refetchTeams();
+              }
+            }}
+            disabled={(activeTab === 'members' && isMembersLoading) || (activeTab === 'teams' && isTeamsLoading)}
+            className="flex items-center space-x-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${((activeTab === 'members' && isMembersLoading) || (activeTab === 'teams' && isTeamsLoading)) ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </Button>
+          <Button
+            onClick={() => {
+              if (activeTab === 'members') {
+                setEditingMember(null);
+                resetMemberForm();
+                setShowCreateMemberModal(true);
+              } else {
+                setEditingTeam(null);
+                resetTeamForm();
+                setShowCreateTeamModal(true);
+              }
+            }}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add {activeTab === 'members' ? 'Member' : 'Team'}</span>
+          </Button>
+        </div>
       </div>
 
       {/* Content */}

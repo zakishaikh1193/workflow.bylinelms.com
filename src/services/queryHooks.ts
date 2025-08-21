@@ -23,7 +23,7 @@ export function useTeamMembers(options?: Partial<UseQueryOptions>) {
   return useQuery({
     queryKey: ['team-members'],
     queryFn: () => teamService.getMembers(),
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 30, // 30 seconds instead of 10 minutes
     ...options,
   });
 }

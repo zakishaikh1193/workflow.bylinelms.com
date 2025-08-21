@@ -244,14 +244,26 @@ const getAllTeamMembers = async (req, res) => {
         tm.*,
         GROUP_CONCAT(DISTINCT s.name) as skills,
         COUNT(DISTINCT pf.id) as performance_flags_count,
+        COUNT(DISTINCT ta.task_id) as task_count,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'completed' THEN ta.task_id END) as completed_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'in-progress' THEN ta.task_id END) as in_progress_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'under-review' THEN ta.task_id END) as under_review_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'not-started' THEN ta.task_id END) as not_started_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'blocked' THEN ta.task_id END) as blocked_tasks,
         GROUP_CONCAT(DISTINCT t.name) as team_names,
-        GROUP_CONCAT(DISTINCT t.id) as team_ids
+        GROUP_CONCAT(DISTINCT t.id) as team_ids,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'red' THEN pf.id END) as red_flags,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'orange' THEN pf.id END) as orange_flags,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'yellow' THEN pf.id END) as yellow_flags,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'green' THEN pf.id END) as green_flags
       FROM team_members tm
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
       LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
       LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
+      LEFT JOIN tasks ON ta.task_id = tasks.id
       WHERE tm.is_active = true
       GROUP BY tm.id
       ORDER BY tm.name
@@ -262,7 +274,21 @@ const getAllTeamMembers = async (req, res) => {
       ...member,
       skills: member.skills ? member.skills.split(',') : [],
       team_names: member.team_names ? member.team_names.split(',') : [],
-      team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : []
+      team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [],
+      performance_flags_summary: {
+        red: member.red_flags ? member.red_flags.split(',').length : 0,
+        orange: member.orange_flags ? member.orange_flags.split(',').length : 0,
+        yellow: member.yellow_flags ? member.yellow_flags.split(',').length : 0,
+        green: member.green_flags ? member.green_flags.split(',').length : 0
+      },
+      task_summary: {
+        total: member.task_count || 0,
+        completed: member.completed_tasks || 0,
+        in_progress: member.in_progress_tasks || 0,
+        under_review: member.under_review_tasks || 0,
+        not_started: member.not_started_tasks || 0,
+        blocked: member.blocked_tasks || 0
+      }
     }));
 
     res.json({
@@ -287,14 +313,26 @@ const getTeamMemberById = async (req, res) => {
         tm.*,
         GROUP_CONCAT(DISTINCT s.name) as skills,
         GROUP_CONCAT(DISTINCT pf.type) as performance_flags,
+        COUNT(DISTINCT ta.task_id) as task_count,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'completed' THEN ta.task_id END) as completed_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'in-progress' THEN ta.task_id END) as in_progress_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'under-review' THEN ta.task_id END) as under_review_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'not-started' THEN ta.task_id END) as not_started_tasks,
+        COUNT(DISTINCT CASE WHEN tasks.status = 'blocked' THEN ta.task_id END) as blocked_tasks,
         GROUP_CONCAT(DISTINCT t.name) as team_names,
-        GROUP_CONCAT(DISTINCT t.id) as team_ids
+        GROUP_CONCAT(DISTINCT t.id) as team_ids,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'red' THEN pf.id END) as red_flags,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'orange' THEN pf.id END) as orange_flags,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'yellow' THEN pf.id END) as yellow_flags,
+        GROUP_CONCAT(DISTINCT CASE WHEN pf.type = 'green' THEN pf.id END) as green_flags
       FROM team_members tm
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
       LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
       LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
+      LEFT JOIN tasks ON ta.task_id = tasks.id
       WHERE tm.id = ? AND tm.is_active = true
       GROUP BY tm.id
     `, [id]);
@@ -311,6 +349,20 @@ const getTeamMemberById = async (req, res) => {
     member.performance_flags = member.performance_flags ? member.performance_flags.split(',') : [];
     member.team_names = member.team_names ? member.team_names.split(',') : [];
     member.team_ids = member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [];
+    member.performance_flags_summary = {
+      red: member.red_flags ? member.red_flags.split(',').length : 0,
+      orange: member.orange_flags ? member.orange_flags.split(',').length : 0,
+      yellow: member.yellow_flags ? member.yellow_flags.split(',').length : 0,
+      green: member.green_flags ? member.green_flags.split(',').length : 0
+    };
+    member.task_summary = {
+      total: member.task_count || 0,
+      completed: member.completed_tasks || 0,
+      in_progress: member.in_progress_tasks || 0,
+      under_review: member.under_review_tasks || 0,
+      not_started: member.not_started_tasks || 0,
+      blocked: member.blocked_tasks || 0
+    };
 
     res.json({
       success: true,
