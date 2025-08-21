@@ -6,6 +6,7 @@ const {
   authenticateTeamMember,
   getMyTasks,
   getMyProfile,
+  getMyPerformanceFlags,
   getAllTeamMembers,
   getTeamMemberById,
   createTeamMember,
@@ -32,6 +33,7 @@ router.post('/authenticate', authenticateTeamMember);
 // Team member specific routes (requires team auth)
 router.get('/my-tasks', requireTeamAuth, getMyTasks);
 router.get('/my-profile', requireTeamAuth, getMyProfile);
+router.get('/my-performance-flags', requireTeamAuth, getMyPerformanceFlags);
 
 // Get all team members (admin only)
 router.get('/members', requireAdminAuth, getAllTeamMembers);

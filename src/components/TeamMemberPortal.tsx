@@ -61,7 +61,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
       const [tasksData, projectsData, flagsData] = await Promise.all([
         teamService.getMyTasks(),
         teamProjectService.getAll(),
-        performanceFlagService.getByTeamMember(user.id)
+        teamService.getMyPerformanceFlags()
       ]);
 
       setUserTasks(tasksData);
@@ -660,6 +660,15 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
                         {/* Action Buttons */}
                         <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleMarkComplete(task.id)}
+                            className="flex-1 h-9 font-semibold shadow-md hover:shadow-lg transition-all duration-200 bg-white hover:bg-green-50 border-2 border-green-200 hover:border-green-300 text-sm"
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Mark Complete
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"

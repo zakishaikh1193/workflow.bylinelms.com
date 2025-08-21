@@ -235,6 +235,12 @@ export const teamService = {
   authenticate: async (credentials: { email: string; passcode: string }) => {
     const result = await apiService.post('/team/authenticate', credentials);
     return result;
+  },
+
+  // Get team member's own performance flags
+  getMyPerformanceFlags: async () => {
+    const result = await teamApiService.get('/team/my-performance-flags');
+    return result.data;
   }
 };
 

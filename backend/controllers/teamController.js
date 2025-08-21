@@ -175,6 +175,36 @@ const getMyTasks = async (req, res) => {
   }
 };
 
+// Get team member's own performance flags
+const getMyPerformanceFlags = async (req, res) => {
+  try {
+    const teamMemberId = req.user.id;
+    
+    const flags = await db.query(`
+      SELECT 
+        pf.*,
+        t.name as task_name,
+        au.name as added_by_name
+      FROM performance_flags pf
+      LEFT JOIN tasks t ON pf.task_id = t.id
+      LEFT JOIN admin_users au ON pf.added_by_id = au.id
+      WHERE pf.team_member_id = ?
+      ORDER BY pf.created_at DESC
+    `, [teamMemberId]);
+
+    res.json({
+      success: true,
+      data: flags
+    });
+  } catch (error) {
+    console.error('Error fetching team member performance flags:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch performance flags' }
+    });
+  }
+};
+
 // Get team member's own profile
 const getMyProfile = async (req, res) => {
   try {
@@ -245,13 +275,19 @@ const getAllTeamMembers = async (req, res) => {
         GROUP_CONCAT(DISTINCT s.name) as skills,
         COUNT(DISTINCT pf.id) as performance_flags_count,
         GROUP_CONCAT(DISTINCT t.name) as team_names,
-        GROUP_CONCAT(DISTINCT t.id) as team_ids
+        GROUP_CONCAT(DISTINCT t.id) as team_ids,
+        COUNT(DISTINCT ta.task_id) as task_count,
+        SUM(CASE WHEN pf.type = 'red' THEN 1 ELSE 0 END) as red_flags,
+        SUM(CASE WHEN pf.type = 'orange' THEN 1 ELSE 0 END) as orange_flags,
+        SUM(CASE WHEN pf.type = 'yellow' THEN 1 ELSE 0 END) as yellow_flags,
+        SUM(CASE WHEN pf.type = 'green' THEN 1 ELSE 0 END) as green_flags
       FROM team_members tm
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
       LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
       LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
       WHERE tm.is_active = true
       GROUP BY tm.id
       ORDER BY tm.name
@@ -262,7 +298,14 @@ const getAllTeamMembers = async (req, res) => {
       ...member,
       skills: member.skills ? member.skills.split(',') : [],
       team_names: member.team_names ? member.team_names.split(',') : [],
-      team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : []
+      team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [],
+      task_count: member.task_count || 0,
+      performance_flags_summary: {
+        red: member.red_flags || 0,
+        orange: member.orange_flags || 0,
+        yellow: member.yellow_flags || 0,
+        green: member.green_flags || 0
+      }
     }));
 
     res.json({
@@ -288,13 +331,19 @@ const getTeamMemberById = async (req, res) => {
         GROUP_CONCAT(DISTINCT s.name) as skills,
         GROUP_CONCAT(DISTINCT pf.type) as performance_flags,
         GROUP_CONCAT(DISTINCT t.name) as team_names,
-        GROUP_CONCAT(DISTINCT t.id) as team_ids
+        GROUP_CONCAT(DISTINCT t.id) as team_ids,
+        COUNT(DISTINCT ta.task_id) as task_count,
+        SUM(CASE WHEN pf.type = 'red' THEN 1 ELSE 0 END) as red_flags,
+        SUM(CASE WHEN pf.type = 'orange' THEN 1 ELSE 0 END) as orange_flags,
+        SUM(CASE WHEN pf.type = 'yellow' THEN 1 ELSE 0 END) as yellow_flags,
+        SUM(CASE WHEN pf.type = 'green' THEN 1 ELSE 0 END) as green_flags
       FROM team_members tm
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
       LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
       LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
       WHERE tm.id = ? AND tm.is_active = true
       GROUP BY tm.id
     `, [id]);
@@ -311,6 +360,13 @@ const getTeamMemberById = async (req, res) => {
     member.performance_flags = member.performance_flags ? member.performance_flags.split(',') : [];
     member.team_names = member.team_names ? member.team_names.split(',') : [];
     member.team_ids = member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [];
+    member.task_count = member.task_count || 0;
+    member.performance_flags_summary = {
+      red: member.red_flags || 0,
+      orange: member.orange_flags || 0,
+      yellow: member.yellow_flags || 0,
+      green: member.green_flags || 0
+    };
 
     res.json({
       success: true,
@@ -1123,6 +1179,7 @@ module.exports = {
   authenticateTeamMember,
   getMyTasks,
   getMyProfile,
+  getMyPerformanceFlags,
   getAllTeamMembers,
   getTeamMemberById,
   createTeamMember,

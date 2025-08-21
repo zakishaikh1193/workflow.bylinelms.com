@@ -101,13 +101,13 @@ const addPerformanceFlag = async (req, res) => {
     }
 
     // Validate flag type
-    const validTypes = ['red', 'orange', 'yellow', 'green'];
+    const validTypes = ['red', 'orange', 'yellow', 'green', 'gold'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Invalid flag type. Must be one of: red, orange, yellow, green'
+          message: 'Invalid flag type. Must be one of: red, orange, yellow, green, gold'
         }
       });
     }
@@ -234,13 +234,13 @@ const updatePerformanceFlag = async (req, res) => {
 
     // Validate flag type if provided
     if (type) {
-      const validTypes = ['red', 'orange', 'yellow', 'green'];
+      const validTypes = ['red', 'orange', 'yellow', 'green', 'gold'];
       if (!validTypes.includes(type)) {
         return res.status(400).json({
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'Invalid flag type. Must be one of: red, orange, yellow, green'
+            message: 'Invalid flag type. Must be one of: red, orange, yellow, green, gold'
           }
         });
       }
