@@ -193,8 +193,8 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="relative min-h-screen p-6 space-y-8 bg-gradient-to-br from-amber-50 via-white to-blue-50">
-      <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:18px_18px]" />
+    <div className="relative min-h-screen p-6  space-y-4 bg-gradient-to-br from-amber-50 via-white to-blue-50">
+      <div className="space-y-4 pointer-events-none absolute inset-0 opacity-50 [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:18px_18px]" />
       <div className="relative">
         <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
           <div className="flex items-center justify-between gap-6">

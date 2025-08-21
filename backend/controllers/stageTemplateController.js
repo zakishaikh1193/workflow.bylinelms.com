@@ -182,7 +182,7 @@ const updateTemplate = async (req, res) => {
       is_default
     } = req.body;
 
-    // Check if template exists
+    
     const existingTemplate = await db.query('SELECT * FROM stage_templates WHERE id = ?', [id]);
     if (existingTemplate.length === 0) {
       return res.status(404).json({

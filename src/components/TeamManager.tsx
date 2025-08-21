@@ -137,7 +137,9 @@ export function TeamManager() {
     }
     if (activeTab === 'teams' && cachedTeams) {
       setTeams(cachedTeams as Team[] || []);
+      console.log('🔍 Teams fetched:', cachedTeams);
       setFilteredTeams(cachedTeams as Team[] || []);
+      
       return;
     }
     fetchData();
@@ -165,8 +167,8 @@ export function TeamManager() {
           return maybe.name || '';
         }).filter(Boolean) as string[];
         setAvailableSkills(skillNames);
-        console.log('✅ Skills fetched:', skillNames);
-        console.log('✅ Skills array length:', skillNames.length);
+        // console.log('✅ Skills fetched:', skillNames);
+        // console.log('✅ Skills array length:', skillNames.length);
       } catch (error) {
         console.error('Error fetching skills:', error);
       }
@@ -183,6 +185,9 @@ export function TeamManager() {
         const membersData = await teamService.getMembers();
         setTeamMembers(membersData || []);
         setFilteredMembers(membersData || []);
+        // console.log('🔍 Members fetched:', membersData.map((member: TeamMember) => member.task_count));
+        console.log('🔍 Members fetched------------:',filteredMembers.map((member: TeamMember) => member.email));
+        
       } else {
         const teamsData = await teamService.getTeams();
         setTeams(teamsData || []);
@@ -533,12 +538,24 @@ export function TeamManager() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Team Management</h1>
           <p className="text-gray-600">Manage team members and teams</p>
         </div>
+      </div> */}
+
+<div className="relative">
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-bold">Team Management</h1>
+              <p className="text-white/80">Manage team members and teams</p>
+            </div>
+          </div>
+        </div>
       </div>
+
 
       {/* Error Display */}
       {error && (

@@ -230,30 +230,31 @@ export function Analytics() {
     const completedTasks = userTasks.filter((t: any) => t.status === 'completed');
     const completionRate = userTasks.length > 0 ? Math.round((completedTasks.length / userTasks.length) * 100) : 0;
     
-    // Calculate efficiency score
-    const efficiencyScore = userTasks.length > 0 
-      ? Math.round((completionRate * 0.4) + ((userTasks.filter((t: any) => {
-          if (t.status !== 'completed') return false;
-          
-          // Get today's date at midnight (start of day)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          // Get the end date at midnight (start of day)
-          const dueDate = new Date(t.end_date);
-          dueDate.setHours(0, 0, 0, 0);
-          
-          // Task is on time if due date is today or in the future
-          return dueDate >= today;
-        }).length / userTasks.length) * 60))
-      : 0;
+    // Calculate performance score based on flags (lower is better)
+    // Green flags are positive, red flags are negative
+    const performanceFlags = {
+      red: user.performance_flags_summary?.red || 0,
+      orange: user.performance_flags_summary?.orange || 0,
+      yellow: user.performance_flags_summary?.yellow || 0,
+      green: user.performance_flags_summary?.green || 0
+    };
+    
+    const totalFlags = performanceFlags.red + performanceFlags.orange + performanceFlags.yellow + performanceFlags.green;
+    
+    // Performance score: absolute flag-based scoring
+    // Green flags add more points, red flags subtract points
+    const performanceScore = totalFlags > 0 
+      ? Math.max(0, performanceFlags.green * 10 + performanceFlags.yellow * 5 + performanceFlags.orange * 2 - performanceFlags.red * 5)
+      : 0; // No score if no performance flags
     
     return {
       ...user,
       totalTasks: userTasks.length,
       completedTasks: completedTasks.length,
       completionRate,
-      efficiencyScore,
+      performanceScore: Math.max(0, performanceScore), // Keep actual score for proper ranking
+      performanceFlags,
+      totalFlags,
       avgTaskDuration: completedTasks.length > 0 
         ? Math.round(completedTasks.reduce((sum: number, t: any) => {
             if (t.created_at && t.updated_at) {
@@ -265,7 +266,7 @@ export function Analytics() {
           }, 0) / completedTasks.length)
         : 0
     };
-  }).sort((a: any, b: any) => b.efficiencyScore - a.efficiencyScore).slice(0, 5), [data]);
+  }).sort((a: any, b: any) => b.performanceScore - a.performanceScore).slice(0, 5), [data]);
 
   // Additional advanced metrics
   const performanceInsights = useMemo(() => {
@@ -349,22 +350,6 @@ export function Analytics() {
               <Eye className="w-4 h-4 mr-1" />
               Overview
             </Button>
-            {/* <Button
-              variant={viewMode === 'detailed' ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('detailed')}
-            >
-              <BarChart className="w-4 h-4 mr-1" />
-              Detailed
-            </Button> */}
-            {/* <Button
-              variant={viewMode === 'trends' ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('trends')}
-            >
-              <TrendingUp className="w-4 h-4 mr-1" />
-              Trends
-            </Button> */}
           </div>
 
           {/* Filters */}
@@ -653,87 +638,7 @@ export function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Enhanced Top Performers */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Trophy className="w-5 h-5 mr-2" />
-              Top Performers
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {topPerformers.map((user, index) => (
-              <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white rounded-full font-semibold text-sm">
-                    {index === 0 ? <Trophy className="w-4 h-4" /> : 
-                     index === 1 ? <Award className="w-4 h-4" /> : 
-                     index === 2 ? <Star className="w-4 h-4" /> : 
-                     `#${index + 1}`}
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{user.name}</p>
-                    <p className="text-sm text-gray-600">
-                      {user.completedTasks}/{user.totalTasks} tasks • {user.avgTaskDuration} days avg
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Badge 
-                    variant={user.efficiencyScore >= 80 ? 'success' : user.efficiencyScore >= 60 ? 'default' : 'warning'}
-                  >
-                    {user.efficiencyScore}%
-                  </Badge>
-                  <p className="text-xs text-gray-500 mt-1">Efficiency</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
 
-        {/* Enhanced Skill Utilization */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Users className="w-5 h-5 mr-2" />
-              Skill Demand & Utilization
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {skillUtilization.slice(0, 6).map((skill) => (
-              <div key={skill.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{skill.name}</p>
-                    <p className="text-sm text-gray-600">
-                      {skill.users} members • {skill.totalTasks} total tasks
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant={skill.demand >= 20 ? 'success' : skill.demand >= 10 ? 'default' : 'warning'}>
-                      {skill.demand}% demand
-                    </Badge>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Completion Rate</span>
-                    <span>{skill.completionRate}%</span>
-                  </div>
-                  <ProgressBar 
-                    value={skill.completionRate} 
-                    variant={skill.completionRate >= 80 ? 'success' : skill.completionRate >= 60 ? 'default' : 'warning'}
-                    showLabel={false} 
-                  />
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Active Tasks</span>
-                    <span>{skill.activeTasks}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Performance Insights & Recommendations */}
@@ -805,7 +710,6 @@ export function Analytics() {
                 <Target className="w-4 h-4 mr-2" />
                 Prioritize High Priority Items
               </Button>
-              
               <Button
                 variant="outline"
                 className="w-full justify-start"
@@ -817,11 +721,117 @@ export function Analytics() {
                 <Users className="w-4 h-4 mr-2" />
                 Reassign Underutilized Team
               </Button>
-              {/* <Button variant="outline" className="w-full justify-start">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Optimize Workflow
-              </Button> */}
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Enhanced Top Performers - Based on Performance Flags */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Trophy className="w-5 h-5 mr-2" />
+              Top Performers (Performance Flags)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {topPerformers.map((user, index) => (
+              <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white rounded-full font-semibold text-sm">
+                    {index === 0 ? <Trophy className="w-4 h-4" /> : 
+                     index === 1 ? <Award className="w-4 h-4" /> : 
+                     index === 2 ? <Star className="w-4 h-4" /> : 
+                     `#${index + 1}`}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{user.name}</p>
+                    <p className="text-sm text-gray-600">
+                      {user.completedTasks}/{user.totalTasks} tasks • {user.avgTaskDuration} days avg
+                    </p>
+                    {user.totalFlags > 0 && (
+                      <div className="flex items-center space-x-1 mt-1">
+                        {user.performanceFlags.red > 0 && (
+                          <Badge variant="danger" className="px-2 py-1 text-[11px]">
+                            🔴 {user.performanceFlags.red}
+                          </Badge>
+                        )}
+                        {user.performanceFlags.orange > 0 && (
+                          <Badge variant="warning" className="px-2 py-1 text-[11px]">
+                            🟠 {user.performanceFlags.orange}
+                          </Badge>
+                        )}
+                        {user.performanceFlags.yellow > 0 && (
+                          <Badge variant="warning" className="px-2 py-1 text-[11px]">
+                            🟡 {user.performanceFlags.yellow}
+                          </Badge>
+                        )}
+                        {user.performanceFlags.green > 0 && (
+                          <Badge variant="success" className="px-2 py-1 text-[11px]">
+                            🟢 {user.performanceFlags.green}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Badge 
+                    variant={user.performanceScore >= 80 ? 'success' : user.performanceScore >= 60 ? 'default' : 'warning'}
+                  >
+{user.performanceScore}
+                  </Badge>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Performance Score
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Enhanced Skill Utilization */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Users className="w-5 h-5 mr-2" />
+              Skill Demand & Utilization
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {skillUtilization.slice(0, 6).map((skill) => (
+              <div key={skill.name} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{skill.name}</p>
+                    <p className="text-sm text-gray-600">
+                      {skill.users} members • {skill.totalTasks} total tasks
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant={skill.demand >= 20 ? 'success' : skill.demand >= 10 ? 'default' : 'warning'}>
+                      {skill.demand}% demand
+                    </Badge>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>Completion Rate</span>
+                    <span>{skill.completionRate}%</span>
+                  </div>
+                  <ProgressBar 
+                    value={skill.completionRate} 
+                    variant={skill.completionRate >= 80 ? 'success' : skill.completionRate >= 60 ? 'default' : 'warning'}
+                    showLabel={false} 
+                  />
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>Active Tasks</span>
+                    <span>{skill.activeTasks}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </div>

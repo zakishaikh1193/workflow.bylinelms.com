@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  CheckSquare, 
-  Clock, 
-  AlertTriangle, 
+import {
+  Plus,
+  CheckSquare,
+  Clock,
+  AlertTriangle,
   Calendar,
   Search,
   Edit2,
@@ -57,7 +57,7 @@ export function TaskManager() {
           sort: sortField,
           order: sortOrder
         };
-        
+
         // Add filter parameters
         if (selectedStatus !== 'all') {
           filters.status = selectedStatus;
@@ -75,11 +75,11 @@ export function TaskManager() {
         if (debouncedSearch) {
           filters.search = debouncedSearch;
         }
-        
+
         console.log('🔍 Sending filters to API:', filters);
         console.log('🔍 Selected assignee:', selectedAssignee);
         console.log('🔍 State filters:', state.filters);
-        
+
         const [tasksData, teamMembersData, teamsData, stagesData, projectsData, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
           taskService.getAll(filters),
           teamService.getMembers(),
@@ -92,7 +92,7 @@ export function TaskManager() {
           unitService.getAll(),
           lessonService.getAll()
         ]);
-        
+
         console.log('🔍 Tasks received from API:', tasksData);
         setTasks(tasksData);
         setTeamMembers(teamMembersData);
@@ -147,15 +147,15 @@ export function TaskManager() {
   const isOverdue = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
-    
+
     // Get today's date at midnight (start of day)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Get the end date at midnight (start of day)
     const dueDate = new Date(endDate);
     dueDate.setHours(0, 0, 0, 0);
-    
+
     // Task is overdue if due date is before today AND not completed
     return dueDate < today && task.status !== 'completed';
   };
@@ -163,32 +163,32 @@ export function TaskManager() {
   const isDueToday = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dueDate = new Date(endDate);
     dueDate.setHours(0, 0, 0, 0);
-    
+
     return dueDate.getTime() === today.getTime() && task.status !== 'completed';
   };
 
   const isDueTomorrow = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
-    
+
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
     const dueDate = new Date(endDate);
     dueDate.setHours(0, 0, 0, 0);
-    
+
     return dueDate.getTime() === tomorrow.getTime() && task.status !== 'completed';
   };
 
   const isDueThisWeek = (task: Task) => {
     const endDate = task.end_date || task.endDate;
     if (!endDate) return false;
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const weekFromNow = new Date();
@@ -196,7 +196,7 @@ export function TaskManager() {
     weekFromNow.setHours(0, 0, 0, 0);
     const dueDate = new Date(endDate);
     dueDate.setHours(0, 0, 0, 0);
-    
+
     return dueDate >= today && dueDate <= weekFromNow && task.status !== 'completed';
   };
 
@@ -207,7 +207,7 @@ export function TaskManager() {
     if (state.filters?.dueTomorrow && !isDueTomorrow(task)) return false;
     if (state.filters?.dueThisWeek && !isDueThisWeek(task)) return false;
     if (onlyOverdue && !isOverdue(task)) return false;
-    
+
     return true;
   });
 
@@ -264,7 +264,7 @@ export function TaskManager() {
           lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
           component_path: componentPath
         };
-        
+
         console.log('🔄 Updating task with hierarchy in TaskManager:', {
           taskId: editingTask.id,
           grade_id: updateData.grade_id,
@@ -273,9 +273,9 @@ export function TaskManager() {
           lesson_id: updateData.lesson_id,
           component_path: updateData.component_path
         });
-        
+
         await taskService.update(editingTask.id, updateData);
-        
+
         // Refresh tasks list
         const tasksData = await taskService.getAll();
         setTasks(tasksData);
@@ -318,7 +318,7 @@ export function TaskManager() {
           name: taskData.name || '',
           description: taskData.description || '',
           project_id: parseInt(taskData.projectId || '1'),
-          category_stage_id: parseInt(taskData.stageId || ''), 
+          category_stage_id: parseInt(taskData.stageId || ''),
           status: taskData.status || 'not-started',
           priority: taskData.priority || 'medium',
           start_date: taskData.startDate || new Date().toISOString().split('T')[0],
@@ -333,7 +333,7 @@ export function TaskManager() {
           unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
           lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null
         };
-        
+
         console.log('🚀 Creating task with data:', createData);
         console.log('📚 Educational hierarchy IDs being sent:', {
           grade_id: createData.grade_id,
@@ -342,16 +342,16 @@ export function TaskManager() {
           lesson_id: createData.lesson_id,
           component_path: createData.component_path
         });
-        
+
         const newTask = await taskService.create(createData);
-        
+
         // Refresh tasks list
         const tasksData = await taskService.getAll();
         setTasks(tasksData);
-        
+
         console.log('✅ Task created successfully:', newTask);
       }
-      
+
       setIsCreateModalOpen(false);
       setEditingTask(null);
     } catch (error) {
@@ -404,14 +404,14 @@ export function TaskManager() {
 
     try {
       setError(null);
-      
+
       // Delete the task
       await taskService.delete(task.id);
-      
+
       // Refresh tasks list
       const tasksData = await taskService.getAll();
       setTasks(tasksData);
-      
+
       console.log('✅ Task deleted successfully:', task.name);
     } catch (err: any) {
       console.error('❌ Delete task error:', err);
@@ -427,10 +427,10 @@ export function TaskManager() {
     overdue: tasks.filter((t: any) => {
       const endDate = t.end_date || t.endDate;
       if (!endDate || t.status === 'completed') return false;
-    
+
       const taskEnd = new Date(endDate);
       taskEnd.setHours(23, 59, 59, 999);
-    
+
       return taskEnd < new Date();
     }).length,
   };
@@ -438,8 +438,8 @@ export function TaskManager() {
   // Show task details if a task is selected
   if (selectedTaskId) {
     return (
-      <TaskDetails 
-        taskId={selectedTaskId} 
+      <TaskDetails
+        taskId={selectedTaskId}
         onBack={() => setSelectedTaskId(null)}
       />
     );
@@ -475,7 +475,7 @@ export function TaskManager() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Task Management</h1>
           <p className="text-gray-600">Track and manage all project tasks</p>
@@ -486,7 +486,24 @@ export function TaskManager() {
         }}>
           Create Task
         </Button>
+      </div> */}
+      <div className="relative">
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-bold">Task Management</h1>
+              <p className="text-white/80">Track and manage all project tasks</p>
+            </div>
+            <Button icon={<Plus className="w-4 h-4" />} onClick={() => {
+              setEditingTask(null);
+              setIsCreateModalOpen(true);
+            }}>
+              Create Task
+            </Button>
+          </div>
+        </div>
       </div>
+
 
       {/* Task Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
@@ -549,7 +566,7 @@ export function TaskManager() {
         <Card
           className={`${onlyOverdue ? 'ring-2 ring-red-300' : ''} cursor-pointer hover:shadow-md`}
           onClick={() => setOnlyOverdue(prev => !prev)}
-          // title="Click to toggle Overdue only filter"
+        // title="Click to toggle Overdue only filter"
         >
           <CardContent className="p-6">
             <div className="flex items-center">
@@ -637,7 +654,10 @@ export function TaskManager() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th 
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('name')}
                   >
@@ -650,6 +670,7 @@ export function TaskManager() {
                       )}
                     </div>
                   </th>
+               
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Project
                   </th>
@@ -657,7 +678,7 @@ export function TaskManager() {
                     Stage
                   </th>
 
-                  <th 
+                  <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('status')}
                   >
@@ -670,7 +691,7 @@ export function TaskManager() {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('priority')}
                   >
@@ -683,7 +704,7 @@ export function TaskManager() {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('assignees')}
                   >
@@ -696,7 +717,7 @@ export function TaskManager() {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('end_date')}
                   >
@@ -709,7 +730,7 @@ export function TaskManager() {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('progress')}
                   >
@@ -725,7 +746,7 @@ export function TaskManager() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTasks.map((task) => {
+                {filteredTasks.map((task,index) => {
                   const assignedUsers = teamMembers.filter(u => task.assignees && task.assignees.includes(u.id));
                   const assignedTeams = teams.filter(t => task.teamAssignees && task.teamAssignees.includes(t.id));
                   const overdue = isOverdue(task);
@@ -736,12 +757,13 @@ export function TaskManager() {
                     const taskId = typeof taskProjectId === 'string' ? parseInt(taskProjectId) : taskProjectId;
                     return projectId === taskId;
                   });
-                  
+
                   // Use stage_name from API response directly
                   const stageName = task.stage_name;
-                  
+
                   return (
                     <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
+                      <td className='text-center'>{index + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900 flex items-center">
@@ -794,7 +816,7 @@ export function TaskManager() {
                           {assignedUsers.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {assignedUsers.slice(0, 3).map(user => (
-                                <span 
+                                <span
                                   key={user.id}
                                   className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                                 >
@@ -808,7 +830,7 @@ export function TaskManager() {
                               )}
                             </div>
                           )}
-                          
+
                           {assignedUsers.length === 0 && (
                             <span className="text-xs text-gray-400">No assignees</span>
                           )}
@@ -831,8 +853,8 @@ export function TaskManager() {
                           <span className="text-sm text-gray-600">{calculateTaskProgress(task.status)}%</span>
                         </div>
                         <div className="flex items-center space-x-1">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -842,8 +864,8 @@ export function TaskManager() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -853,8 +875,8 @@ export function TaskManager() {
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -950,7 +972,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     try {
       setLoadingStages(true);
       const selectedProject = projects.find(p => p.id === parseInt(projectId) || p.id === projectId);
-      
+
       if (selectedProject && selectedProject.category_id) {
         // Fetch stages for this project's category
         const stagesData = await stageService.getByCategory(selectedProject.category_id);
@@ -979,33 +1001,33 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
   useEffect(() => {
     if (editingTask) {
       // Convert skills from objects to names if needed
-      const skillNames = Array.isArray(editingTask.skills) 
+      const skillNames = Array.isArray(editingTask.skills)
         ? editingTask.skills.map((skill: any) => {
-            if (typeof skill === 'object' && skill.name) {
-              return skill.name;
-            } else if (typeof skill === 'string') {
-              return skill;
-            }
-            return '';
-          }).filter(name => name !== '')
+          if (typeof skill === 'object' && skill.name) {
+            return skill.name;
+          } else if (typeof skill === 'string') {
+            return skill;
+          }
+          return '';
+        }).filter(name => name !== '')
         : [];
-      
+
       // Convert assignees to array of string IDs
-      const assigneeIds = Array.isArray(editingTask.assignees) 
+      const assigneeIds = Array.isArray(editingTask.assignees)
         ? editingTask.assignees.map((assignee: any) => {
-            if (typeof assignee === 'object' && assignee.id) {
-              return assignee.id.toString();
-            } else {
-              return assignee.toString();
-            }
-          })
+          if (typeof assignee === 'object' && assignee.id) {
+            return assignee.id.toString();
+          } else {
+            return assignee.toString();
+          }
+        })
         : [];
-      
+
       console.log('🔍 Editing task assignees:', editingTask.assignees);
       console.log('🔍 Converted assignee IDs:', assigneeIds);
-      
+
       console.log('🔍 Setting form data for editing task:', editingTask);
-      
+
       setFormData({
         name: editingTask.name,
         description: editingTask.description || '',
@@ -1017,7 +1039,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         lessonId: (editingTask.lesson_id || editingTask.lessonId || '').toString(),
         status: editingTask.status,
         assignees: assigneeIds,
-        teamAssignees: Array.isArray(editingTask.teamAssignees) 
+        teamAssignees: Array.isArray(editingTask.teamAssignees)
           ? editingTask.teamAssignees.map((id: any) => id.toString())
           : [],
         skills: skillNames,
@@ -1052,10 +1074,10 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Auto-calculate progress based on status
     const autoProgress = calculateTaskProgress(formData.status);
-    
+
     // Build educational hierarchy path for display
     let educationalPath = '';
     const selectedProject = projects.find(p => p.id === parseInt(formData.projectId) || p.id === formData.projectId);
@@ -1083,13 +1105,13 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         }
       }
     }
-    
+
     // Convert skill names back to skill IDs
     const skillIds = formData.skills.map(skillName => {
       const skill = skills.find(s => s.name === skillName);
       return skill ? skill.id : null;
     }).filter(id => id !== null);
-    
+
     onSubmit({
       ...formData,
       skills: skillIds, // Use skill IDs instead of names
@@ -1113,31 +1135,31 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
     console.log('🔍 Toggling team:', teamId);
     console.log('🔍 Available teams:', teams);
     console.log('🔍 Available users:', users);
-    
+
     try {
       // Fetch team members from API
       const teamMembers = await teamService.getTeamMembers(teamId);
       console.log('🔍 Team members from API:', teamMembers);
-      
+
       setFormData(prev => {
         const isTeamSelected = prev.teamAssignees.includes(teamId);
         console.log('🔍 Is team selected:', isTeamSelected);
-        
+
         // Find the team
         const team = teams.find(t => t.id === parseInt(teamId));
         console.log('🔍 Found team:', team);
-        
+
         if (!team) {
           console.log('❌ Team not found');
           return prev;
         }
-        
+
         // Get team member IDs from the API response
         const teamMemberIds = teamMembers.map((member: any) => member.id.toString());
         console.log('🔍 Team member IDs from API:', teamMemberIds);
-        
+
         let newAssignees = [...prev.assignees];
-        
+
         if (isTeamSelected) {
           // Remove team - uncheck all team members
           newAssignees = newAssignees.filter(id => !teamMemberIds.includes(id));
@@ -1149,9 +1171,9 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             }
           });
         }
-        
+
         console.log('🔍 New assignees:', newAssignees);
-        
+
         return {
           ...prev,
           assignees: newAssignees,
@@ -1196,11 +1218,11 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
 
   // Build availableEducationalHierarchy array for the educational hierarchy selector
   const availableEducationalHierarchy: any[] = [];
-  
+
   if (selectedProject) {
     // Get grades for this project
     const projectGrades = grades.filter((grade: any) => grade.project_id === parseInt(selectedProject.id));
-    
+
     // Add grades
     projectGrades.forEach((grade: any) => {
       availableEducationalHierarchy.push({
@@ -1212,10 +1234,10 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         unitId: null,
         lessonId: null
       });
-      
+
       // Get books for this grade
       const gradeBooks = books.filter((book: any) => book.grade_id === grade.id);
-      
+
       // Add books within this grade
       gradeBooks.forEach((book: any) => {
         availableEducationalHierarchy.push({
@@ -1227,10 +1249,10 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
           unitId: null,
           lessonId: null
         });
-        
+
         // Get units for this book
         const bookUnits = units.filter((unit: any) => unit.book_id === book.id);
-        
+
         // Add units within this book
         bookUnits.forEach((unit: any) => {
           availableEducationalHierarchy.push({
@@ -1242,10 +1264,10 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
             unitId: unit.id,
             lessonId: null
           });
-          
+
           // Get lessons for this unit
           const unitLessons = lessons.filter((lesson: any) => lesson.unit_id === unit.id);
-          
+
           // Add lessons within this unit
           unitLessons.forEach((lesson: any) => {
             availableEducationalHierarchy.push({
@@ -1354,35 +1376,35 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
                 const formBookId = formData.bookId ? parseInt(formData.bookId) : null;
                 const formUnitId = formData.unitId ? parseInt(formData.unitId) : null;
                 const formLessonId = formData.lessonId ? parseInt(formData.lessonId) : null;
-                
+
                 console.log('🔍 Educational hierarchy matching:', {
                   formData: { gradeId: formGradeId, bookId: formBookId, unitId: formUnitId, lessonId: formLessonId },
                   availableHierarchy: availableEducationalHierarchy.length
                 });
-                
+
                 const matchingHierarchyItem = availableEducationalHierarchy.find(c => {
                   return c.gradeId === formGradeId &&
-                         c.bookId === formBookId &&
-                         c.unitId === formUnitId &&
-                         c.lessonId === formLessonId;
+                    c.bookId === formBookId &&
+                    c.unitId === formUnitId &&
+                    c.lessonId === formLessonId;
                 });
-                
+
                 console.log('🔍 Matching hierarchy item:', matchingHierarchyItem);
                 return matchingHierarchyItem ? matchingHierarchyItem.id : '';
               })()}
               onChange={(e) => {
                 const selectedHierarchyItem = availableEducationalHierarchy.find(c => c.id === e.target.value);
                 if (selectedHierarchyItem) {
-                  setFormData({ 
-                    ...formData, 
+                  setFormData({
+                    ...formData,
                     gradeId: selectedHierarchyItem.gradeId ? selectedHierarchyItem.gradeId.toString() : '',
                     bookId: selectedHierarchyItem.bookId ? selectedHierarchyItem.bookId.toString() : '',
                     unitId: selectedHierarchyItem.unitId ? selectedHierarchyItem.unitId.toString() : '',
                     lessonId: selectedHierarchyItem.lessonId ? selectedHierarchyItem.lessonId.toString() : ''
                   });
                 } else {
-                  setFormData({ 
-                    ...formData, 
+                  setFormData({
+                    ...formData,
                     gradeId: '',
                     bookId: '',
                     unitId: '',

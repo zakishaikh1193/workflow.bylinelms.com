@@ -299,7 +299,7 @@ export function ProjectManager() {
           <Button 
             icon={<Plus className="w-4 h-4" />} 
             onClick={() => setIsCreateModalOpen(true)}
-            className="bg-white/90 text-indigo-900 hover:text-blue-800 hover:bg:white"
+            className="bg-blue/90 text-indigo-900 hover:text-blue-200 hover:bg:white hover:shadow-lg"
           >
             New Project
           </Button>
@@ -377,18 +377,19 @@ export function ProjectManager() {
                     <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
                       {project.name}
                       {/* current stage badge if available */}
+                      
+                    </CardTitle>
+                    <div className="mt-1">
+                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border border-blue-200">{getProjectCategoryName(project)}</Badge>
                       {(() => {
                         const id = (project as any).current_stage_id ?? (project as any).currentStageId;
                         const name = id !== undefined && id !== null ? stageIdToName[String(id)] : null;
                         return name ? (
-                          <Badge variant="secondary" className="text-[11px] px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200">
+                          <Badge variant="secondary" className="text-[11px] px-2 mx-3 py-0.5 bg-purple-50 text-purple-700 border border-purple-200">
                             {name}
                           </Badge>
                         ) : null;
                       })()}
-                    </CardTitle>
-                    <div className="mt-1">
-                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border border-blue-200">{getProjectCategoryName(project)}</Badge>
                     </div>
                   </div>
                   <div className="flex items-center space-x-1">

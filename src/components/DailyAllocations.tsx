@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  User, 
+import {
+  Calendar,
+  Clock,
+  User,
   BarChart3,
   ChevronLeft,
   ChevronRight,
@@ -58,7 +58,7 @@ export function DailyAllocations() {
       try {
         setLoading(true);
         setError(null);
-        
+
         const [allocationsData, usersData, projectsData, tasksData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
           allocationService.getAll(),
           teamService.getMembers(),
@@ -69,12 +69,12 @@ export function DailyAllocations() {
           unitService.getAll(),
           lessonService.getAll()
         ]);
-        
+
         console.log('📊 Allocations data:', allocationsData);
         console.log('👥 Users data:', usersData);
         console.log('📋 Projects data:', projectsData);
         console.log('✅ Tasks data:', tasksData);
-        
+
         setAllocations(allocationsData);
         setUsers(usersData);
         setProjects(projectsData);
@@ -86,7 +86,7 @@ export function DailyAllocations() {
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, []);
 
@@ -95,18 +95,18 @@ export function DailyAllocations() {
     if (allocations.length === 0 && tasks.length > 0) {
       try {
         setLoading(true);
-        
+
         // Create allocations for each task with assignees
         for (const task of tasks) {
           if (task.assignees && task.assignees.length > 0) {
             const startDate = task.start_date || task.startDate;
             const endDate = task.end_date || task.endDate;
             const estimatedHours = task.estimated_hours || task.estimatedHours || 8;
-            
+
             if (startDate && endDate) {
               const daysDiff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
               const hoursPerDay = Math.min(estimatedHours / Math.max(daysDiff, 1), 8);
-              
+
               for (const userId of task.assignees) {
                 // Don't specify user_type - let the backend determine it
                 const allocationData = {
@@ -117,13 +117,13 @@ export function DailyAllocations() {
                   start_date: new Date(startDate).toISOString().split('T')[0],
                   end_date: new Date(endDate).toISOString().split('T')[0],
                 };
-                
+
                 await allocationService.create(allocationData);
               }
             }
           }
         }
-        
+
         // Refresh allocations after creating them
         await fetchAllocations();
       } catch (err) {
@@ -155,7 +155,7 @@ export function DailyAllocations() {
     const week = [];
     const startOfWeek = new Date(date);
     startOfWeek.setDate(date.getDate() - date.getDay());
-    
+
     for (let i = 0; i < 7; i++) {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
@@ -166,13 +166,13 @@ export function DailyAllocations() {
 
   const getAllocationsForDate = (date: Date, userId?: string, projectId?: string) => {
     console.log(`🔍 getAllocationsForDate: date=${date.toISOString().split('T')[0]}, userId=${userId}, allocations.length=${allocations.length}`);
-    
+
     const filteredAllocations = allocations.filter(allocation => {
       // Convert dates to YYYY-MM-DD format for comparison
       const allocDateStr = date.toISOString().split('T')[0];
       const startDateStr = allocation.start_date.split('T')[0];
       const endDateStr = allocation.end_date.split('T')[0];
-      
+
       const isInDateRange = allocDateStr >= startDateStr && allocDateStr <= endDateStr;
       const isForUser = !userId || allocation.user_id?.toString() === userId;
       const isForProject = !projectId || allocation.project_id?.toString() === projectId;
@@ -184,15 +184,15 @@ export function DailyAllocations() {
 
       return isInDateRange && isForUser && isForProject;
     });
-    
+
     return filteredAllocations;
   };
 
   const getTotalHoursForUserOnDate = (userId: string, date: Date) => {
     const userAllocations = getAllocationsForDate(date, userId);
     return userAllocations.reduce((total: number, allocation: TeamAllocation) => {
-      const hours = typeof allocation.hours_per_day === 'string' 
-        ? parseFloat(allocation.hours_per_day) 
+      const hours = typeof allocation.hours_per_day === 'string'
+        ? parseFloat(allocation.hours_per_day)
         : allocation.hours_per_day || 0;
       return total + hours;
     }, 0);
@@ -201,8 +201,8 @@ export function DailyAllocations() {
   const getTotalHoursForProjectOnDate = (projectId: string, date: Date) => {
     const projectAllocations = getAllocationsForDate(date, undefined, projectId);
     return projectAllocations.reduce((total: number, allocation: TeamAllocation) => {
-      const hours = typeof allocation.hours_per_day === 'string' 
-        ? parseFloat(allocation.hours_per_day) 
+      const hours = typeof allocation.hours_per_day === 'string'
+        ? parseFloat(allocation.hours_per_day)
         : allocation.hours_per_day || 0;
       return total + hours;
     }, 0);
@@ -240,11 +240,11 @@ export function DailyAllocations() {
 
   const formatDateRange = () => {
     if (viewMode === 'day') {
-      return selectedDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      return selectedDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     } else if (viewMode === 'week') {
       const weekDates = getWeekDates(selectedDate);
@@ -266,12 +266,12 @@ export function DailyAllocations() {
         start_date: allocationData.startDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
         end_date: allocationData.endDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
       };
-      
+
       await allocationService.create(newAllocation);
-      
+
       // Refresh allocations
       await fetchAllocations();
-      
+
       setIsAllocationModalOpen(false);
     } catch (err) {
       console.error('Failed to create allocation:', err);
@@ -283,7 +283,7 @@ export function DailyAllocations() {
     const weekDates = getWeekDates(selectedDate);
     console.log(`📅 Current selected date: ${selectedDate.toISOString().split('T')[0]}`);
     console.log(`📅 Week dates:`, weekDates.map(d => d.toISOString().split('T')[0]));
-    
+
     return (
       <div className="space-y-4">
         {/* Week Header */}
@@ -313,32 +313,32 @@ export function DailyAllocations() {
                   </div>
                   <div>
                     <div className="font-medium text-gray-900">{user.name}</div>
-                                                <div className="text-sm text-gray-600">{user.skills?.[0] || 'No skills'}</div>
+                    <div className="text-sm text-gray-600">{user.skills?.[0] || 'No skills'}</div>
                   </div>
                 </div>
 
-                                  {/* Daily Allocations */}
-                  {weekDates.map(date => {       
-                    const allocations = getAllocationsForDate(date, user.id);
-                    const totalHours = getTotalHoursForUserOnDate(user.id, date);
+                {/* Daily Allocations */}
+                {weekDates.map(date => {
+                  const allocations = getAllocationsForDate(date, user.id);
+                  const totalHours = getTotalHoursForUserOnDate(user.id, date);
                   const status = getUserWorkloadStatus(user.id, date);
-                  
+
                   return (
                     <div key={date.toISOString()} className="p-2 border-l border-gray-200">
                       <div className={`rounded-lg p-2 text-center ${getWorkloadColor(status)}`}>
                         <div className="font-semibold">{totalHours}h</div>
                         <div className="text-xs mt-1">{allocations.length} tasks</div>
                       </div>
-                      
+
                       {allocations.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {allocations.slice(0, 2).map((allocation: TeamAllocation) => {
                             const task = tasks.find(t => t.id === allocation.task_id);
                             const project = projects.find(p => p.id === allocation.project_id);
                             const user = users.find(u => u.id === allocation.user_id);
-                            
+
                             return (
-                              <div 
+                              <div
                                 key={allocation.task_id || allocation.id}
                                 className="text-xs bg-white rounded p-1 border"
                                 title={`${project?.name}: ${task?.name} (${user?.skills?.[0]})`}
@@ -368,7 +368,7 @@ export function DailyAllocations() {
 
   const renderProjectWeekView = () => {
     const weekDates = getWeekDates(selectedDate);
-    
+
     return (
       <div className="space-y-4">
         {/* Week Header */}
@@ -407,22 +407,22 @@ export function DailyAllocations() {
                   const allocations = getAllocationsForDate(date, undefined, project.id);
                   const totalHours = getTotalHoursForProjectOnDate(project.id, date);
                   const uniqueUsers = new Set(allocations.map((a: TeamAllocation) => a.user_id)).size;
-                  
+
                   return (
                     <div key={date.toISOString()} className="p-2 border-l border-gray-200">
                       <div className="rounded-lg p-2 text-center bg-blue-100 text-blue-800">
                         <div className="font-semibold">{totalHours}h</div>
                         <div className="text-xs mt-1">{uniqueUsers} people</div>
                       </div>
-                      
+
                       {allocations.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {allocations.slice(0, 2).map((allocation: TeamAllocation) => {
                             const user = users.find(u => u.id === allocation.user_id);
                             const task = tasks.find(t => t.id === allocation.task_id);
-                            
+
                             return (
-                              <div 
+                              <div
                                 key={`${allocation.user_id}-${allocation.task_id}`}
                                 className="text-xs bg-white rounded p-1 border"
                                 title={`${user?.name}: ${task?.name}`}
@@ -458,7 +458,7 @@ export function DailyAllocations() {
             const allocations = getAllocationsForDate(selectedDate, user.id);
             const totalHours = getTotalHoursForUserOnDate(user.id, selectedDate);
             const status = getUserWorkloadStatus(user.id, selectedDate);
-            
+
             return (
               <Card key={user.id}>
                 <CardHeader>
@@ -475,8 +475,8 @@ export function DailyAllocations() {
                     <div className="text-right">
                       <Badge variant={
                         status === 'available' ? 'success' :
-                        status === 'overloaded' ? 'danger' :
-                        status === 'busy' ? 'warning' : 'primary'
+                          status === 'overloaded' ? 'danger' :
+                            status === 'busy' ? 'warning' : 'primary'
                       }>
                         {totalHours}h allocated
                       </Badge>
@@ -494,7 +494,7 @@ export function DailyAllocations() {
                       {allocations.map(allocation => {
                         const task = tasks.find(t => t.id === allocation.taskId);
                         const project = projects.find(p => p.id === allocation.projectId);
-                        
+
                         return (
                           <div key={allocation.taskId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div className="flex-1">
@@ -506,8 +506,8 @@ export function DailyAllocations() {
                                 </Badge>
                                 <Badge variant={
                                   task?.status === 'completed' ? 'success' :
-                                  task?.status === 'in-progress' ? 'primary' :
-                                  task?.status === 'blocked' ? 'danger' : 'default'
+                                    task?.status === 'in-progress' ? 'primary' :
+                                      task?.status === 'blocked' ? 'danger' : 'default'
                                 } size="sm">
                                   {task?.status}
                                 </Badge>
@@ -536,7 +536,7 @@ export function DailyAllocations() {
             const allocations = getAllocationsForDate(selectedDate, undefined, project.id);
             const totalHours = getTotalHoursForProjectOnDate(project.id, selectedDate);
             const uniqueUsers = new Set(allocations.map(a => a.userId)).size;
-            
+
             return (
               <Card key={project.id}>
                 <CardHeader>
@@ -568,7 +568,7 @@ export function DailyAllocations() {
                       {allocations.map(allocation => {
                         const user = users.find(u => u.id === allocation.userId);
                         const task = tasks.find(t => t.id === allocation.taskId);
-                        
+
                         return (
                           <div key={`${allocation.userId}-${allocation.taskId}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div className="flex-1">
@@ -580,8 +580,8 @@ export function DailyAllocations() {
                                 </Badge>
                                 <Badge variant={
                                   task?.status === 'completed' ? 'success' :
-                                  task?.status === 'in-progress' ? 'primary' :
-                                  task?.status === 'blocked' ? 'danger' : 'default'
+                                    task?.status === 'in-progress' ? 'primary' :
+                                      task?.status === 'blocked' ? 'danger' : 'default'
                                 } size="sm">
                                   {task?.status}
                                 </Badge>
@@ -608,7 +608,7 @@ export function DailyAllocations() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Daily Allocations</h1>
           <p className="text-gray-600">View team member and project task allocations</p>
@@ -616,6 +616,20 @@ export function DailyAllocations() {
         <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsAllocationModalOpen(true)}>
           Add Allocation
         </Button>
+      </div> */}
+
+      <div className="relative">
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-bold">Daily Allocations</h1>
+              <p className="text-white/80">View team member and project task allocations</p>
+            </div>
+            <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsAllocationModalOpen(true)}>
+              Add Allocation
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Controls */}
@@ -632,10 +646,10 @@ export function DailyAllocations() {
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setSelectedDate(new Date())}
           >
             Today
@@ -825,7 +839,7 @@ function AddAllocationModal({ isOpen, onClose, onSubmit, users, projects, tasks 
     });
   };
 
-  const availableTasks = tasks.filter(task => 
+  const availableTasks = tasks.filter(task =>
     !formData.projectId || task.projectId === formData.projectId
   );
 
