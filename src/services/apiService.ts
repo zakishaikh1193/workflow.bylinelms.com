@@ -948,45 +948,45 @@ export const dashboardService = {
 // Performance Flags Service
 export const performanceFlagService = {
   // Get performance flags for a team member
-  getByTeamMember: async (teamMemberId: string | number) => {
+  getByTeamMember: async (teamMemberId: string) => {
     const result = await apiService.get(`/performance-flags/team-member/${teamMemberId}`);
     return result.data;
   },
 
   // Get performance flags for a task
-  getByTask: async (taskId: string | number) => {
+  getByTask: async (taskId: string) => {
     const result = await apiService.get(`/performance-flags/task/${taskId}`);
     return result.data;
   },
 
   // Get performance summary for a team member
-  getSummary: async (teamMemberId: string | number) => {
+  getSummary: async (teamMemberId: string) => {
     const result = await apiService.get(`/performance-flags/summary/${teamMemberId}`);
     return result.data;
   },
 
   // Add a new performance flag
-  add: async (data: {
+  add: async (flagData: {
     team_member_id: number;
     task_id?: number;
     type: 'red' | 'orange' | 'yellow' | 'green';
     reason: string;
   }) => {
-    const result = await apiService.post('/performance-flags', data);
+    const result = await apiService.post('/performance-flags', flagData);
     return result.data;
   },
 
   // Update a performance flag
-  update: async (flagId: string | number, data: {
+  update: async (flagId: string, flagData: {
     type?: 'red' | 'orange' | 'yellow' | 'green';
     reason?: string;
   }) => {
-    const result = await apiService.put(`/performance-flags/${flagId}`, data);
+    const result = await apiService.put(`/performance-flags/${flagId}`, flagData);
     return result.data;
   },
 
   // Delete a performance flag
-  delete: async (flagId: string | number) => {
+  delete: async (flagId: string) => {
     const result = await apiService.delete(`/performance-flags/${flagId}`);
     return result.data;
   }

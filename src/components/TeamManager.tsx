@@ -25,9 +25,11 @@ import {
   // ChevronDown,
   // ChevronRight,
   Eye,
-  UserMinus
+  UserMinus,
+  Flag,
+  AlertTriangle
 } from 'lucide-react';
-import { teamService, skillService } from '../services/apiService';
+import { teamService, skillService, performanceFlagService } from '../services/apiService';
 import { useTeamMembers, useTeams } from '../services/queryHooks';
 import { useApp } from '../contexts/AppContext';
 
@@ -101,6 +103,15 @@ export function TeamManager() {
   const [availableMembersForTeam, setAvailableMembersForTeam] = useState<TeamMember[]>([]);
   const [showMemberDetailsModal, setShowMemberDetailsModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string; email?: string; team_role?: string; skills?: string[] } | null>(null);
+
+  // Performance Flag Management State
+  const [showPerformanceFlagModal, setShowPerformanceFlagModal] = useState(false);
+  const [selectedMemberForFlag, setSelectedMemberForFlag] = useState<TeamMember | null>(null);
+  const [performanceFlagForm, setPerformanceFlagForm] = useState({
+    type: 'yellow' as 'red' | 'orange' | 'yellow' | 'green',
+    reason: '',
+    task_id: null as number | null
+  });
 
   // Form States
   const [memberFormData, setMemberFormData] = useState({
@@ -473,6 +484,67 @@ export function TeamManager() {
     setShowMemberDetailsModal(true);
   };
 
+  // Performance Flag Management Functions
+  const handleAddPerformanceFlag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMemberForFlag) return;
+
+    try {
+      await performanceFlagService.add({
+        team_member_id: selectedMemberForFlag.id,
+        task_id: performanceFlagForm.task_id || undefined,
+        type: performanceFlagForm.type,
+        reason: performanceFlagForm.reason
+      });
+
+      // Refresh team members data
+      await fetchData();
+      
+      setShowPerformanceFlagModal(false);
+      setSelectedMemberForFlag(null);
+      setPerformanceFlagForm({
+        type: 'yellow',
+        reason: '',
+        task_id: null
+      });
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error adding performance flag:', error);
+      setError('Failed to add performance flag');
+    }
+  };
+
+  const openPerformanceFlagModal = (member: TeamMember) => {
+    setSelectedMemberForFlag(member);
+    setPerformanceFlagForm({
+      type: 'yellow',
+      reason: '',
+      task_id: null
+    });
+    setShowPerformanceFlagModal(true);
+  };
+
+  const getFlagColor = (type: string) => {
+    switch (type) {
+      case 'red': return 'bg-red-100 text-red-800 border-red-200';
+      case 'orange': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'yellow': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'green': return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getFlagIcon = (type: string) => {
+    switch (type) {
+      case 'red': return '🔴';
+      case 'orange': return '🟠';
+      case 'yellow': return '🟡';
+      case 'green': return '🟢';
+      default: return '⚪';
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -667,6 +739,39 @@ export function TeamManager() {
             <Plus className="w-4 h-4" />
             <span>Add {activeTab === 'members' ? 'Member' : 'Team'}</span>
           </Button>
+          
+          {/* Test button for development */}
+          {activeTab === 'members' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://workflow.bylinelms.com'}/api/team/sample-data`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    }
+                  });
+                  const result = await response.json();
+                  if (result.success) {
+                    alert('Sample data created successfully! Please refresh the page.');
+                    window.location.reload();
+                  } else {
+                    alert('Failed to create sample data: ' + result.error?.message);
+                  }
+                } catch (error) {
+                  console.error('Error creating sample data:', error);
+                  alert('Error creating sample data');
+                }
+              }}
+              title="Create sample data for testing"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Test Data
+            </Button>
+          )}
         </div>
       </div>
 
@@ -678,6 +783,7 @@ export function TeamManager() {
             onEdit={openEditMember}
             onDelete={handleDeleteMember}
             onMemberClick={handleMemberClick}
+            onAddPerformanceFlag={openPerformanceFlagModal}
           />
         ) : (
           <MembersList
@@ -685,6 +791,7 @@ export function TeamManager() {
             onEdit={openEditMember}
             onDelete={handleDeleteMember}
             onMemberClick={handleMemberClick}
+            onAddPerformanceFlag={openPerformanceFlagModal}
           />
         )
       ) : (
@@ -1171,6 +1278,91 @@ export function TeamManager() {
           </div>
         </Modal>
       )}
+
+      {/* Performance Flag Modal */}
+      {selectedMemberForFlag && (
+        <Modal
+          isOpen={showPerformanceFlagModal}
+          onClose={() => {
+            setShowPerformanceFlagModal(false);
+            setSelectedMemberForFlag(null);
+            setPerformanceFlagForm({
+              type: 'yellow',
+              reason: '',
+              task_id: null
+            });
+          }}
+          title={`Add Performance Flag - ${selectedMemberForFlag.name}`}
+        >
+          <form onSubmit={handleAddPerformanceFlag} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Flag Type
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {(['red', 'orange', 'yellow', 'green'] as const).map((type) => (
+                  <label
+                    key={type}
+                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                      performanceFlagForm.type === type
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="flagType"
+                      value={type}
+                      checked={performanceFlagForm.type === type}
+                      onChange={(e) => setPerformanceFlagForm({ ...performanceFlagForm, type: e.target.value as any })}
+                      className="sr-only"
+                    />
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">{getFlagIcon(type)}</span>
+                      <span className="capitalize font-medium">{type}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason
+              </label>
+              <textarea
+                value={performanceFlagForm.reason}
+                onChange={(e) => setPerformanceFlagForm({ ...performanceFlagForm, reason: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                rows={3}
+                placeholder="Describe the reason for this performance flag..."
+                required
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowPerformanceFlagModal(false);
+                  setSelectedMemberForFlag(null);
+                  setPerformanceFlagForm({
+                    type: 'yellow',
+                    reason: '',
+                    task_id: null
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700">
+                Add Flag
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1181,9 +1373,10 @@ interface TeamMembersTabProps {
   onEdit: (member: TeamMember) => void;
   onDelete: (id: number) => void;
   onMemberClick?: (member: TeamMember) => void;
+  onAddPerformanceFlag?: (member: TeamMember) => void;
 }
 
-function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMembersTabProps) {
+function TeamMembersTab({ members, onEdit, onDelete, onMemberClick, onAddPerformanceFlag }: TeamMembersTabProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {members.map((member) => (
@@ -1284,23 +1477,43 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
                     </Badge>
                     {member.performance_flags_count > 0 && (
                       <div className="flex items-center space-x-1">
-                        <Badge variant="danger" className="px-2 py-1 text-[11px]">
-                          🔴 {member.performance_flags_summary?.red || 0}
-                        </Badge>
-                        <Badge variant="warning" className="px-2 py-1 text-[11px]">
-                          🟠 {member.performance_flags_summary?.orange || 0}
-                        </Badge>
-                        <Badge variant="warning" className="px-2 py-1 text-[11px]">
-                          🟡 {member.performance_flags_summary?.yellow || 0}
-                        </Badge>
-                        <Badge variant="success" className="px-2 py-1 text-[11px]">
-                          🟢 {member.performance_flags_summary?.green || 0}
-                        </Badge>
+                        {member.performance_flags_summary?.red && member.performance_flags_summary.red > 0 && (
+                          <Badge variant="danger" className="px-2 py-1 text-[11px]">
+                            🔴 {member.performance_flags_summary.red}
+                          </Badge>
+                        )}
+                        {member.performance_flags_summary?.orange && member.performance_flags_summary.orange > 0 && (
+                          <Badge variant="warning" className="px-2 py-1 text-[11px]">
+                            🟠 {member.performance_flags_summary.orange}
+                          </Badge>
+                        )}
+                        {member.performance_flags_summary?.yellow && member.performance_flags_summary.yellow > 0 && (
+                          <Badge variant="warning" className="px-2 py-1 text-[11px]">
+                            🟡 {member.performance_flags_summary.yellow}
+                          </Badge>
+                        )}
+                        {member.performance_flags_summary?.green && member.performance_flags_summary.green > 0 && (
+                          <Badge variant="success" className="px-2 py-1 text-[11px]">
+                            🟢 {member.performance_flags_summary.green}
+                          </Badge>
+                        )}
                       </div>
                     )}
                   </div>
 
                   <div className="flex space-x-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddPerformanceFlag && onAddPerformanceFlag(member);
+                      }}
+                      className="hover:bg-orange-50 hover:border-orange-300 transition-colors"
+                      title="Add Performance Flag"
+                    >
+                      <Flag className="w-3 h-3" />
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -1335,7 +1548,7 @@ function TeamMembersTab({ members, onEdit, onDelete, onMemberClick }: TeamMember
 }
 
 // Members List View
-function MembersList({ members, onEdit, onDelete, onMemberClick }: TeamMembersTabProps) {
+function MembersList({ members, onEdit, onDelete, onMemberClick, onAddPerformanceFlag }: TeamMembersTabProps) {
   return (
     <Card>
       <CardContent className="p-0">
@@ -1403,6 +1616,9 @@ function MembersList({ members, onEdit, onDelete, onMemberClick }: TeamMembersTa
                     <div className="flex items-center justify-end space-x-1">
                       <Button variant="ghost" size="sm" onClick={() => onMemberClick && onMemberClick(m)} title="View Tasks">
                         <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onAddPerformanceFlag && onAddPerformanceFlag(m)} title="Add Performance Flag">
+                        <Flag className="w-4 h-4" />
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => onEdit(m)} title="Edit">
                         <Edit className="w-4 h-4" />

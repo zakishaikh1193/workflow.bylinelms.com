@@ -79,6 +79,8 @@ const addPerformanceFlag = async (req, res) => {
     const { team_member_id, task_id, type, reason } = req.body;
     const added_by_id = req.user?.id;
 
+    console.log('🔍 Adding performance flag:', { team_member_id, task_id, type, reason, added_by_id });
+
     if (!req.user) {
       return res.status(403).json({
         success: false,
@@ -100,7 +102,7 @@ const addPerformanceFlag = async (req, res) => {
       });
     }
 
-    // Validate flag type
+    // Validate flag type - ensure consistency with frontend expectations
     const validTypes = ['red', 'orange', 'yellow', 'green'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({
@@ -179,7 +181,12 @@ const addPerformanceFlag = async (req, res) => {
       WHERE pf.id = ?
     `, [result.insertId]);
 
-    console.log('✅ Performance flag added:', result.insertId);
+    console.log('✅ Performance flag added successfully:', {
+      id: result.insertId,
+      team_member_id,
+      type,
+      reason
+    });
 
     res.status(201).json({
       success: true,
@@ -188,7 +195,7 @@ const addPerformanceFlag = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Add performance flag error:', error);
+    console.error('❌ Add performance flag error:', error);
     res.status(500).json({
       success: false,
       error: {

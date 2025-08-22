@@ -19,7 +19,9 @@ const {
   updateTeam,
   deleteTeam,
   addMemberToTeam,
-  removeMemberFromTeam
+  removeMemberFromTeam,
+  debugTeamMemberData,
+  createSampleData
 } = require('../controllers/teamController');
 
 // =====================================================
@@ -72,6 +74,12 @@ router.post('/teams/:teamId/members', requireAdminAuth, addMemberToTeam);
 
 // Remove member from team
 router.delete('/teams/:teamId/members/:memberId', requireAdminAuth, removeMemberFromTeam);
+
+// Debug endpoint (development only)
+router.get('/debug', requireAdminAuth, debugTeamMemberData);
+
+// Create sample data (development only)
+router.post('/sample-data', requireAdminAuth, createSampleData);
 
 // =====================================================
 // LEGACY ROUTES (for backward compatibility)
