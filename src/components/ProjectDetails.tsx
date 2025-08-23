@@ -16,7 +16,8 @@ import {
   X,
   GraduationCap,
   Trash2,
-  Eye
+  Eye,
+  Search
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -69,6 +70,20 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const [editingTask, setEditingTask] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
+  // Pagination state for tasks
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [allProjectTasks, setAllProjectTasks] = useState<any[]>([]); // Store all tasks for this project
+  
+  // Filter state for tasks
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedPriority, setSelectedPriority] = useState<string>('all');
+  const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  
   // Use the progress calculated by the backend, or calculate from tasks if not available
   const projectProgress = currentProject.progress !== undefined ? 
     { progress: currentProject.progress, completedWeight: currentProject.progress, totalWeight: 100 } :
@@ -90,7 +105,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           teamService.getMembers(),
           teamService.getTeams(),
           teamService.getTeams(),
-          taskService.getAll(),
+          taskService.getAll({ all: 'true' }),
           skillService.getAll(),
           projectService.getAll(),
           stageService.getAll(),
@@ -101,21 +116,34 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           lessonService.getAll()
         ]);
         setCurrentProject(currentProjectData);
-        setProjectMembers(members);
-        setProjectTeams(teams);
-        setAvailableTeamMembers(teamMembers);
-        setAvailableTeams(availableTeamsData);
-        setAllTeams(allTeamsData);
-        setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
-        setTeamMembers(teamMembers);
-        setSkills(skillsData);
-        setProjects(projectsData);
-        setStages(stagesData);
-        setLocalCategories(categoriesData);
-        setGrades(gradesData);
-        setBooks(booksData);
-        setUnits(unitsData);
-        setLessons(lessonsData);
+        setProjectMembers(members.data || members);
+        setProjectTeams(teams.data || teams);
+        setAvailableTeamMembers(teamMembers.data || teamMembers);
+        setAvailableTeams(availableTeamsData.data || availableTeamsData);
+        setAllTeams(allTeamsData.data || allTeamsData);
+        // Extract tasks from API response structure
+        const tasksArray = tasksData.data || tasksData;
+        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+        
+        
+        // Store all project tasks and set pagination
+        setAllProjectTasks(projectTasksArray);
+        setTotalTasks(projectTasksArray.length);
+        setTotalPages(Math.ceil(projectTasksArray.length / pageSize));
+        
+        // Set current page tasks
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        setProjectTasks(projectTasksArray.slice(startIndex, endIndex));
+        setTeamMembers(teamMembers.data || teamMembers);
+        setSkills(skillsData.data || skillsData);
+        setProjects(projectsData.data || projectsData);
+        setStages(stagesData.data || stagesData);
+        setLocalCategories(categoriesData.data || categoriesData);
+        setGrades(gradesData.data || gradesData);
+        setBooks(booksData.data || booksData);
+        setUnits(unitsData.data || unitsData);
+        setLessons(lessonsData.data || lessonsData);
       } catch (error) {
         console.error('Failed to fetch project data:', error);
       } finally {
@@ -125,6 +153,95 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
 
     fetchData();
   }, [project.id]);
+
+  // Debounce search term to reduce filtering calls
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 250);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Handle pagination and filtering changes
+  useEffect(() => {
+    if (allProjectTasks.length > 0) {
+      // Apply filters
+      let filteredTasks = allProjectTasks.filter((task: any) => {
+        // Search filter
+        if (debouncedSearch) {
+          const searchLower = debouncedSearch.toLowerCase();
+          if (!task.name.toLowerCase().includes(searchLower) && 
+              !task.description.toLowerCase().includes(searchLower)) {
+            return false;
+          }
+        }
+        
+        // Status filter
+        if (selectedStatus !== 'all' && selectedStatus !== 'overdue') {
+          if (task.status !== selectedStatus) {
+            return false;
+          }
+        }
+        
+        // Overdue filter (handled separately as it's not a status but a date-based condition)
+        if (selectedStatus === 'overdue') {
+          const endDate = task.end_date || task.endDate;
+          if (!endDate || task.status === 'completed') return false;
+          
+          // Get today's date at midnight (start of day)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Get the end date at midnight (start of day)
+          const dueDate = new Date(endDate);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          // Task is overdue if due date is before today AND not completed
+          if (dueDate >= today) {
+            return false;
+          }
+        }
+        
+        // Priority filter
+        if (selectedPriority !== 'all' && task.priority !== selectedPriority) {
+          return false;
+        }
+        
+        // Assignee filter
+        if (selectedAssignee !== 'all') {
+          if (selectedAssignee === 'none') {
+            if (task.assignees && task.assignees.length > 0) {
+              return false;
+            }
+          } else {
+            if (!task.assignees || !task.assignees.includes(parseInt(selectedAssignee))) {
+              return false;
+            }
+          }
+        }
+        
+        return true;
+      });
+      
+      // Update total count for filtered results
+      setTotalTasks(filteredTasks.length);
+      setTotalPages(Math.ceil(filteredTasks.length / pageSize));
+      
+      // Reset to first page if current page is out of bounds
+      const maxPage = Math.ceil(filteredTasks.length / pageSize);
+      if (currentPage > maxPage && maxPage > 0) {
+        setCurrentPage(1);
+      }
+      
+      // Apply pagination
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      setProjectTasks(filteredTasks.slice(startIndex, endIndex));
+    }
+  }, [currentPage, pageSize, allProjectTasks, debouncedSearch, selectedStatus, selectedPriority, selectedAssignee]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedStatus, selectedPriority, selectedAssignee]);
 
   const handleAddMember = async (memberId: number, role: string = 'member') => {
     try {
@@ -136,7 +253,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       
       // Refresh project members
       const members = await projectService.getMembers(project.id);
-      setProjectMembers(members);
+      setProjectMembers(members.data || members);
       setIsAddMemberModalOpen(false);
     } catch (error) {
       console.error('Failed to add member:', error);
@@ -155,8 +272,8 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         projectService.getMembers(project.id),
         projectService.getTeams(project.id)
       ]);
-      setProjectMembers(members);
-      setProjectTeams(teams);
+      setProjectMembers(members.data || members);
+      setProjectTeams(teams.data || teams);
       setIsAddTeamModalOpen(false);
     } catch (error) {
       console.error('Failed to add team:', error);
@@ -169,7 +286,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       
       // Refresh project members
       const members = await projectService.getMembers(project.id);
-      setProjectMembers(members);
+      setProjectMembers(members.data || members);
     } catch (error) {
       console.error('Failed to remove member:', error);
     }
@@ -184,8 +301,8 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         projectService.getMembers(project.id),
         projectService.getTeams(project.id)
       ]);
-      setProjectMembers(members);
-      setProjectTeams(teams);
+      setProjectMembers(members.data || members);
+      setProjectTeams(teams.data || teams);
     } catch (error) {
       console.error('Failed to remove team:', error);
     }
@@ -251,20 +368,17 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null
       };
       
-      console.log('🚀 Creating task from ProjectDetails:', createData);
-      console.log('📚 Educational hierarchy IDs being sent:', {
-        grade_id: createData.grade_id,
-        book_id: createData.book_id,
-        unit_id: createData.unit_id,
-        lesson_id: createData.lesson_id,
-        component_path: createData.component_path
-      });
+
       
       const newTask = await taskService.create(createData);
       
       // Refresh project tasks
-      const tasksData = await taskService.getAll();
-      setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+      const tasksData = await taskService.getAll({ all: 'true' });
+      const tasksArray = tasksData.data || tasksData;
+      const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+      
+      // Update all project tasks - filtering will be handled by the useEffect
+      setAllProjectTasks(projectTasksArray);
       
       console.log('✅ Task created successfully from ProjectDetails:', newTask);
       setIsCreateTaskModalOpen(false);
@@ -339,7 +453,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Tasks</p>
-                <p className="text-2xl font-bold text-gray-900">{projectTasks.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{totalTasks}</p>
               </div>
             </div>
           </CardContent>
@@ -870,8 +984,12 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           await taskService.update(editingTask.id, updateData);
           
           // Refresh project tasks
-          const tasksData = await taskService.getAll();
-          setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+          const tasksData = await taskService.getAll({ all: 'true' });
+          const tasksArray = tasksData.data || tasksData;
+          const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+          
+          // Update all project tasks - filtering will be handled by the useEffect
+          setAllProjectTasks(projectTasksArray);
         }
         
         setIsEditModalOpen(false);
@@ -890,8 +1008,12 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         await taskService.delete(task.id);
         
         // Refresh project tasks
-        const tasksData = await taskService.getAll();
-        setProjectTasks(tasksData.filter((task: any) => task.project_id === parseInt(project.id)));
+        const tasksData = await taskService.getAll({ all: 'true' });
+        const tasksArray = tasksData.data || tasksData;
+        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+        
+        // Update all project tasks - filtering will be handled by the useEffect
+        setAllProjectTasks(projectTasksArray);
         
         console.log('✅ Task deleted successfully:', task.name);
       } catch (err: any) {
@@ -943,6 +1065,60 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
             Add Task
           </Button>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="all">All Status</option>
+              <option value="not-started">Not Started</option>
+              <option value="in-progress">In Progress</option>
+              <option value="under-review">Under Review</option>
+              <option value="completed">Completed</option>
+              <option value="blocked">Blocked</option>
+              <option value="overdue">Overdue</option>
+            </select>
+
+            <select
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="all">All Priority</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+
+            <select
+              value={selectedAssignee}
+              onChange={(e) => setSelectedAssignee(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="all">All Assignees</option>
+              <option value="none">No Assignees</option>
+              {teamMembers.map(user => (
+                <option key={user.id} value={user.id}>{user.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {projectTasks.length > 0 ? (
@@ -1098,6 +1274,95 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-700">
+                        Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalTasks)} of {totalTasks} tasks
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        First
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "primary" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-8 h-8 p-0"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                      >
+                        Last
+                      </Button>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-700">Page size:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (

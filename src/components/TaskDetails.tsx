@@ -149,22 +149,23 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
       setProject(projectData);
       setStage(stageData);
-      setAllTeamMembers(allTeamMembersData);
-      setTeams(teamsData);
-      setSkills(skillsData);
-      setGrades(gradesData);
-      setBooks(booksData);
-      setUnits(unitsData);
-      setLessons(lessonsData);
-              setExtensions(extensionsData);
-        setRemarks(remarksData);
-        setPerformanceFlags(flagsData);
+      setAllTeamMembers(allTeamMembersData.data || allTeamMembersData);
+      setTeams(teamsData.data || teamsData);
+      setSkills(skillsData.data || skillsData);
+      setGrades(gradesData.data || gradesData);
+      setBooks(booksData.data || booksData);
+      setUnits(unitsData.data || unitsData);
+      setLessons(lessonsData.data || lessonsData);
+      setExtensions(extensionsData.data || extensionsData);
+      setRemarks(remarksData.data || remarksData);
+      setPerformanceFlags(flagsData.data || flagsData);
 
       // Filter assignees based on task assignees
+      const allTeamMembersArray = allTeamMembersData.data || allTeamMembersData;
       console.log('🔍 Task assignees data:', taskData.assignees);
-      console.log('🔍 All team members:', allTeamMembersData);
+      console.log('🔍 All team members:', allTeamMembersArray);
       
-      const taskAssignees = allTeamMembersData.filter((user: any) => {
+      const taskAssignees = allTeamMembersArray.filter((user: any) => {
         // Handle both array of IDs and array of objects
         if (Array.isArray(taskData.assignees)) {
           return taskData.assignees.some((assignee: any) => {
@@ -236,7 +237,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
         reviewData.review_notes = extensionNotes;
       }
 
-      await taskService.reviewExtension(selectedExtension.id, reviewData);
+      await taskService.reviewExtension(selectedExtension.id.toString(), reviewData);
       
       // Refresh data
       await loadTaskDetails();
@@ -273,7 +274,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
   const handleDeleteRemark = async (remarkId: number) => {
     try {
-      await taskService.deleteRemark(remarkId);
+      await taskService.deleteRemark(remarkId.toString());
       await loadTaskDetails(); // Refresh remarks
     } catch (err: any) {
       console.error('Failed to delete remark:', err);
@@ -302,7 +303,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
       // Reload flags
       const flagsData = await performanceFlagService.getByTask(taskId);
-      setPerformanceFlags(flagsData);
+      setPerformanceFlags(flagsData.data || flagsData);
 
       // Close modal
       setIsFlagModalOpen(false);
@@ -316,10 +317,10 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
   const handleDeleteFlag = async (flagId: number) => {
     try {
-      await performanceFlagService.delete(flagId);
+      await performanceFlagService.delete(flagId.toString());
       // Reload flags
       const flagsData = await performanceFlagService.getByTask(taskId);
-      setPerformanceFlags(flagsData);
+      setPerformanceFlags(flagsData.data || flagsData);
     } catch (error) {
       console.error('Failed to delete performance flag:', error);
     }

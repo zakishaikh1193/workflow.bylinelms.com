@@ -70,15 +70,12 @@ export function DailyAllocations() {
           lessonService.getAll()
         ]);
         
-        console.log('📊 Allocations data:', allocationsData);
-        console.log('👥 Users data:', usersData);
-        console.log('📋 Projects data:', projectsData);
-        console.log('✅ Tasks data:', tasksData);
+
         
-        setAllocations(allocationsData);
-        setUsers(usersData);
-        setProjects(projectsData);
-        setTasks(tasksData);
+        setAllocations(allocationsData.data || allocationsData);
+        setUsers(usersData.data || usersData);
+        setProjects(projectsData.data || projectsData);
+        setTasks(tasksData.data || tasksData);
       } catch (err) {
         console.error('Failed to fetch data:', err);
         setError('Failed to load data');
@@ -165,9 +162,8 @@ export function DailyAllocations() {
   };
 
   const getAllocationsForDate = (date: Date, userId?: string, projectId?: string) => {
-    console.log(`🔍 getAllocationsForDate: date=${date.toISOString().split('T')[0]}, userId=${userId}, allocations.length=${allocations.length}`);
     
-    const filteredAllocations = allocations.filter(allocation => {
+    const filteredAllocations = (allocations || []).filter(allocation => {
       // Convert dates to YYYY-MM-DD format for comparison
       const allocDateStr = date.toISOString().split('T')[0];
       const startDateStr = allocation.start_date.split('T')[0];
@@ -281,8 +277,7 @@ export function DailyAllocations() {
 
   const renderTeamWeekView = () => {
     const weekDates = getWeekDates(selectedDate);
-    console.log(`📅 Current selected date: ${selectedDate.toISOString().split('T')[0]}`);
-    console.log(`📅 Week dates:`, weekDates.map(d => d.toISOString().split('T')[0]));
+
     
     return (
       <div className="space-y-4">
@@ -825,7 +820,7 @@ function AddAllocationModal({ isOpen, onClose, onSubmit, users, projects, tasks 
     });
   };
 
-  const availableTasks = tasks.filter(task => 
+  const availableTasks = (tasks || []).filter(task => 
     !formData.projectId || task.projectId === formData.projectId
   );
 

@@ -239,17 +239,25 @@ const getMyProfile = async (req, res) => {
 // Get all team members (existing functionality)
 const getAllTeamMembers = async (req, res) => {
   try {
+    console.log('🔍 Fetching all team members with task counts and performance flags...');
+    
     const teamMembers = await db.query(`
       SELECT 
         tm.*,
         GROUP_CONCAT(DISTINCT s.name) as skills,
         COUNT(DISTINCT pf.id) as performance_flags_count,
+        COUNT(DISTINCT CASE WHEN pf.type = 'red' THEN pf.id END) as red_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'orange' THEN pf.id END) as orange_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'yellow' THEN pf.id END) as yellow_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'green' THEN pf.id END) as green_flags,
+        COUNT(DISTINCT ta.task_id) as task_count,
         GROUP_CONCAT(DISTINCT t.name) as team_names,
         GROUP_CONCAT(DISTINCT t.id) as team_ids
       FROM team_members tm
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
       LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
       LEFT JOIN teams t ON tmt.team_id = t.id AND t.is_active = 1
       WHERE tm.is_active = true
@@ -257,20 +265,35 @@ const getAllTeamMembers = async (req, res) => {
       ORDER BY tm.name
     `);
 
+    console.log(`✅ Found ${teamMembers.length} team members`);
+
     // Parse skills string into array and add team information
-    const formattedTeamMembers = teamMembers.map(member => ({
-      ...member,
-      skills: member.skills ? member.skills.split(',') : [],
-      team_names: member.team_names ? member.team_names.split(',') : [],
-      team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : []
-    }));
+    const formattedTeamMembers = teamMembers.map(member => {
+      const formattedMember = {
+        ...member,
+        skills: member.skills ? member.skills.split(',') : [],
+        team_names: member.team_names ? member.team_names.split(',') : [],
+        team_ids: member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [],
+        performance_flags_summary: {
+          red: parseInt(member.red_flags) || 0,
+          orange: parseInt(member.orange_flags) || 0,
+          yellow: parseInt(member.yellow_flags) || 0,
+          green: parseInt(member.green_flags) || 0
+        },
+        task_count: parseInt(member.task_count) || 0
+      };
+      
+      console.log(`👤 ${formattedMember.name}: ${formattedMember.task_count} tasks, ${formattedMember.performance_flags_count} flags`);
+      
+      return formattedMember;
+    });
 
     res.json({
       success: true,
       data: formattedTeamMembers
     });
   } catch (error) {
-    console.error('Error fetching team members:', error);
+    console.error('❌ Error fetching team members:', error);
     res.status(500).json({
       success: false,
       error: { message: 'Failed to fetch team members' }
@@ -1118,6 +1141,167 @@ const removeMemberFromTeam = async (req, res) => {
   }
 };
 
+// Debug endpoint to test task counts and performance flags
+const debugTeamMemberData = async (req, res) => {
+  try {
+    console.log('🔍 Debug: Testing team member data...');
+    
+    // Test task counts
+    const taskCounts = await db.query(`
+      SELECT 
+        tm.id,
+        tm.name,
+        COUNT(DISTINCT ta.task_id) as task_count
+      FROM team_members tm
+      LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
+      WHERE tm.is_active = true
+      GROUP BY tm.id, tm.name
+      ORDER BY tm.name
+    `);
+    
+    // Test performance flags
+    const flagCounts = await db.query(`
+      SELECT 
+        tm.id,
+        tm.name,
+        COUNT(DISTINCT pf.id) as flag_count,
+        COUNT(DISTINCT CASE WHEN pf.type = 'red' THEN pf.id END) as red_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'orange' THEN pf.id END) as orange_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'yellow' THEN pf.id END) as yellow_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'green' THEN pf.id END) as green_flags
+      FROM team_members tm
+      LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
+      WHERE tm.is_active = true
+      GROUP BY tm.id, tm.name
+      ORDER BY tm.name
+    `);
+    
+    // Test task_assignees table
+    const taskAssignees = await db.query(`
+      SELECT 
+        ta.*,
+        tm.name as team_member_name,
+        t.name as task_name
+      FROM task_assignees ta
+      LEFT JOIN team_members tm ON ta.assignee_id = tm.id AND ta.assignee_type = 'team'
+      LEFT JOIN tasks t ON ta.task_id = t.id
+      WHERE ta.assignee_type = 'team'
+      ORDER BY tm.name, t.name
+    `);
+    
+    res.json({
+      success: true,
+      data: {
+        taskCounts,
+        flagCounts,
+        taskAssignees,
+        summary: {
+          totalTeamMembers: taskCounts.length,
+          totalTaskAssignments: taskAssignees.length,
+          totalFlags: flagCounts.reduce((sum, member) => sum + member.flag_count, 0)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Debug error:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Debug failed' }
+    });
+  }
+};
+
+// Create sample data for testing
+const createSampleData = async (req, res) => {
+  try {
+    console.log('🔍 Creating sample data for testing...');
+    
+    // Get some team members
+    const teamMembers = await db.query('SELECT id, name FROM team_members WHERE is_active = true LIMIT 5');
+    
+    if (teamMembers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'No team members found. Please create team members first.' }
+      });
+    }
+    
+    // Get some tasks
+    const tasks = await db.query('SELECT id, name FROM tasks LIMIT 10');
+    
+    if (tasks.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'No tasks found. Please create tasks first.' }
+      });
+    }
+    
+    let createdAssignments = 0;
+    let createdFlags = 0;
+    
+    // Create some task assignments
+    for (let i = 0; i < Math.min(teamMembers.length, 3); i++) {
+      const member = teamMembers[i];
+      const task = tasks[i % tasks.length];
+      
+      // Check if assignment already exists
+      const existingAssignment = await db.query(
+        'SELECT id FROM task_assignees WHERE task_id = ? AND assignee_id = ? AND assignee_type = "team"',
+        [task.id, member.id]
+      );
+      
+      if (existingAssignment.length === 0) {
+        await db.insert(
+          'INSERT INTO task_assignees (task_id, assignee_id, assignee_type) VALUES (?, ?, ?)',
+          [task.id, member.id, 'team']
+        );
+        createdAssignments++;
+        console.log(`✅ Assigned task "${task.name}" to "${member.name}"`);
+      }
+    }
+    
+    // Create some performance flags
+    const flagTypes = ['red', 'orange', 'yellow', 'green'];
+    const flagReasons = [
+      'Missed deadline',
+      'Excellent work quality',
+      'Needs improvement',
+      'Outstanding performance',
+      'Requires additional training'
+    ];
+    
+    for (let i = 0; i < Math.min(teamMembers.length, 2); i++) {
+      const member = teamMembers[i];
+      const flagType = flagTypes[i % flagTypes.length];
+      const reason = flagReasons[i % flagReasons.length];
+      
+      await db.insert(
+        'INSERT INTO performance_flags (team_member_id, type, reason, added_by, added_by_id) VALUES (?, ?, ?, ?, ?)',
+        [member.id, flagType, reason, 'System', 1]
+      );
+      createdFlags++;
+      console.log(`✅ Added ${flagType} flag to "${member.name}": ${reason}`);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        message: 'Sample data created successfully',
+        createdAssignments,
+        createdFlags,
+        teamMembers: teamMembers.length,
+        tasks: tasks.length
+      }
+    });
+  } catch (error) {
+    console.error('❌ Create sample data error:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to create sample data' }
+    });
+  }
+};
+
 module.exports = {
   // Team member functions (existing)
   authenticateTeamMember,
@@ -1136,5 +1320,7 @@ module.exports = {
   updateTeam,
   deleteTeam,
   addMemberToTeam,
-  removeMemberFromTeam
+  removeMemberFromTeam,
+  debugTeamMemberData,
+  createSampleData
 };

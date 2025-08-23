@@ -30,7 +30,7 @@ export function Sidebar() {
         <p className="text-sm text-gray-500 mt-1">Project Management</p>
       </div>
       
-      <nav className="px-4 space-y-1">
+      <nav className="px-4 space-y-4 h-[100vh]">
         {navigation.map((item) => {
           const isActive = state.selectedView === item.key;
           return (

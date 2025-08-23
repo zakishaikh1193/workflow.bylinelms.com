@@ -1,5 +1,6 @@
 // Modern API service for the new Node.js backend
-const API_URL = import.meta.env.VITE_API_URL || 'https://workflow.bylinelms.com';
+const API_URL = 'https://workflow.bylinelms.com/api';
+// const API_URL = 'http://localhost:3001/api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -245,7 +246,7 @@ export const projectService = {
     const queryParams = new URLSearchParams(filters).toString();
     const endpoint = queryParams ? `/projects?${queryParams}` : '/projects';
     const result = await apiService.get(endpoint);
-    return result.data;
+    return result;
   },
 
   // Get project by ID
@@ -382,7 +383,7 @@ export const taskService = {
     const queryParams = new URLSearchParams(filters).toString();
     const endpoint = queryParams ? `/tasks?${queryParams}` : '/tasks';
     const result = await apiService.get(endpoint);
-    return result.data;
+    return result;
   },
 
   // Get task by ID
@@ -862,7 +863,7 @@ export const dashboardService = {
       const results = await Promise.allSettled([
         projectService.getAll().catch((error) => {
           console.error('❌ Projects fetch error:', error);
-          return [];
+          return { data: [] };
         }),
         teamService.getMembers().catch((error) => {
           console.error('❌ Team members fetch error:', error);
@@ -876,13 +877,13 @@ export const dashboardService = {
           console.error('❌ Skills fetch error:', error);
           return [];
         }),
-        taskService.getAll().catch((error) => {
+        taskService.getAll({ all: 'true' }).catch((error) => {
           console.error('❌ Tasks fetch error:', error);
-          return [];
+          return { data: [] };
         })
       ]);
 
-      const [projects, teamMembers, categories, skills, tasks] = results.map(result => {
+      const [projectsResponse, teamMembers, categories, skills, tasksResponse] = results.map(result => {
         if (result.status === 'fulfilled') {
           return result.value || [];
         } else {
@@ -890,6 +891,12 @@ export const dashboardService = {
           return [];
         }
       });
+
+      // Handle projects response (could be paginated or direct array)
+      const projects = projectsResponse && projectsResponse.data ? projectsResponse.data : (Array.isArray(projectsResponse) ? projectsResponse : []);
+      
+      // Handle tasks response (could be paginated or direct array)
+      const tasks = tasksResponse && tasksResponse.data ? tasksResponse.data : (Array.isArray(tasksResponse) ? tasksResponse : []);
 
       // Calculate statistics
       const stats = {
@@ -948,45 +955,45 @@ export const dashboardService = {
 // Performance Flags Service
 export const performanceFlagService = {
   // Get performance flags for a team member
-  getByTeamMember: async (teamMemberId: string | number) => {
+  getByTeamMember: async (teamMemberId: string) => {
     const result = await apiService.get(`/performance-flags/team-member/${teamMemberId}`);
     return result.data;
   },
 
   // Get performance flags for a task
-  getByTask: async (taskId: string | number) => {
+  getByTask: async (taskId: string) => {
     const result = await apiService.get(`/performance-flags/task/${taskId}`);
     return result.data;
   },
 
   // Get performance summary for a team member
-  getSummary: async (teamMemberId: string | number) => {
+  getSummary: async (teamMemberId: string) => {
     const result = await apiService.get(`/performance-flags/summary/${teamMemberId}`);
     return result.data;
   },
 
   // Add a new performance flag
-  add: async (data: {
+  add: async (flagData: {
     team_member_id: number;
     task_id?: number;
     type: 'red' | 'orange' | 'yellow' | 'green';
     reason: string;
   }) => {
-    const result = await apiService.post('/performance-flags', data);
+    const result = await apiService.post('/performance-flags', flagData);
     return result.data;
   },
 
   // Update a performance flag
-  update: async (flagId: string | number, data: {
+  update: async (flagId: string, flagData: {
     type?: 'red' | 'orange' | 'yellow' | 'green';
     reason?: string;
   }) => {
-    const result = await apiService.put(`/performance-flags/${flagId}`, data);
+    const result = await apiService.put(`/performance-flags/${flagId}`, flagData);
     return result.data;
   },
 
   // Delete a performance flag
-  delete: async (flagId: string | number) => {
+  delete: async (flagId: string) => {
     const result = await apiService.delete(`/performance-flags/${flagId}`);
     return result.data;
   }

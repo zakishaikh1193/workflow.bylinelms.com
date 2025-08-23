@@ -61,11 +61,12 @@ const getTasks = async (req, res) => {
       priority,
       assignee_id,
       assignee_type,
-      search
+      search,
+      all = false
     } = req.query;
 
     // Build query with optional JOIN for assignee sorting and filtering
-    let query = 'SELECT DISTINCT t.* FROM tasks t';
+    let query = 'SELECT t.* FROM tasks t';
     const queryParams = [];
     
     // Add JOIN for assignee sorting or filtering if needed
@@ -77,30 +78,41 @@ const getTasks = async (req, res) => {
 
     // Add filters
     if (project_id) {
-      query += ' AND project_id = ?';
+      query += ' AND t.project_id = ?';
       queryParams.push(project_id);
     }
 
     if (status) {
-      query += ' AND status = ?';
+      query += ' AND t.status = ?';
       queryParams.push(status);
     }
 
     if (priority) {
-      query += ' AND priority = ?';
+      query += ' AND t.priority = ?';
       queryParams.push(priority);
     }
 
     if (search) {
-      query += ' AND (name LIKE ? OR description LIKE ?)';
+      query += ' AND (t.name LIKE ? OR t.description LIKE ?)';
       queryParams.push(`%${search}%`, `%${search}%`);
     }
 
     if (assignee_id) {
-      query += ' AND ta.assignee_id = ?';
-      queryParams.push(assignee_id);
+      if (assignee_id === 'none') {
+        // Filter for tasks with no assignees
+        query += ' AND ta.task_id IS NULL';
+      } else {
+        // Filter for tasks assigned to specific user
+        query += ' AND ta.assignee_id = ?';
+        queryParams.push(assignee_id);
+      }
     }
 
+    // Add GROUP BY if we have JOINs to ensure distinct tasks
+    if (sort === 'assignees' || assignee_id) {
+      query += ' GROUP BY t.id';
+    }
+    
     // Add sorting
     const validSortFields = ['name', 'created_at', 'updated_at', 'start_date', 'end_date', 'priority', 'status', 'progress'];
     const validOrders = ['asc', 'desc'];
@@ -114,17 +126,82 @@ const getTasks = async (req, res) => {
       query += ' ORDER BY t.created_at DESC';
     }
 
-    // Add pagination - use hardcoded values first to test
-    query += ' LIMIT 20 OFFSET 0';
+    // Calculate offset for pagination
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Add pagination only if not requesting all tasks
+    if (all !== 'true') {
+      query += ` LIMIT ${parseInt(limit)} OFFSET ${offset}`;
+    }
 
     console.log('🔍 Task query:', query);
     console.log('🔍 Task params:', queryParams);
+    console.log('🔍 Pagination:', { page, limit, offset });
+    console.log('🔍 Final query with pagination:', query);
 
     // Execute query
-    const tasks = await db.query(query, queryParams);
+    let tasks;
+    try {
+      tasks = await db.query(query, queryParams);
+    } catch (error) {
+      console.error('❌ Database query error:', error);
+      console.error('❌ Query that failed:', query);
+      console.error('❌ Parameters:', queryParams);
+      throw error;
+    }
+    
+    console.log('🔍 Raw tasks from database:', tasks.length, 'tasks');
+    console.log('🔍 First few task IDs:', tasks.slice(0, 5).map(t => t.id));
 
-    // Get total count for pagination (simplified)
-    const countResult = await db.query('SELECT COUNT(*) as total FROM tasks', []);
+    // Get total count for pagination with same filters
+    let countQuery = 'SELECT COUNT(DISTINCT t.id) as total FROM tasks t';
+    const countParams = [];
+    
+    if (sort === 'assignees' || assignee_id) {
+      countQuery += ' LEFT JOIN task_assignees ta ON t.id = ta.task_id LEFT JOIN admin_users au ON ta.assignee_id = au.id AND ta.assignee_type = "admin" LEFT JOIN team_members tm ON ta.assignee_id = tm.id AND ta.assignee_type = "team"';
+    }
+    countQuery += ' WHERE 1=1';
+    
+    // Add same filters to count query
+    if (project_id) {
+      countQuery += ' AND t.project_id = ?';
+      countParams.push(project_id);
+    }
+    if (status) {
+      countQuery += ' AND t.status = ?';
+      countParams.push(status);
+    }
+    if (priority) {
+      countQuery += ' AND t.priority = ?';
+      countParams.push(priority);
+    }
+    if (search) {
+      countQuery += ' AND (t.name LIKE ? OR t.description LIKE ?)';
+      countParams.push(`%${search}%`, `%${search}%`);
+    }
+    if (assignee_id) {
+      if (assignee_id === 'none') {
+        // Filter for tasks with no assignees
+        countQuery += ' AND ta.task_id IS NULL';
+      } else {
+        // Filter for tasks assigned to specific user
+        countQuery += ' AND ta.assignee_id = ?';
+        countParams.push(assignee_id);
+      }
+    }
+    
+    console.log('🔍 Count query:', countQuery);
+    console.log('🔍 Count params:', countParams);
+    
+    let countResult;
+    try {
+      countResult = await db.query(countQuery, countParams);
+    } catch (error) {
+      console.error('❌ Count query error:', error);
+      console.error('❌ Count query that failed:', countQuery);
+      console.error('❌ Count parameters:', countParams);
+      throw error;
+    }
     const total = countResult[0].total;
 
     // Process tasks to include assignees and skills
@@ -140,14 +217,22 @@ const getTasks = async (req, res) => {
       teamAssignees: t.teamAssignees
     })));
 
+    console.log('📋 Final response pagination:', {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit)),
+      returnedTasks: processedTasks.length
+    });
+
     res.json({
       success: true,
       data: processedTasks,
       pagination: {
-        page: 1,
-        limit: 20,
+        page: parseInt(page),
+        limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / 20)
+        pages: Math.ceil(total / parseInt(limit))
       }
     });
 

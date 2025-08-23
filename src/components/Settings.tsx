@@ -136,8 +136,6 @@ export function Settings() {
     { key: 'categories', label: 'Categories', icon: Tag },
     { key: 'skills', label: 'Skills', icon: Users },
     { key: 'stages', label: 'Project Stages', icon: Layers },
-    { key: 'users', label: 'Admin Users', icon: UserPlus },
-    { key: 'functional-units', label: 'Functional Units', icon: Users },
   ];
 
   const handleAddItem = async (type: string, data: any) => {
@@ -938,10 +936,21 @@ export function Settings() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
+      {/* <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-600">Manage categories, skills, and project stages</p>
-      </div>
+      </div> */}
+
+            <div className="relative">
+              <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
+                <div className="flex items-center justify-between gap-6">
+                  <div>
+                    <h1 className="text-2xl font-bold">Settings</h1>
+                    <p className="text-white/80">Manage categories, skills, and project stages</p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

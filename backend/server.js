@@ -89,6 +89,10 @@ app.use('/api/lessons', lessonRoutes);
 app.use('/api/allocations', allocationRoutes);
 app.use('/api/performance-flags', performanceFlagRoutes);
 
+const searchRoutes = require('./routes/search');
+app.use('/api/search', searchRoutes);
+
+
 // API info endpoint
 app.get('/api', (req, res) => {
   res.json({

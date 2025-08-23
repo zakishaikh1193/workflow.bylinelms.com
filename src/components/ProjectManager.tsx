@@ -1,28 +1,26 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
-  FolderOpen, 
   Calendar, 
   Users, 
-  MoreHorizontal,
   Filter,
   Grid,
   List,
   Loader2,
   AlertTriangle,
   Trash2,
-  Pencil
+  Pencil,
+  CheckSquare
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
-import { useApp } from '../contexts/AppContext';
 import { Project, ProjectStatus } from '../types';
 import { ProjectDetails } from './ProjectDetails';
-import { calculateProjectProgress } from '../utils/progressCalculator';
-import { projectService, categoryService, stageService } from '../services/apiService';
+import { projectService, categoryService, stageService, taskService } from '../services/apiService';
 
 // Category-specific stage templates
 const stageTemplates = {
@@ -71,6 +69,8 @@ export function ProjectManager() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tasksByProject, setTasksByProject] = useState<Record<string, number>>({});
+  const [allStages, setAllStages] = useState<any[]>([]);
 
   // Fetch data from backend
   useEffect(() => {
@@ -79,13 +79,32 @@ export function ProjectManager() {
         setLoading(true);
         setError(null);
         
-        const [projectsData, categoriesData] = await Promise.all([
+        const [projectsResponse, categoriesData, allTasksResponse, stagesData] = await Promise.all([
           projectService.getAll(),
-          categoryService.getAll()
+          categoryService.getAll(),
+          taskService.getAll({ all: 'true' }),
+          stageService.getAll()
         ]);
         
+        // Handle projects response (could be paginated or direct array)
+        const projectsData = projectsResponse && projectsResponse.data ? projectsResponse.data : (Array.isArray(projectsResponse) ? projectsResponse : []);
+        
         setProjects(projectsData);
+        console.log("Data",projects, categories);
         setCategories(categoriesData);
+        setAllStages(stagesData || []);
+
+        // Handle tasks response (could be paginated or direct array)
+        const allTasks = allTasksResponse && allTasksResponse.data ? allTasksResponse.data : (Array.isArray(allTasksResponse) ? allTasksResponse : []);
+
+        // Aggregate task counts per project (handle different id field names)
+        const counts: Record<string, number> = {};
+        (allTasks || []).forEach((t: any) => {
+          const pid = (t.project_id ?? t.projectId ?? '').toString();
+          if (!pid) return;
+          counts[pid] = (counts[pid] || 0) + 1;
+        });
+        setTasksByProject(counts);
 
       } catch (err: any) {
         console.error('ProjectManager fetch error:', err);
@@ -96,10 +115,43 @@ export function ProjectManager() {
     };
 
     fetchData();
+    
   }, []);
 
+  // Fast lookup for category names by id
+  const categoryIdToName = useMemo(() => {
+    const map: Record<string, string> = {};
+    (categories || []).forEach((c: any) => {
+      if (c && (c.id !== undefined) && c.name) {
+        map[String(c.id)] = c.name;
+      }
+    });
+    return map;
+  }, [categories]);
+
+  const getProjectCategoryName = (project: any) => {
+    const direct = project?.category;
+    if (direct && typeof direct === 'string' && direct.trim() !== '') return direct;
+    const id = project?.category_id ?? project?.categoryId;
+    if (id !== undefined && id !== null) {
+      const name = categoryIdToName[String(id)];
+      if (name) return name;
+    }
+    return 'Uncategorized';
+  };
+
+  const stageIdToName = useMemo(() => {
+    const map: Record<string, string> = {};
+    (allStages || []).forEach((s: any) => {
+      if (s && (s.id !== undefined) && s.name) {
+        map[String(s.id)] = s.name;
+      }
+    });
+    return map;
+  }, [allStages]);
+
   const filteredProjects = projects.filter(project => {
-    if (selectedCategory !== 'all' && project.category !== selectedCategory) return false;
+    if (selectedCategory !== 'all' && getProjectCategoryName(project) !== selectedCategory) return false;
     if (selectedStatus !== 'all' && project.status !== selectedStatus) return false;
     return true;
   });
@@ -133,41 +185,6 @@ export function ProjectManager() {
     } catch (err: any) {
       console.error('❌ Create project error:', err);
       setError(err.message || 'Failed to create project');
-    }
-  };
-
-  const handleUpdateProject = async (projectId: string, projectData: Partial<Project> & { currentStageId?: number }) => {
-    try {
-      setError(null);
-      
-      // Find the category ID from the name if category is being updated
-      const category = projectData.category ? categories.find(c => c.name === projectData.category) : null;
-      
-      // Prepare project data for backend
-      const backendProjectData: any = {};
-      if (projectData.name) backendProjectData.name = projectData.name;
-      if (projectData.description) backendProjectData.description = projectData.description;
-      if (category) backendProjectData.category_id = category.id;
-      if (projectData.currentStageId !== undefined) backendProjectData.current_stage_id = projectData.currentStageId;
-      if (projectData.startDate) backendProjectData.start_date = projectData.startDate.toISOString().split('T')[0];
-      if (projectData.endDate) backendProjectData.end_date = projectData.endDate.toISOString().split('T')[0];
-      if (projectData.status) backendProjectData.status = projectData.status;
-      if (projectData.progress !== undefined) backendProjectData.progress = projectData.progress;
-      
-      console.log('🔄 Updating project:', projectId, backendProjectData);
-      
-      // Update project via API
-      const updatedProject = await projectService.update(projectId, backendProjectData);
-      
-      // Update local state
-      setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
-      
-      console.log('✅ Project updated successfully:', updatedProject);
-      return updatedProject;
-    } catch (err: any) {
-      console.error('❌ Update project error:', err);
-      setError(err.message || 'Failed to update project');
-      throw err;
     }
   };
 
@@ -207,6 +224,17 @@ export function ProjectManager() {
       case 'cancelled': return 'danger';
       default: return 'default';
     }
+  };
+
+  const getDaysLeft = (end: string | Date | undefined) => {
+    if (!end) return null;
+    const endDate = new Date(end);
+    const today = new Date();
+    // Normalize to start of day for consistency
+    endDate.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    const diffMs = endDate.getTime() - today.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   };
 
   if (selectedProject) {
@@ -266,25 +294,33 @@ export function ProjectManager() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-          <p className="text-gray-600">Manage and track your project portfolio</p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white p-6 shadow-lg">
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+        <div className="absolute -bottom-14 -left-12 w-56 h-56 bg-white/10 rounded-full blur-2xl" />
+        <div className="relative z-10 flex items-center justify-between gap-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Projects</h1>
+            <p className="text-white/80">Manage and track your project portfolio</p>
+          </div>
+          <Button 
+            icon={<Plus className="w-4 h-4" />} 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-blue/90 text-indigo-900 hover:text-blue-200 hover:bg:white hover:shadow-lg"
+          >
+            New Project
+          </Button>
         </div>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateModalOpen(true)}>
-          New Project
-        </Button>
       </div>
 
-      {/* Filters and View Controls */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
+      {/* Filters and View Controls */} 
+      <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200">
             <Filter className="w-4 h-4 text-gray-500" />
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-1 text-sm"
+              className="bg-transparent outline-none text-sm"
             >
               <option value="all">All Categories</option>
               {categories.map(category => (
@@ -292,26 +328,30 @@ export function ProjectManager() {
               ))}
             </select>
           </div>
-          
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1 text-sm"
-          >
-            <option value="all">All Status</option>
-            <option value="planning">Planning</option>
-            <option value="active">Active</option>
-            <option value="on-hold">On Hold</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200">
+            <span className="text-xs text-gray-500">Status</span>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="bg-transparent outline-none text-sm"
+            >
+              <option value="all">All</option>
+              <option value="planning">Planning</option>
+              <option value="active">Active</option>
+              <option value="on-hold">On Hold</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2">
           <Button
             variant={viewMode === 'grid' ? 'primary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('grid')}
+            className={viewMode === 'grid' ? '' : 'hover:bg-gray-100'}
+            title="Grid view"
           >
             <Grid className="w-4 h-4" />
           </Button>
@@ -319,6 +359,8 @@ export function ProjectManager() {
             variant={viewMode === 'list' ? 'primary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('list')}
+            className={viewMode === 'list' ? '' : 'hover:bg-gray-100'}
+            title="List view"
           >
             <List className="w-4 h-4" />
           </Button>
@@ -331,14 +373,30 @@ export function ProjectManager() {
           {filteredProjects.map((project) => (
             <Card 
               key={project.id} 
-              className="hover:shadow-lg transition-shadow cursor-pointer"
+              className={`relative overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 bg-white/90 backdrop-blur-sm ${project.status === 'active' ? 'ring-1 ring-blue-200' : ''}`}
               onClick={() => setSelectedProject(project)}
             >
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500" />
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{project.category}</p>
+                    <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
+                      {project.name}
+                      {/* current stage badge if available */}
+                      
+                    </CardTitle>
+                    <div className="mt-1">
+                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border border-blue-200">{getProjectCategoryName(project)}</Badge>
+                      {(() => {
+                        const id = (project as any).current_stage_id ?? (project as any).currentStageId;
+                        const name = id !== undefined && id !== null ? stageIdToName[String(id)] : null;
+                        return name ? (
+                          <Badge variant="secondary" className="text-[11px] px-2 mx-3 py-0.5 bg-purple-50 text-purple-700 border border-purple-200">
+                            {name}
+                          </Badge>
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Button 
@@ -369,28 +427,66 @@ export function ProjectManager() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-gray-700 line-clamp-2">{project.description}</p>
+
+                {getProjectCategoryName(project) === 'IT Applications' && (
+                  <div className="mt-1">
+                    <div className="text-xs text-gray-500">IT Applications Phases</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {stageTemplates['IT Applications'].slice(0, 3).map((s) => (
+                        <Badge key={s.id} variant="secondary" className="text-[10px] px-2 py-0.5">
+                          {s.name}
+                        </Badge>
+                      ))}
+                      {stageTemplates['IT Applications'].length > 3 && (
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+                          +{stageTemplates['IT Applications'].length - 3} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Progress</span>
                     <span className="font-medium">{project.progress}%</span>
                   </div>
-                  <ProgressBar value={project.progress} />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Badge variant={getStatusVariant(project.status)}>
-                    {project.status}
-                  </Badge>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="w-4 h-4 mr-1" />
-                    {project.userCount || 0}
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-700 ${project.progress >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-600' : project.progress >= 50 ? 'bg-gradient-to-r from-blue-500 to-indigo-600' : project.progress >= 25 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}
+                      style={{ width: `${project.progress}%` }}
+                    />
                   </div>
                 </div>
 
-                <div className="flex items-center text-sm text-gray-600">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  {project.end_date || project.endDate ? new Date(project.end_date || project.endDate || '').toLocaleDateString() : 'No due date'}
+                <div className="flex items-center justify-between">
+                  <Badge variant={getStatusVariant(project.status)}>{project.status}</Badge>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="inline-flex items-center text-gray-700">
+                      <CheckSquare className="w-4 h-4 mr-1 text-blue-600" />
+                      <span className="font-medium">{tasksByProject[(project.id as any)?.toString()] || 0}</span>
+                      <span className="ml-1 text-gray-500">tasks</span>
+                    </div>
+                    <div className="inline-flex items-center text-gray-700">
+                      <Users className="w-4 h-4 mr-1 text-purple-600" />
+                      <span className="font-medium">{project.userCount || 0}</span>
+                      <span className="ml-1 text-gray-500">team</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="inline-flex items-center">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {project.end_date || project.endDate ? new Date(project.end_date || project.endDate || '').toLocaleDateString() : 'No due date'}
+                  </div>
+                  {(() => {
+                    const days = getDaysLeft((project.end_date as any) || (project.endDate as any));
+                    if (days === null) return null;
+                    const label = days < 0 ? `${Math.abs(days)} days overdue` : days === 0 ? 'Due today' : `${days} days left`;
+                    const cls = days < 0 ? 'text-red-600' : days <= 3 ? 'text-orange-600' : 'text-green-600';
+                    return <span className={`font-medium ${cls}`}>{label}</span>;
+                  })()}
                 </div>
               </CardContent>
             </Card>
@@ -416,10 +512,16 @@ export function ProjectManager() {
                       Progress
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tasks
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Team
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Due Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Days Left
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -435,12 +537,25 @@ export function ProjectManager() {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{project.name}</div>
+                          <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                            {project.name}
+                            {(() => {
+                              const id = (project as any).current_stage_id ?? (project as any).currentStageId;
+                              const name = id !== undefined && id !== null ? stageIdToName[String(id)] : null;
+                              return name ? (
+                                <Badge variant="secondary" className="text-[11px] px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200">
+                                  {name}
+                                </Badge>
+                              ) : null;
+                            })()}
+                          </div>
                           <div className="text-sm text-gray-500">{project.description}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {project.category}
+                        {getProjectCategoryName(project)}
+                        
+                        
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={getStatusVariant(project.status)}>
@@ -454,6 +569,9 @@ export function ProjectManager() {
                         <div className="text-xs text-gray-600 mt-1">{project.progress}%</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(tasksByProject[(project.id as any)?.toString()] || 0)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
                           <Users className="w-4 h-4 mr-1 text-gray-400" />
                           {project.userCount || 0}
@@ -461,6 +579,13 @@ export function ProjectManager() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {project.end_date || project.endDate ? new Date(project.end_date || project.endDate || '').toLocaleDateString() : 'No due date'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(() => {
+                          const days = getDaysLeft((project.end_date as any) || (project.endDate as any));
+                          if (days === null) return '-';
+                          return days < 0 ? `${Math.abs(days)} overdue` : days === 0 ? 'Due today' : `${days} days`;
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-1">

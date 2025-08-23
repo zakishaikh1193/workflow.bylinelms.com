@@ -244,8 +244,13 @@ const queryValidation = [
   
   query('assignee_id')
     .optional()
-    .isInt({ min: 1 })
-    .withMessage('Assignee ID must be a positive integer'),
+    .custom((value) => {
+      if (value === 'none' || (parseInt(value) > 0)) {
+        return true;
+      }
+      throw new Error('Assignee ID must be a positive integer or "none"');
+    })
+    .withMessage('Assignee ID must be a positive integer or "none"'),
   
   query('assignee_type')
     .optional()

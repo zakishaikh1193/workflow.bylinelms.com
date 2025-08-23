@@ -162,16 +162,22 @@ export function TeamManager() {
         console.log('✅ Team members fetched:', membersData);
         console.log('✅ Tasks fetched:', tasksData);
         
+        // Extract data from API response structure
+        const membersArray = membersData.data || membersData;
+        const tasksArray = tasksData.data || tasksData;
+        console.log('🔍 Members array:', membersArray);
+        console.log('🔍 Tasks array:', tasksArray);
+        
         // Add task counts and performance flag summaries to team members
-        const membersWithDetails = await Promise.all((membersData || []).map(async (member: TeamMember) => {
-          const memberTasks = tasksData.filter((task: any) => 
+        const membersWithDetails = await Promise.all((membersArray || []).map(async (member: TeamMember) => {
+          const memberTasks = tasksArray.filter((task: any) => 
             task.assignees && task.assignees.includes(member.id)
           );
           
           // Fetch performance flag summary for this member
           let performanceFlagsSummary = null;
           try {
-            const summaryData = await performanceFlagService.getSummary(member.id);
+            const summaryData = await performanceFlagService.getSummary(member.id.toString());
             // Convert array format to object format
             if (summaryData && summaryData.summary) {
               performanceFlagsSummary = {
@@ -204,8 +210,9 @@ export function TeamManager() {
         const teamsData = await teamService.getTeams();
         
         console.log('✅ Teams fetched:', teamsData);
-        setTeams(teamsData || []);
-        setFilteredTeams(teamsData || []);
+        const teamsArray = teamsData.data || teamsData;
+        setTeams(teamsArray || []);
+        setFilteredTeams(teamsArray || []);
       }
       } catch (error) {
         console.error('❌ Fetch team data error:', error);
@@ -220,7 +227,8 @@ export function TeamManager() {
     const fetchTeamsForDropdown = async () => {
       try {
         const teamsData = await teamService.getTeams();
-        setTeams(teamsData || []);
+        const teamsArray = teamsData.data || teamsData;
+        setTeams(teamsArray || []);
         console.log('✅ Teams for dropdown fetched:', teamsData);
       } catch (error) {
         console.error('Error fetching teams for dropdown:', error);
@@ -414,7 +422,8 @@ export function TeamManager() {
     try {
       // Get all team members and filter out those already in this team
       const allMembers = await teamService.getMembers();
-      const teamMembers = allMembers || [];
+      const membersArray = allMembers.data || allMembers;
+      const teamMembers = membersArray || [];
       
       // Filter out members who are already in this team
       const availableMembers = teamMembers.filter((member: TeamMember) => 

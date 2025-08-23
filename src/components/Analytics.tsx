@@ -74,11 +74,11 @@ export function Analytics() {
       ]);
       
       setData({
-        projects: projectsData,
-        tasks: tasksData,
-        teamMembers: teamMembersData,
-        categories: categoriesData,
-        skills: skillsData
+        projects: projectsData.data || projectsData,
+        tasks: tasksData.data || tasksData,
+        teamMembers: teamMembersData.data || teamMembersData,
+        categories: categoriesData.data || categoriesData,
+        skills: skillsData.data || skillsData
       });
     } catch (error) {
       console.error('Failed to load analytics data:', error);
@@ -93,15 +93,15 @@ export function Analytics() {
     setRefreshing(false);
   };
 
-  // Advanced analytics calculations with useMemo for performance
+    // Advanced analytics calculations with useMemo for performance
   const analytics = useMemo(() => {
     const filteredProjects = selectedCategory === 'all' 
-      ? data.projects 
-      : data.projects.filter((p: any) => p.category_id === parseInt(selectedCategory));
-    
+      ? (data.projects || [])
+      : (data.projects || []).filter((p: any) => p.category_id === parseInt(selectedCategory));
+
     const filteredTasks = selectedSkill === 'all'
-      ? data.tasks
-      : data.tasks.filter((t: any) => t.skills && t.skills.includes(parseInt(selectedSkill)));
+      ? (data.tasks || [])
+      : (data.tasks || []).filter((t: any) => t.skills && t.skills.includes(parseInt(selectedSkill)));
 
     const now = new Date();
     const timeRangeDays = {
@@ -111,13 +111,13 @@ export function Analytics() {
       year: 365
     }[timeRange];
 
-    const recentTasks = data.tasks.filter((t: any) => {
+    const recentTasks = (data.tasks || []).filter((t: any) => {
       const taskDate = new Date(t.created_at);
       const daysDiff = (now.getTime() - taskDate.getTime()) / (1000 * 3600 * 24);
       return daysDiff <= timeRangeDays;
     });
 
-    const recentProjects = data.projects.filter((p: any) => {
+    const recentProjects = (data.projects || []).filter((p: any) => {
       const projectDate = new Date(p.created_at);
       const daysDiff = (now.getTime() - projectDate.getTime()) / (1000 * 3600 * 24);
       return daysDiff <= timeRangeDays;
@@ -172,11 +172,11 @@ export function Analytics() {
           : 0
       },
       teamStats: {
-        total: data.teamMembers.length,
-        active: data.teamMembers.filter((u: any) => filteredTasks.some((t: any) => t.assignees && t.assignees.includes(u.id) && t.status !== 'completed')).length,
-        available: data.teamMembers.filter((u: any) => !filteredTasks.some((t: any) => t.assignees && t.assignees.includes(u.id) && t.status !== 'completed')).length,
-        utilization: data.teamMembers.length > 0 
-          ? Math.round((data.teamMembers.filter((u: any) => filteredTasks.some((t: any) => t.assignees && t.assignees.includes(u.id) && t.status !== 'completed')).length / data.teamMembers.length) * 100)
+        total: (data.teamMembers || []).length,
+        active: (data.teamMembers || []).filter((u: any) => filteredTasks.some((t: any) => t.assignees && t.assignees.includes(u.id) && t.status !== 'completed')).length,
+        available: (data.teamMembers || []).filter((u: any) => !filteredTasks.some((t: any) => t.assignees && t.assignees.includes(u.id) && t.status !== 'completed')).length,
+        utilization: (data.teamMembers || []).length > 0 
+          ? Math.round(((data.teamMembers || []).filter((u: any) => filteredTasks.some((t: any) => t.assignees && t.assignees.includes(u.id) && t.status !== 'completed')).length / (data.teamMembers || []).length) * 100)
           : 0
       },
       productivity: {
@@ -187,8 +187,8 @@ export function Analytics() {
           : 0
       },
       trends: {
-        taskGrowth: recentTasks.length > 0 ? Math.round((recentTasks.length / data.tasks.length) * 100) : 0,
-        projectGrowth: recentProjects.length > 0 ? Math.round((recentProjects.length / data.projects.length) * 100) : 0,
+        taskGrowth: recentTasks.length > 0 ? Math.round((recentTasks.length / (data.tasks || []).length) * 100) : 0,
+        projectGrowth: recentProjects.length > 0 ? Math.round((recentProjects.length / (data.projects || []).length) * 100) : 0,
         completionTrend: recentTasks.filter((t: any) => t.status === 'completed').length > 0 
           ? Math.round((recentTasks.filter((t: any) => t.status === 'completed').length / recentTasks.length) * 100)
           : 0
@@ -197,21 +197,21 @@ export function Analytics() {
   }, [data, timeRange, selectedCategory, selectedSkill]);
 
   // Enhanced analytics with advanced metrics
-  const categoryDistribution = useMemo(() => data.categories.map((category: any) => ({
+  const categoryDistribution = useMemo(() => (data.categories || []).map((category: any) => ({
     name: category.name,
-    count: data.projects.filter((p: any) => p.category_id === category.id).length,
-    percentage: data.projects.length > 0 ? Math.round((data.projects.filter((p: any) => p.category_id === category.id).length / data.projects.length) * 100) : 0,
-    avgProgress: data.projects.filter((p: any) => p.category_id === category.id).length > 0 
-      ? Math.round(data.projects.filter((p: any) => p.category_id === category.id).reduce((sum: number, p: any) => sum + (p.progress || 0), 0) / data.projects.filter((p: any) => p.category_id === category.id).length)
+    count: (data.projects || []).filter((p: any) => p.category_id === category.id).length,
+    percentage: (data.projects || []).length > 0 ? Math.round(((data.projects || []).filter((p: any) => p.category_id === category.id).length / (data.projects || []).length) * 100) : 0,
+    avgProgress: (data.projects || []).filter((p: any) => p.category_id === category.id).length > 0 
+      ? Math.round((data.projects || []).filter((p: any) => p.category_id === category.id).reduce((sum: number, p: any) => sum + (p.progress || 0), 0) / (data.projects || []).filter((p: any) => p.category_id === category.id).length)
       : 0,
-    completionRate: data.projects.filter((p: any) => p.category_id === category.id).length > 0
-      ? Math.round((data.projects.filter((p: any) => p.category_id === category.id && p.status === 'completed').length / data.projects.filter((p: any) => p.category_id === category.id).length) * 100)
+    completionRate: (data.projects || []).filter((p: any) => p.category_id === category.id).length > 0
+      ? Math.round(((data.projects || []).filter((p: any) => p.category_id === category.id && p.status === 'completed').length / (data.projects || []).filter((p: any) => p.category_id === category.id).length) * 100)
       : 0
   })), [data]);
 
-  const skillUtilization = useMemo(() => data.skills.map((skill: any) => {
-    const skillTasks = data.tasks.filter((t: any) => t.skills && t.skills.includes(skill.id));
-    const skillUsers = data.teamMembers.filter((u: any) => u.skills && u.skills.includes(skill.id));
+  const skillUtilization = useMemo(() => (data.skills || []).map((skill: any) => {
+    const skillTasks = (data.tasks || []).filter((t: any) => t.skills && t.skills.includes(skill.id));
+    const skillUsers = (data.teamMembers || []).filter((u: any) => u.skills && u.skills.includes(skill.id));
     
     return {
       name: skill.name,
@@ -219,12 +219,12 @@ export function Analytics() {
       activeTasks: skillTasks.filter((t: any) => t.status !== 'completed').length,
       totalTasks: skillTasks.length,
       completionRate: skillTasks.length > 0 ? Math.round((skillTasks.filter((t: any) => t.status === 'completed').length / skillTasks.length) * 100) : 0,
-      demand: skillTasks.length > 0 ? Math.round((skillTasks.length / data.tasks.length) * 100) : 0
+      demand: skillTasks.length > 0 ? Math.round((skillTasks.length / (data.tasks || []).length) * 100) : 0
     };
   }), [data]);
 
-  const topPerformers = useMemo(() => data.teamMembers.map((user: any) => {
-    const userTasks = data.tasks.filter((t: any) => t.assignees && t.assignees.includes(user.id));
+  const topPerformers = useMemo(() => (data.teamMembers || []).map((user: any) => {
+    const userTasks = (data.tasks || []).filter((t: any) => t.assignees && t.assignees.includes(user.id));
     const completedTasks = userTasks.filter((t: any) => t.status === 'completed');
     const completionRate = userTasks.length > 0 ? Math.round((completedTasks.length / userTasks.length) * 100) : 0;
     
@@ -267,7 +267,7 @@ export function Analytics() {
 
   // Additional advanced metrics
   const performanceInsights = useMemo(() => {
-    const overdueTasks = data.tasks.filter((t: any) => {
+    const overdueTasks = (data.tasks || []).filter((t: any) => {
       if (!t.end_date || t.status === 'completed') return false;
       
       // Get today's date at midnight (start of day)
@@ -281,27 +281,27 @@ export function Analytics() {
       // Task is overdue if due date is before today
       return dueDate < today;
     });
-    const highPriorityTasks = data.tasks.filter((t: any) => t.priority === 'high');
-    const lowProgressProjects = data.projects.filter((p: any) => (p.progress || 0) < 30);
+    const highPriorityTasks = (data.tasks || []).filter((t: any) => t.priority === 'high');
+    const lowProgressProjects = (data.projects || []).filter((p: any) => (p.progress || 0) < 30);
     
     return {
       overdueTasks: overdueTasks.length,
       highPriorityTasks: highPriorityTasks.length,
       lowProgressProjects: lowProgressProjects.length,
-      riskScore: Math.round((overdueTasks.length * 0.4 + highPriorityTasks.length * 0.3 + lowProgressProjects.length * 0.3) / Math.max(data.tasks.length + data.projects.length, 1) * 100),
+      riskScore: Math.round((overdueTasks.length * 0.4 + highPriorityTasks.length * 0.3 + lowProgressProjects.length * 0.3) / Math.max((data.tasks || []).length + (data.projects || []).length, 1) * 100),
       efficiencyGap: analytics.productivity.completionRate > 0 ? Math.round((100 - analytics.productivity.completionRate) / 10) : 0
     };
   }, [data, analytics]);
 
   const timeBasedMetrics = useMemo(() => {
     const now = new Date();
-    const thisWeek = data.tasks.filter((t: any) => {
+    const thisWeek = (data.tasks || []).filter((t: any) => {
       const taskDate = new Date(t.created_at);
       const daysDiff = (now.getTime() - taskDate.getTime()) / (1000 * 3600 * 24);
       return daysDiff <= 7;
     });
     
-    const thisMonth = data.tasks.filter((t: any) => {
+    const thisMonth = (data.tasks || []).filter((t: any) => {
       const taskDate = new Date(t.created_at);
       const daysDiff = (now.getTime() - taskDate.getTime()) / (1000 * 3600 * 24);
       return daysDiff <= 30;
