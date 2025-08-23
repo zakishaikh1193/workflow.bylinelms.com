@@ -380,6 +380,10 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       // Update all project tasks - filtering will be handled by the useEffect
       setAllProjectTasks(projectTasksArray);
       
+      // Also refresh the current project to update progress
+      const currentProjectData = await projectService.getById(project.id);
+      setCurrentProject(currentProjectData);
+      
       console.log('✅ Task created successfully from ProjectDetails:', newTask);
       setIsCreateTaskModalOpen(false);
     } catch (error) {
@@ -401,6 +405,9 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         start_date: projectData.start_date || project.start_date,
         end_date: projectData.end_date || project.end_date,
       };
+      
+      // Update the current project state immediately
+      setCurrentProject(updatedProject);
       
       // Call the onUpdate callback to update the parent component
       if (onUpdate) {
@@ -920,28 +927,27 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       setIsEditModalOpen(true);
     };
 
-    const handleUpdateTask = async (taskData: Partial<Task>) => {
-      try {
-        if (editingTask) {
-          // Build component path for display (same logic as handleCreateTask)
-          let componentPath = '';
-          if (taskData.gradeId) {
-            const grade = grades.find(g => g.id === parseInt(taskData.gradeId || '0'));
-            if (grade) {
-              componentPath = grade.name;
-              if (taskData.bookId) {
-                const book = books.find(b => b.id === parseInt(taskData.bookId || '0'));
-                if (book) {
-                  componentPath += ` > ${book.name}`;
-                  if (taskData.unitId) {
-                    const unit = units.find(u => u.id === parseInt(taskData.unitId || '0'));
-                    if (unit) {
-                      componentPath += ` > ${unit.name}`;
-                      if (taskData.lessonId) {
-                        const lesson = lessons.find(l => l.id === parseInt(taskData.lessonId || '0'));
-                        if (lesson) {
-                          componentPath += ` > ${lesson.name}`;
-                        }
+      const handleUpdateTask = async (taskData: Partial<Task>) => {
+    try {
+      if (editingTask) {
+        // Build component path for display (same logic as handleCreateTask)
+        let componentPath = '';
+        if (taskData.gradeId) {
+          const grade = grades.find(g => g.id === parseInt(taskData.gradeId || '0'));
+          if (grade) {
+            componentPath = grade.name;
+            if (taskData.bookId) {
+              const book = books.find(b => b.id === parseInt(taskData.bookId || '0'));
+              if (book) {
+                componentPath += ` > ${book.name}`;
+                if (taskData.unitId) {
+                  const unit = units.find(u => u.id === parseInt(taskData.unitId || '0'));
+                  if (unit) {
+                    componentPath += ` > ${unit.name}`;
+                    if (taskData.lessonId) {
+                      const lesson = lessons.find(l => l.id === parseInt(taskData.lessonId || '0'));
+                      if (lesson) {
+                        componentPath += ` > ${lesson.name}`;
                       }
                     }
                   }
@@ -949,55 +955,60 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
               }
             }
           }
-
-          // Update existing task
-          const updateData = {
-            name: taskData.name,
-            description: taskData.description,
-            project_id: parseInt(taskData.projectId || '1'),
-            category_stage_id: parseInt(taskData.stageId || ''),
-            status: taskData.status,
-            priority: taskData.priority,
-            start_date: taskData.startDate,
-            end_date: taskData.endDate,
-            estimated_hours: parseInt(String(taskData.estimatedHours || 0)),
-            actual_hours: parseInt(String(taskData.actualHours || 0)),
-            assignees: taskData.assignees || [],
-            skills: taskData.skills,
-            // Add educational hierarchy IDs
-            grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
-            book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
-            unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
-            lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
-            component_path: componentPath
-          };
-          
-          console.log('🔄 Updating task with hierarchy:', {
-            taskId: editingTask.id,
-            grade_id: updateData.grade_id,
-            book_id: updateData.book_id,
-            unit_id: updateData.unit_id,
-            lesson_id: updateData.lesson_id,
-            component_path: updateData.component_path
-          });
-          
-          await taskService.update(editingTask.id, updateData);
-          
-          // Refresh project tasks
-          const tasksData = await taskService.getAll({ all: 'true' });
-          const tasksArray = tasksData.data || tasksData;
-          const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
-          
-          // Update all project tasks - filtering will be handled by the useEffect
-          setAllProjectTasks(projectTasksArray);
         }
+
+        // Update existing task
+        const updateData = {
+          name: taskData.name,
+          description: taskData.description,
+          project_id: parseInt(taskData.projectId || '1'),
+          category_stage_id: parseInt(taskData.stageId || ''),
+          status: taskData.status,
+          priority: taskData.priority,
+          start_date: taskData.startDate,
+          end_date: taskData.endDate,
+          estimated_hours: parseInt(String(taskData.estimatedHours || 0)),
+          actual_hours: parseInt(String(taskData.actualHours || 0)),
+          assignees: taskData.assignees || [],
+          skills: taskData.skills,
+          // Add educational hierarchy IDs
+          grade_id: taskData.gradeId ? parseInt(taskData.gradeId) : null,
+          book_id: taskData.bookId ? parseInt(taskData.bookId) : null,
+          unit_id: taskData.unitId ? parseInt(taskData.unitId) : null,
+          lesson_id: taskData.lessonId ? parseInt(taskData.lessonId) : null,
+          component_path: componentPath
+        };
         
-        setIsEditModalOpen(false);
-        setEditingTask(null);
-      } catch (error) {
-        console.error('❌ Failed to update task:', error);
+        console.log('🔄 Updating task with hierarchy:', {
+          taskId: editingTask.id,
+          grade_id: updateData.grade_id,
+          book_id: updateData.book_id,
+          unit_id: updateData.unit_id,
+          lesson_id: updateData.lesson_id,
+          component_path: updateData.component_path
+        });
+        
+        await taskService.update(editingTask.id, updateData);
+        
+        // Refresh project tasks immediately
+        const tasksData = await taskService.getAll({ all: 'true' });
+        const tasksArray = tasksData.data || tasksData;
+        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+        
+        // Update all project tasks - filtering will be handled by the useEffect
+        setAllProjectTasks(projectTasksArray);
+        
+        // Also refresh the current project to update progress
+        const currentProjectData = await projectService.getById(project.id);
+        setCurrentProject(currentProjectData);
       }
-    };
+      
+      setIsEditModalOpen(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('❌ Failed to update task:', error);
+    }
+  };
 
     const handleDeleteTask = async (task: any) => {
       if (!confirm(`Are you sure you want to delete the task "${task.name}"? This action cannot be undone.`)) {
@@ -1007,15 +1018,19 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       try {
         await taskService.delete(task.id);
         
-        // Refresh project tasks
-        const tasksData = await taskService.getAll({ all: 'true' });
-        const tasksArray = tasksData.data || tasksData;
-        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
-        
-        // Update all project tasks - filtering will be handled by the useEffect
-        setAllProjectTasks(projectTasksArray);
-        
-        console.log('✅ Task deleted successfully:', task.name);
+              // Refresh project tasks
+      const tasksData = await taskService.getAll({ all: 'true' });
+      const tasksArray = tasksData.data || tasksData;
+      const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+      
+      // Update all project tasks - filtering will be handled by the useEffect
+      setAllProjectTasks(projectTasksArray);
+      
+      // Also refresh the current project to update progress
+      const currentProjectData = await projectService.getById(project.id);
+      setCurrentProject(currentProjectData);
+      
+      console.log('✅ Task deleted successfully:', task.name);
       } catch (err: any) {
         console.error('❌ Delete task error:', err);
       }

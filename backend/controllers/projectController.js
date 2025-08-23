@@ -528,7 +528,7 @@ const getProjectMembers = async (req, res) => {
         tm.is_active,
         GROUP_CONCAT(DISTINCT s.name) as skills
       FROM project_members pm
-      JOIN team_members tm ON pm.user_id = tm.id AND pm.user_type = 'team'
+      JOIN team_members tm ON pm.user_id = tm.id AND pm.user_type = 'team' AND tm.is_active = true
       LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
       LEFT JOIN skills s ON tms.skill_id = s.id
       WHERE pm.project_id = ?

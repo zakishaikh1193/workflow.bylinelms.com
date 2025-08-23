@@ -63,7 +63,7 @@ export function DailyAllocations() {
           allocationService.getAll(),
           teamService.getMembers(),
           projectService.getAll(),
-          taskService.getAll(),
+          taskService.getAll({ all: 'true' }),
           gradeService.getAll(),
           bookService.getAll(),
           unitService.getAll(),

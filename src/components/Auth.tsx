@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, ArrowUp } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,7 +45,7 @@ export function Auth({ onSwitchToTeam }: AuthProps) {
         className="relative hidden lg:block"
         style={{
           backgroundImage:
-            "url('https://img.freepik.com/free-photo/people-office-analyzing-checking-finance-graphs_23-2150377148.jpg')",
+            "url('../admin_login.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -61,15 +61,15 @@ export function Auth({ onSwitchToTeam }: AuthProps) {
 
       {/* Right - Form card */}
       <div className="flex items-center justify-center p-6 sm:p-10 !bg-[#FFF6EE]">
-        <div className="w-full max-w-md bg-[#FFF6EE]">
+        <div className="w-full max-w-md bg-[#FFF6EE] border-2 border-red-100 py-8 rounded-lg shadow-sm">
           {/* Logo */}
           <div className="flex items-center justify-center mb-6">
-            <img src="/logo.png" alt="Logo" className="h-14 w-14" />
+            <img src="/logo.png" alt="Logo" className="h-24 w-auto" />
           </div>
 
           <Card className="border-0 bg-[#FFF6EE]">
             <CardHeader className="text-center pb-4 bg-[#FFF6EE]">
-              <CardTitle className="text-2xl font-bold text-gray-900">Welcome back</CardTitle>
+              <CardTitle className="text-3xl font-bold text-gray-900">Welcome back Admin!</CardTitle>
               <p className="text-gray-600 mt-2">Sign in to your account to continue</p>
             </CardHeader>
 
@@ -132,6 +132,7 @@ export function Auth({ onSwitchToTeam }: AuthProps) {
                 </Button>
               </form>
 
+              
               <Button
                 variant="outline"
                 className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
@@ -140,7 +141,10 @@ export function Auth({ onSwitchToTeam }: AuthProps) {
               >
                 Sign in as Team Member
               </Button>
+              
             </CardContent>
+            <span className="text-gray-600 text-sm text-center flex items-center justify-center gap-1">Team Member? Click Here <ArrowUp className="w-4 h-4" /></span>
+
           </Card>
         </div>
       </div>

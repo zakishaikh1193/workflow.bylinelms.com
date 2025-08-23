@@ -212,7 +212,13 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
   const handleUpdateTask = async (updatedTaskData: Partial<Task>) => {
     try {
-      const updatedTask = await taskService.update(taskId, updatedTaskData);
+      // Ensure actual_hours is included in the update
+      const taskUpdateData = {
+        ...updatedTaskData,
+        actual_hours: updatedTaskData.actual_hours !== undefined ? updatedTaskData.actual_hours : task?.actual_hours
+      };
+      
+      const updatedTask = await taskService.update(taskId, taskUpdateData);
       setTask(updatedTask);
       setIsEditModalOpen(false);
       await loadTaskDetails(); // Refresh all data

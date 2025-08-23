@@ -156,7 +156,7 @@ export function TeamManager() {
       if (activeTab === 'members') {
         const [membersData, tasksData] = await Promise.all([
           teamService.getMembers(),
-          taskService.getAll()
+          taskService.getAll({ all: 'true' })
         ]);
         
         console.log('✅ Team members fetched:', membersData);

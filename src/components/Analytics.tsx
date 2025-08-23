@@ -67,7 +67,7 @@ export function Analytics() {
       // Load all data from backend
       const [projectsData, tasksData, teamMembersData, categoriesData, skillsData] = await Promise.all([
         projectService.getAll(),
-        taskService.getAll(),
+        taskService.getAll({ all: 'true' }),
         teamService.getAll(),
         categoryService.getAll(),
         skillService.getAll()
@@ -183,7 +183,7 @@ export function Analytics() {
         completionRate: filteredTasks.length > 0 ? Math.round((filteredTasks.filter((t: any) => t.status === 'completed').length / filteredTasks.length) * 100) : 0,
         averageProgress: filteredProjects.length > 0 ? Math.round(filteredProjects.reduce((sum: number, p: any) => sum + (p.progress || 0), 0) / filteredProjects.length) : 0,
         efficiency: filteredTasks.length > 0 
-          ? Math.round((filteredTasks.filter((t: any) => t.status === 'completed').length / filteredTasks.length) * (filteredProjects.reduce((sum: number, p: any) => sum + (p.progress || 0), 0) / filteredProjects.length) * 100)
+          ? Math.round((filteredTasks.filter((t: any) => t.status === 'completed').length / filteredTasks.length) * 100)
           : 0
       },
       trends: {

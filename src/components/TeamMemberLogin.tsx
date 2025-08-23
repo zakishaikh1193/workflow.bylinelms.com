@@ -50,7 +50,7 @@ export function TeamMemberLogin({ onLogin, onBackToAdmin }: TeamMemberLoginProps
         className="relative hidden lg:block"
         style={{
           backgroundImage:
-            "url('https://img.freepik.com/free-photo/modern-equipped-computer-lab_23-2149241259.jpg')",
+            "url('../member_login.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
