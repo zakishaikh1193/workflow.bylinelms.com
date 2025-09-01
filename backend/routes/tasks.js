@@ -7,6 +7,7 @@ const {
   updateTask,
   deleteTask,
   testStageFilter,
+  bulkCreateTasks,
   // Extension endpoints
   requestTaskExtension,
   getTaskExtensions,
@@ -269,6 +270,18 @@ const queryValidation = [
 
 // Test stage filter endpoint
 router.get('/test/stage-filter', testStageFilter);
+
+// Bulk create tasks for project hierarchy
+router.post('/project/:project_id/bulk-create',
+  requireAuth,
+  [
+    param('project_id')
+      .isInt({ min: 1 })
+      .withMessage('Project ID must be a positive integer')
+  ],
+  handleValidationErrors,
+  bulkCreateTasks
+);
 
 // Get all tasks
 router.get('/', 

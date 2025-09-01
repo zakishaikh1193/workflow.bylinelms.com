@@ -31,7 +31,7 @@ import { CreateTaskModal } from './TaskManager';
 import { EditProjectModal } from './modals/EditProjectModal';
 import EducationalHierarchy from './EducationalHierarchy';
 import { TaskDetails } from './TaskDetails';
-import { projectService, teamService, taskService, skillService, stageService, categoryService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
+import { apiService, projectService, teamService, taskService, skillService, stageService, categoryService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -403,6 +403,47 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     }
   };
 
+  const handleBulkCreateTasks = async () => {
+    try {
+      setLoading(true);
+      
+      // Call the bulk create API using the proper service
+      const result = await apiService.post(`/tasks/project/${project.id}/bulk-create`, {});
+
+      if (result.success) {
+        // Show success message
+        alert(`🎉 Successfully created ${result.data.created_tasks} tasks!\n\n` +
+              `Project: ${result.data.project_name}\n` +
+              `Stages: ${result.data.total_stages}\n` +
+              `Hierarchy Units: ${result.data.total_lowest_units}\n` +
+              `Expected Tasks: ${result.data.expected_tasks}\n` +
+              `Created: ${result.data.created_tasks}\n` +
+              `Skipped: ${result.data.skipped_tasks}\n\n` +
+              `Tasks will be created for each lowest hierarchical unit across all stages.`);
+        
+        // Refresh project tasks
+        const tasksData = await taskService.getAll({ all: 'true' });
+        const tasksArray = tasksData.data || tasksData;
+        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+        
+        setAllProjectTasks(projectTasksArray);
+        
+        // Refresh the current project to update progress
+        const currentProjectData = await projectService.getById(project.id);
+        setCurrentProject(currentProjectData);
+        
+        console.log('✅ Bulk task creation completed:', result.data);
+      } else {
+        throw new Error(result.error?.message || 'Failed to bulk create tasks');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to bulk create tasks:', error);
+      alert(`❌ Error: ${error.message || 'Failed to bulk create tasks'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEditProject = async (projectData: Partial<Project>) => {
     try {
       setLoading(true);
@@ -509,43 +550,102 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         </Card>
       </div>
 
-      {/* Current Stage */}
+      {/* Stage Progress */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <Flag className="w-5 h-5 mr-2 text-blue-600" />
-            Current Stage
+            Stage Progress
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {currentStage ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-semibold text-gray-900">{currentStage.name}</h4>
-                <p className="text-sm text-gray-600 mt-1">{currentStage.description}</p>
-                <div className="flex items-center space-x-4 mt-2">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <BarChart3 className="w-4 h-4 mr-1" />
-                    Order: {currentStage.order_index || currentStage.template_order || 'N/A'}
+          {projectStages && projectStages.length > 0 ? (
+            <div className="space-y-4">
+              {projectStages.map((stage) => {
+                // Get all tasks for this stage
+                const stageTasks = allProjectTasks.filter((task: any) => 
+                  task.category_stage_id === stage.id || task.stage_id === stage.id
+                );
+                
+                // Calculate completion stats
+                const totalTasks = stageTasks.length;
+                const completedTasks = stageTasks.filter((task: any) => task.status === 'completed').length;
+                const inProgressTasks = stageTasks.filter((task: any) => 
+                  task.status === 'in-progress' || task.status === 'under-review'
+                ).length;
+                
+                // Calculate progress percentage
+                const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                
+                // Determine stage status
+                let stageStatus = 'not-started';
+                let statusColor = 'gray';
+                
+                if (progressPercentage === 100) {
+                  stageStatus = 'completed';
+                  statusColor = 'green';
+                } else if (progressPercentage > 0) {
+                  stageStatus = 'in-progress';
+                  statusColor = 'blue';
+                }
+                
+                return (
+                  <div key={stage.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h4 className="font-semibold text-gray-900">{stage.name}</h4>
+                          <Badge variant={
+                            stageStatus === 'completed' ? 'success' :
+                            stageStatus === 'in-progress' ? 'primary' : 'default'
+                          } size="sm">
+                            {stageStatus === 'completed' ? 'Completed' :
+                             stageStatus === 'in-progress' ? 'In Progress' : 'Not Started'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{stage.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-900">{progressPercentage}%</div>
+                        <div className="text-sm text-gray-600">
+                          {completedTasks}/{totalTasks} tasks
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">{progressPercentage}%</span>
+                      </div>
+                      <ProgressBar value={progressPercentage} />
+                    </div>
+                    
+                    {/* Task Statistics */}
+                    <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-100">
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-gray-900">{totalTasks}</div>
+                        <div className="text-xs text-gray-600">Total Tasks</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-green-600">{completedTasks}</div>
+                        <div className="text-xs text-gray-600">Completed</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-blue-600">{inProgressTasks}</div>
+                        <div className="text-xs text-gray-600">In Progress</div>
+                      </div>
+                    </div>
                   </div>
-                  {currentStage.is_active !== undefined && (
-                    <Badge variant={currentStage.is_active ? 'success' : 'default'} size="sm">
-                      {currentStage.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="text-right">
-                <Badge variant="primary">
-                  Current
-                </Badge>
-              </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-4">
               <Flag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500">No current stage set</p>
-              <p className="text-sm text-gray-400 mt-1">Edit the project to select a stage</p>
+              <p className="text-gray-500">No stages found for this project</p>
+              <p className="text-sm text-gray-400 mt-1">Stages will appear here once tasks are created</p>
             </div>
           )}
         </CardContent>
@@ -1089,9 +1189,19 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Project Tasks</h3>
-          <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
-            Add Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleBulkCreateTasks}
+              disabled={loading}
+              className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+            >
+              🚀 Bulk Create Tasks
+            </Button>
+            <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
+              Add Task
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

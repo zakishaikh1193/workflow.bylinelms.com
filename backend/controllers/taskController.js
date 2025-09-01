@@ -360,6 +360,317 @@ const testStageFilter = async (req, res) => {
   }
 };
 
+// Bulk create tasks for all hierarchy units and stages
+const bulkCreateTasks = async (req, res) => {
+  try {
+    const { project_id } = req.params;
+    
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Project ID is required'
+        }
+      });
+    }
+
+    console.log(`🚀 Starting bulk task creation for project ${project_id}`);
+
+    // Step 1: Get project details and category
+    const projectQuery = 'SELECT * FROM projects WHERE id = ?';
+    const projects = await db.query(projectQuery, [project_id]);
+    
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Project not found'
+        }
+      });
+    }
+
+    const project = projects[0];
+    const categoryId = project.category_id;
+
+    if (!categoryId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Project must have a category assigned'
+        }
+      });
+    }
+
+    // Step 2: Get all stages for this project's category
+    const stagesQuery = `
+      SELECT cs.*, st.order_index as template_order
+      FROM category_stages cs
+      INNER JOIN stage_templates st ON cs.id = st.stage_id
+      WHERE st.category_id = ?
+      ORDER BY st.order_index ASC
+    `;
+    
+    const stages = await db.query(stagesQuery, [categoryId]);
+    
+    if (stages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No stages found for this project category'
+        }
+      });
+    }
+
+    console.log(`📋 Found ${stages.length} stages for category ${categoryId}`);
+
+    // Step 3: Get all educational hierarchy for this project
+    const gradesQuery = 'SELECT * FROM grades WHERE project_id = ? ORDER BY order_index ASC';
+    const grades = await db.query(gradesQuery, [project_id]);
+    
+    // Get books for all grades in this project
+    const gradeIds = grades.map(g => g.id);
+    const booksQuery = gradeIds.length > 0 ? 
+      `SELECT * FROM books WHERE grade_id IN (${gradeIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      'SELECT * FROM books WHERE 1=0';
+    const books = await db.query(booksQuery, gradeIds);
+    
+    // Get units for all books in this project
+    const bookIds = books.map(b => b.id);
+    const unitsQuery = bookIds.length > 0 ?
+      `SELECT * FROM units WHERE book_id IN (${bookIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      'SELECT * FROM units WHERE 1=0';
+    const units = await db.query(unitsQuery, bookIds);
+    
+    // Get lessons for all units in this project
+    const unitIds = units.map(u => u.id);
+    const lessonsQuery = unitIds.length > 0 ?
+      `SELECT * FROM lessons WHERE unit_id IN (${unitIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      'SELECT * FROM lessons WHERE 1=0';
+    const lessons = await db.query(lessonsQuery, unitIds);
+
+    console.log(`📚 Found ${grades.length} grades, ${books.length} books, ${units.length} units, ${lessons.length} lessons`);
+
+    // Step 4: Identify the lowest hierarchical units
+    const lowestUnits = [];
+    
+    // Process all lessons first (they are always the lowest units)
+    if (lessons.length > 0) {
+      lessons.forEach(lesson => {
+        const unit = units.find(u => u.id === lesson.unit_id);
+        const book = books.find(b => b.id === unit?.book_id);
+        const grade = grades.find(g => g.id === book?.grade_id);
+        
+        if (unit && book && grade) {
+          lowestUnits.push({
+            type: 'lesson',
+            grade_id: grade.id,
+            book_id: book.id,
+            unit_id: unit.id,
+            lesson_id: lesson.id,
+            component_path: `${grade.name} > ${book.name} > ${unit.name} > ${lesson.name}`,
+            name: lesson.name
+          });
+        }
+      });
+    }
+    
+    // Process units that don't have lessons (they are lowest units)
+    if (units.length > 0) {
+      units.forEach(unit => {
+        // Check if this unit has any lessons
+        const unitHasLessons = lessons.some(lesson => lesson.unit_id === unit.id);
+        
+        // Only add this unit if it doesn't have lessons
+        if (!unitHasLessons) {
+          const book = books.find(b => b.id === unit.book_id);
+          const grade = grades.find(g => g.id === book?.grade_id);
+          
+          if (book && grade) {
+            lowestUnits.push({
+              type: 'unit',
+              grade_id: grade.id,
+              book_id: book.id,
+              unit_id: unit.id,
+              lesson_id: null,
+              component_path: `${grade.name} > ${book.name} > ${unit.name}`,
+              name: unit.name
+            });
+          }
+        }
+      });
+    }
+    
+    // Process books that don't have units (they are lowest units)
+    if (books.length > 0) {
+      books.forEach(book => {
+        // Check if this book has any units
+        const bookHasUnits = units.some(unit => unit.book_id === book.id);
+        
+        // Only add this book if it doesn't have units
+        if (!bookHasUnits) {
+          const grade = grades.find(g => g.id === book.grade_id);
+          
+          if (grade) {
+            lowestUnits.push({
+              type: 'book',
+              grade_id: grade.id,
+              book_id: book.id,
+              unit_id: null,
+              lesson_id: null,
+              component_path: `${grade.name} > ${book.name}`,
+              name: book.name
+            });
+          }
+        }
+      });
+    }
+    
+    // Process grades that don't have books (they are lowest units)
+    if (grades.length > 0) {
+      grades.forEach(grade => {
+        // Check if this grade has any books
+        const gradeHasBooks = books.some(book => book.grade_id === grade.id);
+        
+        // Only add this grade if it doesn't have books
+        if (!gradeHasBooks) {
+          lowestUnits.push({
+            type: 'grade',
+            grade_id: grade.id,
+            book_id: null,
+            unit_id: null,
+            lesson_id: null,
+            component_path: grade.name,
+            name: grade.name
+          });
+        }
+      });
+    }
+
+    if (lowestUnits.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No educational hierarchy found for this project'
+        }
+      });
+    }
+
+    console.log(`🎯 Identified ${lowestUnits.length} lowest hierarchical units`);
+
+    // Step 5: Check for existing tasks to avoid duplicates
+    const existingTasksQuery = `
+      SELECT grade_id, book_id, unit_id, lesson_id, category_stage_id
+      FROM tasks 
+      WHERE project_id = ?
+    `;
+    const existingTasks = await db.query(existingTasksQuery, [project_id]);
+    
+    const existingTaskKeys = new Set();
+    existingTasks.forEach(task => {
+      const key = `${task.grade_id || 'null'}-${task.book_id || 'null'}-${task.unit_id || 'null'}-${task.lesson_id || 'null'}-${task.category_stage_id}`;
+      existingTaskKeys.add(key);
+    });
+
+    // Step 6: Create tasks for each lowest unit × each stage
+    const createdTasks = [];
+    const skippedTasks = [];
+    const createdBy = req.user?.id || req.teamMember?.id || 1;
+
+    for (const unit of lowestUnits) {
+      for (const stage of stages) {
+        const taskKey = `${unit.grade_id || 'null'}-${unit.book_id || 'null'}-${unit.unit_id || 'null'}-${unit.lesson_id || 'null'}-${stage.id}`;
+        
+        if (existingTaskKeys.has(taskKey)) {
+          skippedTasks.push({
+            ...unit,
+            stage_id: stage.id,
+            stage_name: stage.name,
+            reason: 'Task already exists'
+          });
+          continue;
+        }
+
+        // Create task
+        const taskData = {
+          name: `${unit.component_path} - ${stage.name}`,
+          description: `Task for ${unit.component_path} at ${stage.name} stage`,
+          project_id: parseInt(project_id),
+          category_stage_id: stage.id,
+          grade_id: unit.grade_id,
+          book_id: unit.book_id,
+          unit_id: unit.unit_id,
+          lesson_id: unit.lesson_id,
+          component_path: unit.component_path,
+          status: 'not-started',
+          priority: 'medium',
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+          progress: 0,
+          estimated_hours: 8,
+          created_by: createdBy
+        };
+
+        const insertQuery = `
+          INSERT INTO tasks (
+            name, description, project_id, category_stage_id, grade_id, book_id, unit_id, lesson_id,
+            component_path, status, priority, start_date, end_date, progress, estimated_hours, created_by
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const insertParams = [
+          taskData.name, taskData.description, taskData.project_id, taskData.category_stage_id,
+          taskData.grade_id, taskData.book_id, taskData.unit_id, taskData.lesson_id,
+          taskData.component_path, taskData.status, taskData.priority, taskData.start_date,
+          taskData.end_date, taskData.progress, taskData.estimated_hours, taskData.created_by
+        ];
+
+        const result = await db.insert(insertQuery, insertParams);
+        
+        createdTasks.push({
+          id: result.insertId,
+          ...taskData
+        });
+
+        console.log(`✅ Created task: ${taskData.name}`);
+      }
+    }
+
+    console.log(`🎉 Bulk task creation completed! Created: ${createdTasks.length}, Skipped: ${skippedTasks.length}`);
+
+    res.json({
+      success: true,
+      data: {
+        project_id: parseInt(project_id),
+        project_name: project.name,
+        total_stages: stages.length,
+        total_lowest_units: lowestUnits.length,
+        expected_tasks: stages.length * lowestUnits.length,
+        created_tasks: createdTasks.length,
+        skipped_tasks: skippedTasks.length,
+        created_tasks_details: createdTasks,
+        skipped_tasks_details: skippedTasks
+      },
+      message: `Successfully created ${createdTasks.length} tasks for ${lowestUnits.length} hierarchical units across ${stages.length} stages`
+    });
+
+  } catch (error) {
+    console.error('Bulk create tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to bulk create tasks',
+        details: error.message
+      }
+    });
+  }
+};
+
 // Get single task by ID
 const getTask = async (req, res) => {
   try {
@@ -1344,6 +1655,7 @@ module.exports = {
   updateTask,
   deleteTask,
   testStageFilter,
+  bulkCreateTasks,
   // Extension endpoints
   requestTaskExtension,
   getTaskExtensions,

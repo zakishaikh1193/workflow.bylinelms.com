@@ -1669,7 +1669,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         name: editingTask.name,
         description: editingTask.description || '',
         projectId: editingTask.project_id || editingTask.projectId || '',
-        stageId: editingTask.stage_id || editingTask.stageId || '',
+        stageId: (editingTask.category_stage_id || editingTask.stage_id || editingTask.stageId || '').toString(),
         gradeId: (editingTask.grade_id || editingTask.gradeId || '').toString(),
         bookId: (editingTask.book_id || editingTask.bookId || '').toString(),
         unitId: (editingTask.unit_id || editingTask.unitId || '').toString(),
