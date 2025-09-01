@@ -1343,6 +1343,7 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
+  testStageFilter,
   // Extension endpoints
   requestTaskExtension,
   getTaskExtensions,

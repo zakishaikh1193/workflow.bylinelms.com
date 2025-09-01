@@ -5,15 +5,33 @@ const getStages = async (req, res) => {
   try {
     const { project_id, category_id } = req.query;
 
-    let query = 'SELECT * FROM category_stages';
-    const queryParams = [];
+    let query, queryParams = [];
 
     if (project_id) {
-      query += ' WHERE project_id = ?';
+      // Get stages for a specific project via its category's stage templates
+      query = `
+        SELECT DISTINCT cs.*, st.order_index as template_order, st.is_default
+        FROM category_stages cs
+        INNER JOIN stage_templates st ON cs.id = st.stage_id
+        INNER JOIN projects p ON st.category_id = p.category_id
+        WHERE p.id = ?
+        ORDER BY st.order_index ASC, cs.created_at ASC
+      `;
       queryParams.push(project_id);
+    } else if (category_id) {
+      // Get stages for a specific category via stage templates
+      query = `
+        SELECT DISTINCT cs.*, st.order_index as template_order, st.is_default
+        FROM category_stages cs
+        INNER JOIN stage_templates st ON cs.id = st.stage_id
+        WHERE st.category_id = ?
+        ORDER BY st.order_index ASC, cs.created_at ASC
+      `;
+      queryParams.push(category_id);
+    } else {
+      // Get all stages
+      query = 'SELECT * FROM category_stages ORDER BY order_index ASC, created_at ASC';
     }
-
-    query += ' ORDER BY order_index ASC, created_at ASC';
 
     const stages = await db.query(query, queryParams);
 

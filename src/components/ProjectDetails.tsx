@@ -55,6 +55,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const [skills, setSkills] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
+  const [projectStages, setProjectStages] = useState<any[]>([]);
   const [localCategories, setLocalCategories] = useState<any[]>([]);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
@@ -83,6 +84,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  const [selectedStage, setSelectedStage] = useState<string>('all');
   
   // Use the progress calculated by the backend, or calculate from tasks if not available
   const projectProgress = currentProject.progress !== undefined ? 
@@ -108,7 +110,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           taskService.getAll({ all: 'true' }),
           skillService.getAll(),
           projectService.getAll(),
-          stageService.getAll(),
+          stageService.getAll(project.id),
           categoryService.getAll(),
           gradeService.getAll(),
           bookService.getAll(),
@@ -138,7 +140,9 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         setTeamMembers(teamMembers.data || teamMembers);
         setSkills(skillsData.data || skillsData);
         setProjects(projectsData.data || projectsData);
-        setStages(stagesData.data || stagesData);
+        const projStages = stagesData.data || stagesData;
+        setStages(projStages);
+        setProjectStages(projStages);
         setLocalCategories(categoriesData.data || categoriesData);
         setGrades(gradesData.data || gradesData);
         setBooks(booksData.data || booksData);
@@ -217,6 +221,14 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
             }
           }
         }
+
+        // Stage filter (category_stage_id)
+        if (selectedStage !== 'all') {
+          const taskStageId = task.category_stage_id ? parseInt(task.category_stage_id.toString()) : (task.stage_id ? parseInt(task.stage_id.toString()) : null);
+          if (taskStageId !== parseInt(selectedStage)) {
+            return false;
+          }
+        }
         
         return true;
       });
@@ -236,12 +248,12 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       const endIndex = startIndex + pageSize;
       setProjectTasks(filteredTasks.slice(startIndex, endIndex));
     }
-  }, [currentPage, pageSize, allProjectTasks, debouncedSearch, selectedStatus, selectedPriority, selectedAssignee]);
+  }, [currentPage, pageSize, allProjectTasks, debouncedSearch, selectedStatus, selectedPriority, selectedAssignee, selectedStage]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, selectedStatus, selectedPriority, selectedAssignee]);
+  }, [debouncedSearch, selectedStatus, selectedPriority, selectedAssignee, selectedStage]);
 
   const handleAddMember = async (memberId: number, role: string = 'member') => {
     try {
@@ -1133,8 +1145,53 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                 <option key={user.id} value={user.id}>{user.name}</option>
               ))}
             </select>
+
+            <select
+              value={selectedStage}
+              onChange={(e) => setSelectedStage(e.target.value)}
+              className={`border rounded-lg px-3 py-2 text-sm ${selectedStage !== 'all' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300'}`}
+            >
+              <option value="all">All Stages</option>
+              {(projectStages || []).map(stage => (
+                <option key={stage.id} value={stage.id}>{stage.name}</option>
+              ))}
+            </select>
+
+            {selectedStage !== 'all' && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                  {(projectStages || []).find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}
+                </span>
+                <button
+                  onClick={() => setSelectedStage('all')}
+                  className="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                  title="Clear stage filter"
+                >
+                  Clear Stage
+                </button>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Show message when selected stage has no tasks */}
+        {selectedStage !== 'all' && projectTasks.length === 0 && (
+          <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-yellow-600">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-800">
+                  <strong>No tasks found</strong> for stage "{(projectStages || []).find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}".
+                  This stage currently has no assigned tasks in this project.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {projectTasks.length > 0 ? (
           <Card>
