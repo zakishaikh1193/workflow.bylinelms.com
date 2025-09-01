@@ -62,12 +62,38 @@ const getTasks = async (req, res) => {
       assignee_id,
       assignee_type,
       search,
+      stage_id,
       all = false
     } = req.query;
 
     // Build query with optional JOIN for assignee sorting and filtering
-    let query = 'SELECT t.* FROM tasks t';
+    let query = 'SELECT t.*, cs.name as stage_name FROM tasks t LEFT JOIN category_stages cs ON t.category_stage_id = cs.id';
     const queryParams = [];
+    
+    // Debug: Check what stages are available and what tasks exist
+    try {
+      const allStages = await db.query('SELECT id, name FROM category_stages ORDER BY id');
+      const allTasks = await db.query('SELECT id, name, category_stage_id FROM tasks LIMIT 20');
+      console.log('🔍 All available stages:', allStages);
+      console.log('🔍 Sample tasks with stage IDs:', allTasks);
+      console.log('🔍 Unique category_stage_id values in tasks:', [...new Set(allTasks.map(t => t.category_stage_id))]);
+      
+      // Check if the requested stage_id exists in the stages table
+      if (stage_id && stage_id !== 'all') {
+        const stageIdNum = parseInt(stage_id, 10);
+        const stageExists = allStages.find(s => s.id === stageIdNum);
+        console.log('🔍 Requested stage_id:', stageIdNum);
+        console.log('🔍 Stage exists in database:', !!stageExists);
+        console.log('🔍 Stage details:', stageExists);
+        
+        // Check if any tasks have this stage_id
+        const tasksWithStage = allTasks.filter(t => t.category_stage_id === stageIdNum);
+        console.log('🔍 Tasks with selected stage ID', stageIdNum, ':', tasksWithStage.length);
+        console.log('🔍 Tasks with selected stage:', tasksWithStage);
+      }
+    } catch (error) {
+      console.log('🔍 Error in debug queries:', error.message);
+    }
     
     // Add JOIN for assignee sorting or filtering if needed
     if (sort === 'assignees' || assignee_id) {
@@ -90,6 +116,21 @@ const getTasks = async (req, res) => {
     if (priority) {
       query += ' AND t.priority = ?';
       queryParams.push(priority);
+    }
+
+    if (stage_id && stage_id !== 'all') {
+      // Convert stage_id to number if it's a string
+      const stageIdNum = parseInt(stage_id, 10);
+      query += ' AND t.category_stage_id = ?';
+      queryParams.push(stageIdNum);
+      console.log('🔍 Stage filter applied in backend:', stage_id);
+      console.log('🔍 Stage filter type:', typeof stage_id);
+      console.log('🔍 Stage filter value:', stage_id);
+      console.log('🔍 Stage filter converted to number:', stageIdNum);
+      console.log('🔍 Stage filter query addition:', ' AND t.category_stage_id = ?');
+      console.log('🔍 Stage filter parameter added to queryParams');
+    } else {
+      console.log('🔍 No stage_id provided in query parameters or stage_id is "all"');
     }
 
     if (search) {
@@ -136,6 +177,11 @@ const getTasks = async (req, res) => {
 
     console.log('🔍 Task query:', query);
     console.log('🔍 Task params:', queryParams);
+    console.log('🔍 Stage filter debug - stage_id from query:', req.query.stage_id);
+    console.log('🔍 All query parameters:', req.query);
+    console.log('🔍 Request URL:', req.url);
+    console.log('🔍 Request method:', req.method);
+    console.log('🔍 Request headers:', req.headers);
     console.log('🔍 Pagination:', { page, limit, offset });
     console.log('🔍 Final query with pagination:', query);
 
@@ -143,6 +189,20 @@ const getTasks = async (req, res) => {
     let tasks;
     try {
       tasks = await db.query(query, queryParams);
+      console.log('🔍 Raw tasks from database:', tasks.length, 'tasks');
+      console.log('🔍 Sample task stage info:', tasks.slice(0, 3).map(t => ({
+        id: t.id,
+        name: t.name,
+        category_stage_id: t.category_stage_id,
+        stage_name: t.stage_name,
+        category_stage_id_type: typeof t.category_stage_id
+      })));
+      console.log('🔍 All tasks category_stage_id values:', tasks.map(t => ({
+        id: t.id,
+        name: t.name,
+        category_stage_id: t.category_stage_id
+      })));
+      console.log('🔍 Unique category_stage_id values in results:', [...new Set(tasks.map(t => t.category_stage_id))]);
     } catch (error) {
       console.error('❌ Database query error:', error);
       console.error('❌ Query that failed:', query);
@@ -154,7 +214,7 @@ const getTasks = async (req, res) => {
     console.log('🔍 First few task IDs:', tasks.slice(0, 5).map(t => t.id));
 
     // Get total count for pagination with same filters
-    let countQuery = 'SELECT COUNT(DISTINCT t.id) as total FROM tasks t';
+    let countQuery = 'SELECT COUNT(DISTINCT t.id) as total FROM tasks t LEFT JOIN category_stages cs ON t.category_stage_id = cs.id';
     const countParams = [];
     
     if (sort === 'assignees' || assignee_id) {
@@ -174,6 +234,12 @@ const getTasks = async (req, res) => {
     if (priority) {
       countQuery += ' AND t.priority = ?';
       countParams.push(priority);
+    }
+    if (stage_id && stage_id !== 'all') {
+      // Convert stage_id to number if it's a string
+      const stageIdNum = parseInt(stage_id, 10);
+      countQuery += ' AND t.category_stage_id = ?';
+      countParams.push(stageIdNum);
     }
     if (search) {
       countQuery += ' AND (t.name LIKE ? OR t.description LIKE ?)';
@@ -244,6 +310,52 @@ const getTasks = async (req, res) => {
         code: 'DATABASE_ERROR',
         message: 'Failed to fetch tasks'
       }
+    });
+  }
+};
+
+// Test endpoint for stage filtering
+const testStageFilter = async (req, res) => {
+  try {
+    const { stage_id } = req.query;
+    console.log('🧪 Test stage filter - stage_id:', stage_id);
+    
+    // Get all stages
+    const stages = await db.query('SELECT id, name FROM category_stages ORDER BY id');
+    console.log('🧪 All stages:', stages);
+    
+    // Get all tasks with stage info
+    const tasks = await db.query(`
+      SELECT t.id, t.name, t.category_stage_id, cs.name as stage_name 
+      FROM tasks t 
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id 
+      LIMIT 50
+    `);
+    console.log('🧪 All tasks with stage info:', tasks);
+    
+    // Filter by stage if provided
+    let filteredTasks = tasks;
+    if (stage_id && stage_id !== 'all') {
+      const stageIdNum = parseInt(stage_id, 10);
+      filteredTasks = tasks.filter(t => t.category_stage_id === stageIdNum);
+      console.log('🧪 Filtered tasks for stage', stageIdNum, ':', filteredTasks);
+    }
+    
+    res.json({
+      success: true,
+      stage_id: stage_id,
+      stages: stages,
+      all_tasks: tasks,
+      filtered_tasks: filteredTasks,
+      total_stages: stages.length,
+      total_tasks: tasks.length,
+      filtered_count: filteredTasks.length
+    });
+  } catch (error) {
+    console.error('Test stage filter error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 };

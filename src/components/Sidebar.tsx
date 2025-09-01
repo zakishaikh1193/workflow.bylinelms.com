@@ -6,7 +6,8 @@ import {
   CheckSquare, 
   BarChart3,
   Calendar,
-  Settings 
+  Settings,
+  TrendingUp
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Tasks', icon: CheckSquare, key: 'tasks' },
   { name: 'Allocations', icon: Calendar, key: 'allocations' },
   { name: 'Analytics', icon: BarChart3, key: 'analytics' },
+  { name: 'Core Analytics', icon: TrendingUp, key: 'core-analytics' },
   { name: 'Settings', icon: Settings, key: 'settings' },
 ];
 

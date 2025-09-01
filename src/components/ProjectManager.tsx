@@ -21,6 +21,7 @@ import { Modal } from './ui/Modal';
 import { Project, ProjectStatus } from '../types';
 import { ProjectDetails } from './ProjectDetails';
 import { projectService, categoryService, stageService, taskService } from '../services/apiService';
+import { useAuth } from '../contexts/AuthContext';
 
 // Category-specific stage templates
 const stageTemplates = {
@@ -58,6 +59,7 @@ const stageTemplates = {
 };
 
 export function ProjectManager() {
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -114,9 +116,12 @@ export function ProjectManager() {
       }
     };
 
-    fetchData();
+    // Only fetch data if user is authenticated
+    if (user) {
+      fetchData();
+    }
     
-  }, []);
+  }, [user]);
 
   // Fast lookup for category names by id
   const categoryIdToName = useMemo(() => {
