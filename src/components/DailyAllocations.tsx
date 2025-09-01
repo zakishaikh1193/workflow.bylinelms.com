@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Calendar, 
   Clock, 
@@ -21,6 +22,7 @@ import { allocationService, teamService, projectService, taskService, gradeServi
 import type { TeamAllocation, Task, User as UserType } from '../types';
 
 export function DailyAllocations() {
+  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date('2025-08-11')); // Set to a date that has allocations
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [groupBy, setGroupBy] = useState<'team' | 'project'>('team');
@@ -84,8 +86,11 @@ export function DailyAllocations() {
       }
     };
     
-    fetchData();
-  }, []);
+    // Only fetch data if user is authenticated
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
 
   // Auto-create allocations from existing tasks if no allocations exist
   const createAllocationsFromTasks = async () => {

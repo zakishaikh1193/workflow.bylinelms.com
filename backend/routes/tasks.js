@@ -6,6 +6,7 @@ const {
   createTask,
   updateTask,
   deleteTask,
+  testStageFilter,
   // Extension endpoints
   requestTaskExtension,
   getTaskExtensions,
@@ -265,6 +266,9 @@ const queryValidation = [
 ];
 
 // Routes
+
+// Test stage filter endpoint
+router.get('/test/stage-filter', testStageFilter);
 
 // Get all tasks
 router.get('/', 

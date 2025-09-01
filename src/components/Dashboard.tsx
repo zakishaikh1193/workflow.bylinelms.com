@@ -14,10 +14,12 @@ import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Button } from './ui/Button';
 import { useApp } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
 import { dashboardService } from '../services/apiService';
 // import { calculateProjectProgress } from '../utils/progressCalculator';
 
 export function Dashboard() {
+  const { user } = useAuth();
   const { state, dispatch } = useApp();
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -49,12 +51,15 @@ export function Dashboard() {
       }
     };
 
-    fetchDashboardData();
+    // Only fetch data if user is authenticated
+    if (user) {
+      fetchDashboardData();
+    }
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user]);
 
   const handleStatClick = (view: string, filter?: any) => {
     dispatch({ type: 'SET_SELECTED_VIEW', payload: view as any });

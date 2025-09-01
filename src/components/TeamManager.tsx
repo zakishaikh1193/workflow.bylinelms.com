@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
@@ -70,6 +71,7 @@ interface FunctionalUnit {
 }
 
 export function TeamManager() {
+  const { user } = useAuth();
   const { dispatch } = useApp();
   const [activeTab, setActiveTab] = useState<'members' | 'teams'>('members');
   const [loading, setLoading] = useState(false);
@@ -118,8 +120,11 @@ export function TeamManager() {
 
   // Fetch data from backend
   useEffect(() => {
-    fetchData();
-  }, [activeTab]);
+    // Only fetch data if user is authenticated
+    if (user) {
+      fetchData();
+    }
+  }, [user, activeTab]);
 
   // Fetch available skills
   useEffect(() => {
@@ -145,8 +150,11 @@ export function TeamManager() {
         console.error('Error fetching skills:', error);
       }
     };
-    fetchSkills();
-  }, []);
+    // Only fetch skills if user is authenticated
+    if (user) {
+      fetchSkills();
+    }
+  }, [user]);
 
     const fetchData = async () => {
       try {

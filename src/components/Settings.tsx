@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
+import { useToast } from './ui/Toast';
 
 import { useAuth } from '../contexts/AuthContext';
 import { teamService, categoryService, skillService, stageService, stageTemplateService } from '../services/apiService';
@@ -80,6 +81,7 @@ export function Settings() {
   const { signUp } = useAuth();
   const [stages, setStages] = useState<Stage[]>([]);
   const [stagesLoading, setStagesLoading] = useState(false);
+  const { showToast } = useToast();
 
   // Load data on component mount
   useEffect(() => {
@@ -204,10 +206,11 @@ export function Settings() {
             
             // Reload stages to get the updated list with template data
             await loadStagesForCategory(selectedCategory);
+            showToast(`Stage "${data.name}" added successfully!`, 'success');
           }
         } catch (error) {
           console.error('Failed to save stage:', error);
-          alert('Failed to save stage. Please try again.');
+          showToast('Failed to save stage. Please try again.', 'error');
         }
       } else if (type === 'admin-user') {
         handleCreateUser(data, 'admin');

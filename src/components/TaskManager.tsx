@@ -15,6 +15,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { useApp } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Task, TaskStatus, Priority } from '../types';
 import { calculateTaskProgress } from '../utils/progressCalculator';
 import { taskService, stageService, teamService, projectService, skillService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
@@ -22,6 +23,7 @@ import { TaskDetails } from './TaskDetails';
 
 export function TaskManager() {
   const { state, dispatch } = useApp();
+  const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -31,6 +33,9 @@ export function TaskManager() {
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedStage, setSelectedStage] = useState<string>('all');
+  const [selectedDueDate, setSelectedDueDate] = useState<string>('all');
+  const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false);
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<string>('desc');
   const [tasks, setTasks] = useState<any[]>([]);
@@ -90,6 +95,15 @@ export function TaskManager() {
         if (selectedProject !== 'all') {
           filters.project_id = selectedProject;
         }
+        // Note: Stage filtering is now handled on frontend
+        if (selectedStage !== 'all') {
+          console.log('🔍 Stage filter will be applied on frontend:', selectedStage);
+        } else {
+          console.log('🔍 No stage filter applied - selectedStage is "all"');
+        }
+        if (selectedDueDate !== 'all') {
+          filters.due_date = selectedDueDate;
+        }
         if (selectedAssignee !== 'all') {
           filters.assignee_id = selectedAssignee;
         }
@@ -98,6 +112,8 @@ export function TaskManager() {
         }
 
         console.log('🔍 Sending filters to API:', filters);
+        console.log('🔍 Available stages:', stages);
+        console.log('🔍 Selected stage:', selectedStage);
 
         // Fetch paginated tasks and all tasks for statistics
         const [tasksResponse, teamMembersData, teamsData, stagesData, projectsResponse, skillsData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
@@ -114,6 +130,21 @@ export function TaskManager() {
         ]);
 
         // Handle response (could be paginated or all tasks)
+        console.log('🔍 Tasks response:', tasksResponse);
+        console.log('🔍 Tasks data:', tasksResponse?.data);
+        console.log('🔍 Tasks stage info:', tasksResponse?.data?.map((task: any) => ({
+          id: task.id,
+          name: task.name,
+          category_stage_id: task.category_stage_id,
+          stage_name: task.stage_name
+        })));
+        console.log('🔍 Number of tasks returned:', tasksResponse?.data?.length || 0);
+        console.log('🔍 Tasks stage info:', tasksResponse?.data?.map((task: any) => ({
+          id: task.id,
+          name: task.name,
+          category_stage_id: task.category_stage_id,
+          stage_name: task.stage_name
+        })));
         if (tasksResponse && tasksResponse.data) {
           if (needsAllTasks) {
             // We fetched all tasks, so we need to handle pagination on frontend
@@ -153,7 +184,13 @@ export function TaskManager() {
 
         setTeamMembers(teamMembersData.data || teamMembersData);
         setTeams(teamsData.data || teamsData);
-        setStages(stagesData.data || stagesData);
+        
+        // Remove duplicates from stages data and ensure proper structure
+        const stagesArray = stagesData.data || stagesData;
+        const uniqueStages = getUniqueStages(stagesArray);
+        setStages(uniqueStages);
+        console.log('🔍 Stages data received:', stagesData);
+        console.log('🔍 Unique stages set to state:', uniqueStages);
         
         // Handle projects response (could be paginated or direct array)
         const projectsData = projectsResponse && projectsResponse.data ? projectsResponse.data : (Array.isArray(projectsResponse) ? projectsResponse : []);
@@ -173,14 +210,56 @@ export function TaskManager() {
       }
     };
 
-    fetchData();
-  }, [sortField, sortOrder, selectedStatus, selectedPriority, selectedProject, selectedAssignee, debouncedSearch, currentPage, pageSize]);
+    // Only fetch data if user is authenticated
+    if (user) {
+      fetchData();
+    }
+  }, [user, sortField, sortOrder, selectedStatus, selectedPriority, selectedProject, selectedStage, selectedDueDate, selectedAssignee, debouncedSearch, currentPage, pageSize]);
 
   // Debounce search term to reduce API calls
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 250);
     return () => clearTimeout(t);
   }, [searchTerm]);
+
+  // Debug stages data
+  useEffect(() => {
+    console.log('🔍 Stages state updated:', stages);
+    console.log('🔍 Stages length:', stages.length);
+    console.log('🔍 All stages with IDs:', stages.map(s => ({ id: s.id, name: s.name, idType: typeof s.id })));
+    
+    // Validate stage selection
+    if (selectedStage !== 'all' && stages.length > 0) {
+      const selectedStageId = parseInt(selectedStage);
+      const stageExists = stages.find(s => s.id === selectedStageId);
+      console.log('🔍 Stage validation:', {
+        selectedStage,
+        selectedStageId,
+        stageExists: !!stageExists,
+        stageDetails: stageExists
+      });
+    }
+  }, [stages, selectedStage]);
+
+  // Helper function to get unique stages
+  const getUniqueStages = (stagesData: any[]) => {
+    const seen = new Set();
+    return stagesData.filter((stage: any) => {
+      const duplicate = seen.has(stage.id);
+      seen.add(stage.id);
+      return !duplicate;
+    });
+  };
+
+  // Helper function to get task count for a stage
+  const getTaskCountForStage = (stageId: number) => {
+    const tasksToCheck = allTasks.length > 0 ? allTasks : tasks;
+    return tasksToCheck.filter((task: any) => {
+      const taskStageId = task.category_stage_id ? parseInt(task.category_stage_id.toString()) : null;
+      const stageIdNum = parseInt(stageId.toString());
+      return taskStageId === stageIdNum;
+    }).length;
+  };
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -207,7 +286,7 @@ export function TaskManager() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedStatus, selectedPriority, selectedProject, selectedAssignee, debouncedSearch]);
+  }, [selectedStatus, selectedPriority, selectedProject, selectedStage, selectedDueDate, selectedAssignee, debouncedSearch]);
 
   const isOverdue = (task: Task) => {
     const endDate = task.end_date || task.endDate;
@@ -268,10 +347,30 @@ export function TaskManager() {
   // Check if we need to fetch all tasks (for cross-page filtering)
   const needsAllTasks = selectedStatus === 'overdue' || 
                        selectedPriority !== 'all' || 
+                       selectedStage !== 'all' ||
+                       selectedDueDate !== 'all' ||
                        selectedAssignee !== 'all' || 
                        debouncedSearch;
 
   // Apply filters to tasks
+  console.log('🔍 Starting task filtering. Total tasks:', tasks.length);
+  console.log('🔍 Selected stage:', selectedStage);
+  console.log('🔍 Sample tasks with stage info:', tasks.slice(0, 3).map(t => ({
+    id: t.id,
+    name: t.name,
+    category_stage_id: t.category_stage_id,
+    stage_name: t.stage_name
+  })));
+  
+  // Get all unique stage IDs from tasks
+  const uniqueStageIds = [...new Set(tasks.map(t => t.category_stage_id).filter(id => id !== null && id !== undefined))];
+  console.log('🔍 Unique stage IDs in tasks:', uniqueStageIds);
+  console.log('🔍 Tasks by stage ID:', uniqueStageIds.map(stageId => ({
+    stageId,
+    count: tasks.filter(t => t.category_stage_id === stageId).length,
+    tasks: tasks.filter(t => t.category_stage_id === stageId).map(t => ({ id: t.id, name: t.name }))
+  })));
+  
   let filteredTasks = tasks.filter((task: any) => {
     // Apply dashboard filters only (other filters are handled by backend)
     if (state.filters?.overdue && !isOverdue(task)) return false;
@@ -283,8 +382,96 @@ export function TaskManager() {
     // Apply status filter for overdue
     if (selectedStatus === 'overdue' && !isOverdue(task)) return false;
 
+    // Apply stage filter
+    if (selectedStage !== 'all') {
+      const taskStageId = task.category_stage_id;
+      const selectedStageId = parseInt(selectedStage);
+      
+      // Handle different data types - convert both to numbers for comparison
+      const taskStageIdNum = taskStageId ? parseInt(taskStageId.toString()) : null;
+      const selectedStageIdNum = parseInt(selectedStage);
+      
+      console.log('🔍 Stage filter check:', {
+        taskId: task.id,
+        taskName: task.name,
+        taskStageId: taskStageId,
+        taskStageIdType: typeof taskStageId,
+        taskStageIdNum: taskStageIdNum,
+        selectedStageId: selectedStageId,
+        selectedStageIdNum: selectedStageIdNum,
+        matches: taskStageIdNum === selectedStageIdNum
+      });
+      
+      if (taskStageIdNum !== selectedStageIdNum) {
+        return false;
+      }
+    }
+
+    // Apply due date filter
+    if (selectedDueDate !== 'all') {
+      const taskEndDate = task.end_date || task.endDate;
+      if (!taskEndDate) return false;
+      
+      const dueDate = new Date(taskEndDate);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      switch (selectedDueDate) {
+        case 'overdue':
+          if (!isOverdue(task)) return false;
+          break;
+        case 'today':
+          if (!isDueToday(task)) return false;
+          break;
+        case 'tomorrow':
+          if (!isDueTomorrow(task)) return false;
+          break;
+        case 'this-week':
+          if (!isDueThisWeek(task)) return false;
+          break;
+        case 'next-week':
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const nextWeekStart = new Date();
+          nextWeekStart.setDate(today.getDate() + 7);
+          nextWeekStart.setHours(0, 0, 0, 0);
+          const nextWeekEnd = new Date();
+          nextWeekEnd.setDate(today.getDate() + 14);
+          nextWeekEnd.setHours(0, 0, 0, 0);
+          if (dueDate < nextWeekStart || dueDate > nextWeekEnd || task.status === 'completed') return false;
+          break;
+        case 'no-due-date':
+          if (taskEndDate) return false;
+          break;
+      }
+    }
+
     return true;
   });
+
+  console.log('🔍 Task filtering completed. Filtered tasks:', filteredTasks.length);
+  console.log('🔍 Filtered tasks sample:', filteredTasks.slice(0, 3).map(t => ({
+    id: t.id,
+    name: t.name,
+    category_stage_id: t.category_stage_id,
+    stage_name: t.stage_name
+  })));
+  
+  // Summary of stage filtering
+  if (selectedStage !== 'all') {
+    const selectedStageId = parseInt(selectedStage);
+    const selectedStageName = stages.find(s => s.id === selectedStageId)?.name || 'Unknown';
+    console.log('🔍 Stage filter summary:', {
+      selectedStage,
+      selectedStageId,
+      selectedStageName,
+      totalTasks: tasks.length,
+      filteredTasks: filteredTasks.length,
+      expectedTasks: tasks.filter(t => {
+        const taskStageId = t.category_stage_id ? parseInt(t.category_stage_id.toString()) : null;
+        return taskStageId === selectedStageId;
+      }).length
+    });
+  }
 
   // Apply frontend pagination if we have all tasks
   if (needsAllTasks && filteredTasks.length > 0) {
@@ -369,6 +556,8 @@ export function TaskManager() {
         if (selectedStatus !== 'all') filters.status = selectedStatus;
         if (selectedPriority !== 'all') filters.priority = selectedPriority;
         if (selectedProject !== 'all') filters.project_id = selectedProject;
+        // Stage filtering handled on frontend
+        if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
         if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
         if (debouncedSearch) filters.search = debouncedSearch;
 
@@ -455,6 +644,8 @@ export function TaskManager() {
         if (selectedStatus !== 'all') filters.status = selectedStatus;
         if (selectedPriority !== 'all') filters.priority = selectedPriority;
         if (selectedProject !== 'all') filters.project_id = selectedProject;
+        // Stage filtering handled on frontend
+        if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
         if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
         if (debouncedSearch) filters.search = debouncedSearch;
 
@@ -535,6 +726,8 @@ export function TaskManager() {
       if (selectedStatus !== 'all') filters.status = selectedStatus;
       if (selectedPriority !== 'all') filters.priority = selectedPriority;
       if (selectedProject !== 'all') filters.project_id = selectedProject;
+      // Stage filtering handled on frontend
+      if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
       if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
       if (debouncedSearch) filters.search = debouncedSearch;
 
@@ -697,6 +890,13 @@ export function TaskManager() {
             <div>
               <h1 className="text-2xl font-bold">Task Management</h1>
               <p className="text-white/80">Track and manage all project tasks</p>
+              {process.env.NODE_ENV === 'development' && showDebugInfo && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-400 text-yellow-800">
+                    🔧 Debug Mode Active
+                  </span>
+                </div>
+              )}
             </div>
             <Button icon={<Plus className="w-4 h-4" />} onClick={() => {
               setEditingTask(null);
@@ -852,6 +1052,86 @@ export function TaskManager() {
           </select>
 
           <select
+            value={selectedStage}
+            onChange={(e) => {
+              console.log('🔍 Stage selected:', e.target.value);
+              console.log('🔍 Stage selected type:', typeof e.target.value);
+              console.log('🔍 Stage selected value:', e.target.value);
+              setSelectedStage(e.target.value);
+            }}
+            className={`border rounded-lg px-3 py-2 text-sm ${
+              selectedStage !== 'all' 
+                ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                : 'border-gray-300'
+            }`}
+          >
+            <option value="all">All Stages</option>
+            {stages.map(stage => {
+              const taskCount = getTaskCountForStage(stage.id);
+              console.log('🔍 Stage option:', { 
+                id: stage.id, 
+                name: stage.name, 
+                idType: typeof stage.id,
+                idValue: stage.id,
+                taskCount
+              });
+              return (
+                <option key={stage.id} value={stage.id}>
+                  {stage.name} ({taskCount} tasks)
+                </option>
+              );
+            })}
+          </select>
+          
+          {selectedStage !== 'all' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                {stages.find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}
+              </span>
+              <button
+                onClick={() => setSelectedStage('all')}
+                className="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                title="Clear stage filter"
+              >
+                Clear Stage
+              </button>
+            </div>
+          )}
+          
+          {/* Show message when selected stage has no tasks */}
+          {selectedStage !== 'all' && filteredTasks.length === 0 && (
+            <div className="col-span-full mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center">
+                <div className="text-yellow-600">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>No tasks found</strong> for stage "{stages.find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}".
+                    This stage currently has no assigned tasks.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <select
+            value={selectedDueDate}
+            onChange={(e) => setSelectedDueDate(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">All Due Dates</option>
+            <option value="overdue">Overdue</option>
+            <option value="today">Due Today</option>
+            <option value="tomorrow">Due Tomorrow</option>
+            <option value="this-week">Due This Week</option>
+            <option value="next-week">Due Next Week</option>
+            <option value="no-due-date">No Due Date</option>
+          </select>
+
+          <select
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -864,7 +1144,57 @@ export function TaskManager() {
           </select>
 
           {/* Overdue-only checkbox temporarily disabled; use the Overdue stat card to toggle */}
+          
+          {/* Debug Info Toggle Button */}
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={() => setShowDebugInfo(!showDebugInfo)}
+              className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
+                showDebugInfo 
+                  ? 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200' 
+                  : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
+              }`}
+              title="Toggle debug information"
+            >
+              {showDebugInfo ? '🔽 Hide Debug Info' : '🔼 Show Debug Info'}
+            </button>
+          )}
         </div>
+        
+        {/* Debug Panel - Only show when enabled */}
+        {process.env.NODE_ENV === 'development' && showDebugInfo && (
+          <div className="mt-4 p-4 bg-gray-100 rounded-lg text-xs">
+            <h4 className="font-bold mb-2">Debug Info (Development Only)</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <strong>Available Stages:</strong>
+                <ul className="mt-1">
+                  {stages.map(stage => {
+                    const taskCount = tasks.filter(t => t.category_stage_id === stage.id).length;
+                    return (
+                      <li key={stage.id} className={taskCount === 0 ? 'text-gray-500' : 'text-black'}>
+                        ID: {stage.id} - {stage.name} ({taskCount} tasks)
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <div>
+                <strong>Stages with Tasks:</strong>
+                <ul className="mt-1">
+                  {stages.filter(stage => tasks.filter(t => t.category_stage_id === stage.id).length > 0).map(stage => (
+                    <li key={stage.id}>
+                      {stage.name}: {tasks.filter(t => t.category_stage_id === stage.id).length} tasks
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-2 text-gray-600">
+                  <strong>Empty Stages:</strong> {stages.filter(stage => tasks.filter(t => t.category_stage_id === stage.id).length === 0).length} stages have no tasks
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
             {/* Tasks List */}
@@ -978,6 +1308,12 @@ export function TaskManager() {
 
                   // Use stage_name from API response directly
                   const stageName = task.stage_name;
+                  console.log('🔍 Task stage info:', { 
+                    taskId: task.id, 
+                    taskName: task.name, 
+                    category_stage_id: task.category_stage_id, 
+                    stage_name: task.stage_name 
+                  });
                   
                   return (
                     <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
