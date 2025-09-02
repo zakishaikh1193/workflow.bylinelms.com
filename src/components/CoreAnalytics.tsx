@@ -23,6 +23,7 @@ import {
   Search
 } from 'lucide-react';
 import { taskService, projectService, stageService, teamService } from '../services/apiService';
+import { ProjectHierarchyView } from './ProjectHierarchyView';
 
 // Curriculum Development Dashboard Data Structure
 const curriculumData = {
@@ -146,6 +147,8 @@ export function CoreAnalytics() {
   const [allTeamMembers, setAllTeamMembers] = useState<any[]>([]);
   const [allAdminUsers, setAllAdminUsers] = useState<any[]>([]);
   const [hierarchySearch, setHierarchySearch] = useState<string>('');
+  const [showHierarchyView, setShowHierarchyView] = useState(false);
+  const [selectedProjectForHierarchy, setSelectedProjectForHierarchy] = useState<string>('');
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -342,6 +345,16 @@ export function CoreAnalytics() {
     }
   };
 
+  const handleProjectClick = (projectId: string) => {
+    setSelectedProjectForHierarchy(projectId);
+    setShowHierarchyView(true);
+  };
+
+  const handleBackToAnalytics = () => {
+    setShowHierarchyView(false);
+    setSelectedProjectForHierarchy('');
+  };
+
   // Organize tasks by hierarchy and stages for selected project
   const getOrganizedTasks = () => {
     if (!selectedProject) return { hierarchies: [], stageNames: [], organized: {} };
@@ -400,7 +413,17 @@ export function CoreAnalytics() {
       Object.keys(stageTasks).forEach(stage => allStages.add(stage));
     });
     
-    const stageNames = Array.from(allStages).sort();
+    // Get stage names and sort them by order_index from the database
+    const stageNames = Array.from(allStages)
+      .map(stageName => {
+        const stage = stages.find(s => s.name === stageName);
+        return {
+          name: stageName,
+          orderIndex: stage?.order_index || 0
+        };
+      })
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map(stage => stage.name);
     
     return { hierarchies, stageNames, organized };
   };
@@ -416,6 +439,9 @@ export function CoreAnalytics() {
     return stages.filter((stage: any) => {
       // This is a simplified filter - you might need to adjust based on your data structure
       return true; // For now, show all stages for the selected project
+    }).sort((a: any, b: any) => {
+      // Sort by order_index to maintain proper stage sequence
+      return (a.order_index || 0) - (b.order_index || 0);
     });
   };
 
@@ -488,6 +514,16 @@ export function CoreAnalytics() {
       </div>
     );
   };
+
+  // Show hierarchy view if selected
+  if (showHierarchyView && selectedProjectForHierarchy) {
+    return (
+      <ProjectHierarchyView
+        projectId={selectedProjectForHierarchy}
+        onBack={handleBackToAnalytics}
+      />
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -687,9 +723,9 @@ export function CoreAnalytics() {
                         <X className="w-4 h-4" />
                       </button>
                     )}
-                  </div>
                 </div>
               </div>
+            </div>
 
               {selectedProject ? (
                 (() => {
@@ -701,7 +737,7 @@ export function CoreAnalytics() {
                         <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-500">No tasks found for this project</p>
                         <p className="text-sm text-gray-400 mt-1">Try creating some tasks or selecting a different project</p>
-                      </div>
+          </div>
                     );
                   }
                   
@@ -789,7 +825,7 @@ export function CoreAnalytics() {
                         }`}>
                           {hoveredTask.status.replace('-', ' ')}
                         </span>
-                      </div>
+      </div>
                       {hoveredTask.dueDate && (
                         <div><strong>Due:</strong> {new Date(hoveredTask.dueDate).toLocaleDateString()}</div>
                       )}
@@ -844,8 +880,8 @@ export function CoreAnalytics() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
       {/* Advanced Analytics Suite */}
       <Card>
@@ -874,16 +910,16 @@ export function CoreAnalytics() {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="flex space-x-2">
-                <Button variant="outline" size="sm">
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filters
-                </Button>
-                <Button variant="outline" size="sm">
-                  {selectedFilter}
-                  <ChevronDown className="w-4 h-4 ml-2" />
-                </Button>
+            </div>
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm">
+                <Filter className="w-4 h-4 mr-2" />
+                Filters
+              </Button>
+              <Button variant="outline" size="sm">
+                {selectedFilter}
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
               </div>
             </div>
           </div>
@@ -901,7 +937,7 @@ export function CoreAnalytics() {
               </div>
             ) : (
               <>
-                <h3 className="font-semibold text-gray-900">Development Stages Progress</h3>
+            <h3 className="font-semibold text-gray-900">Development Stages Progress</h3>
                 <p className="text-sm text-gray-600">
                   {getStageProgress().length} stages with {allTasks.filter((task: any) => 
                     task.project_id?.toString() === selectedProject
@@ -910,45 +946,45 @@ export function CoreAnalytics() {
                 
                 {getStageProgress().map((stage, index) => (
                   <div key={index} className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{stage.name}</span>
-                      <span className="text-gray-600">{stage.total} items</span>
-                    </div>
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">{stage.name}</span>
+                  <span className="text-gray-600">{stage.total} items</span>
+                </div>
                     <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
-                      <div 
+                  <div 
                         className="absolute left-0 top-0 h-full bg-green-500 transition-all duration-300" 
-                        style={{ width: `${(stage.completed / stage.total) * 100}%` }}
-                      ></div>
-                      <div 
+                    style={{ width: `${(stage.completed / stage.total) * 100}%` }}
+                  ></div>
+                  <div 
                         className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-300" 
-                        style={{ 
-                          width: `${(stage.inProgress / stage.total) * 100}%`, 
-                          left: `${(stage.completed / stage.total) * 100}%` 
-                        }}
-                      ></div>
-                      <div 
+                    style={{ 
+                      width: `${(stage.inProgress / stage.total) * 100}%`, 
+                      left: `${(stage.completed / stage.total) * 100}%` 
+                    }}
+                  ></div>
+                  <div 
                         className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300" 
-                        style={{ 
-                          width: `${(stage.overdue / stage.total) * 100}%`, 
-                          left: `${((stage.completed + stage.inProgress) / stage.total) * 100}%` 
-                        }}
-                      ></div>
-                      <div 
+                    style={{ 
+                      width: `${(stage.overdue / stage.total) * 100}%`, 
+                      left: `${((stage.completed + stage.inProgress) / stage.total) * 100}%` 
+                    }}
+                  ></div>
+                  <div 
                         className="absolute left-0 top-0 h-full bg-orange-500 transition-all duration-300" 
-                        style={{ 
-                          width: `${(stage.pending / stage.total) * 100}%`, 
-                          left: `${((stage.completed + stage.inProgress + stage.overdue) / stage.total) * 100}%` 
-                        }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-600">
-                      <span>Completed: {stage.completed}</span>
-                      <span>In Progress: {stage.inProgress}</span>
-                      <span>Overdue: {stage.overdue}</span>
-                      <span>Pending: {stage.pending}</span>
-                    </div>
-                  </div>
-                ))}
+                    style={{ 
+                      width: `${(stage.pending / stage.total) * 100}%`, 
+                      left: `${((stage.completed + stage.inProgress + stage.overdue) / stage.total) * 100}%` 
+                    }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Completed: {stage.completed}</span>
+                  <span>In Progress: {stage.inProgress}</span>
+                  <span>Overdue: {stage.overdue}</span>
+                  <span>Pending: {stage.pending}</span>
+                </div>
+              </div>
+            ))}
               </>
             )}
           </div>
@@ -963,11 +999,20 @@ export function CoreAnalytics() {
           const progress = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
           
           return (
-          <Card key={project.id} className="hover:shadow-lg transition-shadow">
+          <Card 
+            key={project.id} 
+            className="group hover:shadow-lg transition-shadow cursor-pointer hover:scale-105 transform transition-all duration-200"
+            onClick={() => handleProjectClick(project.id.toString())}
+          >
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <CardTitle className="text-lg">{project.name}</CardTitle>
+                  <CardTitle className="text-lg flex items-center">
+                    {project.name}
+                    <span className="ml-2 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Click to view hierarchy
+                    </span>
+                  </CardTitle>
                   <p className="text-sm text-gray-600 mt-1">{project.subtitle}</p>
                 </div>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
