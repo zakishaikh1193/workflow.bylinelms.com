@@ -20,7 +20,8 @@ import {
   Users,
   Calendar,
   X,
-  Search
+  Search,
+  GraduationCap
 } from 'lucide-react';
 import { taskService, projectService, stageService, teamService } from '../services/apiService';
 import { ProjectHierarchyView } from './ProjectHierarchyView';
@@ -710,10 +711,10 @@ export function CoreAnalytics() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
                       type="text"
-                      placeholder="e.g., U5, G1, L3..."
+                      placeholder="Search Grade, Book, Unit, Lesson"
                       value={hierarchySearch}
                       onChange={(e) => setHierarchySearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80"
                     />
                     {hierarchySearch && (
                       <button
@@ -1121,8 +1122,8 @@ export function CoreAnalytics() {
 
       {/* Task Assignment Modal */}
       {isAssignmentModalOpen && selectedTask && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Assign Task</h3>
               <button
@@ -1135,13 +1136,51 @@ export function CoreAnalytics() {
 
             <div className="space-y-4">
               {/* Task Details */}
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">Task Details</h4>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div><strong>Name:</strong> {selectedTask.name}</div>
-                  <div><strong>Project:</strong> {projects.find((p: any) => p.id === selectedTask.project_id)?.name}</div>
-                  <div><strong>Stage:</strong> {stages.find((s: any) => s.id === selectedTask.category_stage_id)?.name}</div>
-                  <div><strong>Hierarchy:</strong> {selectedTask.component_path}</div>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="p-1.5 bg-blue-100 rounded-lg">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <h4 className="text-base font-semibold text-gray-900">Task Details</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100">
+                    <span className="text-xs font-semibold text-gray-700">Name:</span>
+                    <span className="text-xs text-gray-900 font-medium truncate">{selectedTask.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100">
+                    <span className="text-xs font-semibold text-gray-700">Project:</span>
+                    <span className="text-xs text-gray-900 font-medium truncate">{projects.find((p: any) => p.id === selectedTask.project_id)?.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100">
+                    <span className="text-xs font-semibold text-gray-700">Stage:</span>
+                    <span className="text-xs text-gray-900 font-medium truncate">{stages.find((s: any) => s.id === selectedTask.category_stage_id)?.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100 col-span-2">
+                    <span className="text-xs font-semibold text-gray-700">Hierarchy:</span>
+                    <div className="flex items-center space-x-1">
+                      {selectedTask.component_path?.split('>').map((part: string, index: number) => (
+                        <React.Fragment key={index}>
+                          {index > 0 && <span className="text-gray-400 mx-1">&gt;</span>}
+                          <div className="flex items-center space-x-1">
+                            {part.trim().startsWith('G') && (
+                              <GraduationCap className="w-3 h-3 text-blue-600" />
+                            )}
+                            {part.trim().startsWith('B') && (
+                              <BookOpen className="w-3 h-3 text-orange-600" />
+                            )}
+                            {part.trim().startsWith('U') && (
+                              <BookOpen className="w-3 h-3 text-orange-600" />
+                            )}
+                            {part.trim().startsWith('L') && (
+                              <FileText className="w-3 h-3 text-green-600" />
+                            )}
+                            <span className="text-xs text-gray-900 font-medium">{part.trim()}</span>
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1169,9 +1208,23 @@ interface TaskAssignmentFormProps {
 }
 
 function TaskAssignmentForm({ task, teamMembers, onAssign, onCancel }: TaskAssignmentFormProps) {
-  const [assigneeId, setAssigneeId] = useState('');
+  // Pre-fill with existing task data
+  const [assigneeId, setAssigneeId] = useState(() => {
+    // Extract assignee ID from task.assigneeDetails if available
+    if (task.assigneeDetails && Array.isArray(task.assigneeDetails) && task.assigneeDetails.length > 0) {
+      return task.assigneeDetails[0].id?.toString() || '';
+    }
+    return '';
+  });
   const [status, setStatus] = useState(task.status || 'not-started');
-  const [endDate, setEndDate] = useState(task.end_date || '');
+  const [endDate, setEndDate] = useState(() => {
+    // Format existing end_date for date input
+    if (task.end_date || task.endDate) {
+      const date = new Date(task.end_date || task.endDate);
+      return date.toISOString().split('T')[0];
+    }
+    return '';
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1179,21 +1232,21 @@ function TaskAssignmentForm({ task, teamMembers, onAssign, onCancel }: TaskAssig
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       {/* Assignee Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           Assign to Team Member
         </label>
         <select
           value={assigneeId}
           onChange={(e) => setAssigneeId(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
         >
           <option value="">Select team member...</option>
           {teamMembers.map((member: any) => (
             <option key={member.id} value={member.id}>
-              {member.name} ({member.email})
+              {member.name}
             </option>
           ))}
         </select>
@@ -1201,13 +1254,13 @@ function TaskAssignmentForm({ task, teamMembers, onAssign, onCancel }: TaskAssig
 
       {/* Status Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           Status
         </label>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
         >
           <option value="not-started">Not Started</option>
           <option value="in-progress">In Progress</option>
@@ -1219,29 +1272,29 @@ function TaskAssignmentForm({ task, teamMembers, onAssign, onCancel }: TaskAssig
 
       {/* End Date */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           Due Date
         </label>
         <input
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
         />
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-end space-x-3 pt-4">
+      <div className="flex justify-end space-x-3 pt-6">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+          className="px-6 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 hover:shadow-md transition-all duration-200"
         >
           Assign Task
         </button>

@@ -63,6 +63,10 @@ const getTasks = async (req, res) => {
       assignee_type,
       search,
       stage_id,
+      grade_id,
+      book_id,
+      unit_id,
+      lesson_id,
       all = false
     } = req.query;
 
@@ -133,6 +137,34 @@ const getTasks = async (req, res) => {
       console.log('🔍 No stage_id provided in query parameters or stage_id is "all"');
     }
 
+    // Add hierarchy filters
+    if (grade_id) {
+      query += ' AND t.grade_id = ?';
+      queryParams.push(parseInt(grade_id, 10));
+      console.log('🔍 Grade filter applied:', grade_id);
+    }
+
+    if (book_id) {
+      query += ' AND t.book_id = ?';
+      queryParams.push(parseInt(book_id, 10));
+      console.log('🔍 Book filter applied:', book_id);
+    }
+
+    if (unit_id) {
+      query += ' AND t.unit_id = ?';
+      queryParams.push(parseInt(unit_id, 10));
+      console.log('🔍 Unit filter applied:', unit_id);
+    }
+
+    if (lesson_id && lesson_id !== 'null') {
+      query += ' AND t.lesson_id = ?';
+      queryParams.push(parseInt(lesson_id, 10));
+      console.log('🔍 Lesson filter applied:', lesson_id);
+    } else if (lesson_id === 'null') {
+      query += ' AND t.lesson_id IS NULL';
+      console.log('🔍 Lesson filter applied: IS NULL');
+    }
+
     if (search) {
       query += ' AND (t.name LIKE ? OR t.description LIKE ?)';
       queryParams.push(`%${search}%`, `%${search}%`);
@@ -178,6 +210,7 @@ const getTasks = async (req, res) => {
     console.log('🔍 Task query:', query);
     console.log('🔍 Task params:', queryParams);
     console.log('🔍 Stage filter debug - stage_id from query:', req.query.stage_id);
+    console.log('🔍 Hierarchy filters:', { grade_id, book_id, unit_id, lesson_id });
     console.log('🔍 All query parameters:', req.query);
     console.log('🔍 Request URL:', req.url);
     console.log('🔍 Request method:', req.method);
@@ -241,6 +274,27 @@ const getTasks = async (req, res) => {
       countQuery += ' AND t.category_stage_id = ?';
       countParams.push(stageIdNum);
     }
+    
+    // Add hierarchy filters to count query
+    if (grade_id) {
+      countQuery += ' AND t.grade_id = ?';
+      countParams.push(parseInt(grade_id, 10));
+    }
+    if (book_id) {
+      countQuery += ' AND t.book_id = ?';
+      countParams.push(parseInt(book_id, 10));
+    }
+    if (unit_id) {
+      countQuery += ' AND t.unit_id = ?';
+      countParams.push(parseInt(unit_id, 10));
+    }
+    if (lesson_id && lesson_id !== 'null') {
+      countQuery += ' AND t.lesson_id = ?';
+      countParams.push(parseInt(lesson_id, 10));
+    } else if (lesson_id === 'null') {
+      countQuery += ' AND t.lesson_id IS NULL';
+    }
+    
     if (search) {
       countQuery += ' AND (t.name LIKE ? OR t.description LIKE ?)';
       countParams.push(`%${search}%`, `%${search}%`);
@@ -258,6 +312,7 @@ const getTasks = async (req, res) => {
     
     console.log('🔍 Count query:', countQuery);
     console.log('🔍 Count params:', countParams);
+    console.log('🔍 Count query hierarchy filters:', { grade_id, book_id, unit_id, lesson_id });
     
     let countResult;
     try {

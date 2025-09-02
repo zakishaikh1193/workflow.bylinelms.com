@@ -14,9 +14,10 @@ import {
   GraduationCap,
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
-import { taskService, projectService, stageService, teamService } from '../services/apiService';
+import { taskService, projectService, stageService, teamService, gradeService, bookService, lessonService, unitService } from '../services/apiService';
 
 interface ProjectHierarchyViewProps {
   projectId: string;
@@ -39,6 +40,7 @@ interface HierarchyItem {
 }
 
 interface StageProgress {
+  id: number;
   name: string;
   completed: number;
   total: number;
@@ -51,6 +53,15 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [expandedLeafItems, setExpandedLeafItems] = useState<Set<string>>(new Set()); // For lesson Subject Content
   const [loading, setLoading] = useState(true);
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [allTeamMembers, setAllTeamMembers] = useState<any[]>([]);
+  const [allAdminUsers, setAllAdminUsers] = useState<any[]>([]);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
 
   useEffect(() => {
     fetchProjectData();
@@ -59,21 +70,60 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projectData, tasksData, stagesData] = await Promise.all([
+      const [projectData, tasksData, stagesData, teamMembersData, gradesData, booksData, lessonsData, unitsData] = await Promise.all([
         projectService.getById(projectId),
         taskService.getAll({ project_id: projectId, all: 'true' }),
-        stageService.getAll()
+        stageService.getAll(),
+        teamService.getMembers(),
+        // We need to fetch grades, books, units, and lessons for this project
+        gradeService.getByProject(projectId),
+        bookService.getAll(),
+        lessonService.getAll(),
+        // Fetch units as well since tasks have unit_id
+        unitService.getAll()
       ]);
 
       const projectInfo = projectData.data || projectData;
       const tasks = tasksData.data || tasksData;
       const stages = stagesData.data || stagesData;
+      const teamMembersList = teamMembersData.data || teamMembersData;
+      const gradesList = gradesData.data || gradesData;
+      const booksList = booksData.data || booksData;
+      const lessonsList = lessonsData.data || lessonsData;
+      const unitsList = unitsData.data || unitsData;
 
       setProject(projectInfo);
+      setAllTeamMembers(teamMembersList);
+      setAllTasks(tasks);
+      setGrades(gradesList);
+      setBooks(booksList);
+      setLessons(lessonsList);
+      setUnits(unitsList);
+      
+      // Debug: Log available tasks and their component paths
+      console.log('Available tasks:', tasks.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        component_path: t.component_path,
+        category_stage_id: t.category_stage_id,
+        stage_id: t.stage_id,
+        grade_id: t.grade_id,
+        book_id: t.book_id,
+        lesson_id: t.lesson_id
+      })));
+      
+      // Debug: Log grades, books, units, and lessons
+      console.log('Available grades:', gradesList);
+      console.log('Available books:', booksList);
+      console.log('Available units:', unitsList);
+      console.log('Available lessons:', lessonsList);
       
       // Build hierarchy from tasks
       const hierarchyData = buildHierarchyFromTasks(tasks, stages);
       setHierarchy(hierarchyData);
+      
+      // Debug: Log built hierarchy
+      console.log('Built hierarchy:', hierarchyData);
       
       // Don't auto-expand anything - let users choose what to expand
       setExpandedItems(new Set());
@@ -141,6 +191,15 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
             hasChildren: false
           };
           
+          // Debug: Log hierarchy item creation
+          console.log('Creating hierarchy item:', {
+            itemId,
+            name: part,
+            type,
+            level,
+            parentId: currentParentId
+          });
+          
           hierarchyMap.set(itemId, newItem);
           
           if (currentParentId) {
@@ -182,9 +241,36 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
       
       item.totalTasks = itemTasks.length;
       item.completedTasks = itemTasks.filter(task => task.status === 'completed').length;
-      item.progress = item.totalTasks > 0 ? Math.round((item.completedTasks / item.totalTasks) * 100) : 0;
       
-      // Determine status
+      // Calculate progress based on task statuses, not just completion
+      if (itemTasks.length > 0) {
+        let totalProgress = 0;
+        itemTasks.forEach(task => {
+          switch (task.status) {
+            case 'completed':
+              totalProgress += 100;
+              break;
+            case 'in-progress':
+              totalProgress += 50;
+              break;
+            case 'under-review':
+              totalProgress += 75;
+              break;
+            case 'blocked':
+              totalProgress += 25;
+              break;
+            case 'not-started':
+            default:
+              totalProgress += 0;
+              break;
+          }
+        });
+        item.progress = Math.round(totalProgress / itemTasks.length);
+      } else {
+        item.progress = 0;
+      }
+      
+      // Determine status based on progress
       if (item.progress === 100) item.status = 'completed';
       else if (item.progress > 0) item.status = 'in-progress';
       else item.status = 'not-started';
@@ -194,10 +280,47 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
         const stageTasks = itemTasks.filter(task => 
           task.category_stage_id === stage.id || task.stage_id === stage.id
         );
+        
+        // Since there's always exactly 1 task per stage, calculate progress based on status
+        if (stageTasks.length === 1) {
+          const task = stageTasks[0];
+          let percentage = 0;
+          
+          // Calculate percentage based on task status
+          switch (task.status) {
+            case 'completed':
+              percentage = 100;
+              break;
+            case 'in-progress':
+              percentage = 50; // Show as 50% when in progress
+              break;
+            case 'under-review':
+              percentage = 75; // Show as 75% when under review
+              break;
+            case 'blocked':
+              percentage = 25; // Show as 25% when blocked
+              break;
+            case 'not-started':
+            default:
+              percentage = 0;
+              break;
+          }
+          
+          return {
+            id: stage.id,
+            name: stage.name,
+            completed: percentage === 100 ? 1 : 0,
+            total: 1,
+            percentage: percentage
+          };
+        }
+        
+        // Fallback for edge cases (shouldn't happen in normal usage)
         const completed = stageTasks.filter(task => task.status === 'completed').length;
         const total = stageTasks.length;
         
         return {
+          id: stage.id,
           name: stage.name,
           completed,
           total,
@@ -261,6 +384,45 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
       newExpanded.add(itemId);
     }
     setExpandedLeafItems(newExpanded);
+  };
+
+  // Handle task assignment
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task);
+    setIsAssignmentModalOpen(true);
+  };
+
+  const handleAssignTask = async (taskId: string, assigneeId: string, status: string, endDate: string) => {
+    try {
+      // Update task with new assignee, status, and end date
+      const updateData: any = {
+        status
+      };
+
+      // Add end date if provided
+      if (endDate) {
+        updateData.end_date = endDate;
+      }
+
+      // Add assignee if provided - send as array of IDs
+      if (assigneeId) {
+        updateData.assignees = [assigneeId]; // Backend expects array of IDs
+      }
+
+      console.log('Sending update data:', updateData);
+      await taskService.update(taskId, updateData);
+      
+      // Refresh project data to show updated progress
+      await fetchProjectData();
+      
+      setIsAssignmentModalOpen(false);
+      setSelectedTask(null);
+      
+      alert('Task assigned successfully!');
+    } catch (error) {
+      console.error('Failed to assign task:', error);
+      alert('Failed to assign task. Please try again.');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -390,36 +552,148 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
               
               {/* Stage Progress Grid */}
               <div className="grid grid-cols-5 gap-3">
-                {item.stages.map((stage, index) => (
-                  <div key={index} className="text-center space-y-1 bg-gray-50 rounded-lg p-1 border border-gray-200">
-                    {/* Stage title */}
-                    <div className="text-xs font-medium text-gray-700 mb-2">{stage.name}</div>
+                                  {item.stages.map((stage, index) => {
+                    // Get the task for this specific hierarchy item and stage using API
+                    const fetchTaskForStage = async () => {
+                      try {
+                        // Parse the hierarchy item ID to get the individual IDs
+                        const hierarchyParts = item.id.split('>');
+                        let gradeId = null, bookId = null, unitId = null, lessonId = null;
+                        
+                        // Extract IDs based on hierarchy level
+                        if (hierarchyParts.length >= 1) {
+                          // Find grade by name (e.g., "G1" -> find grade with name "G1")
+                          const grade = grades.find((g: any) => g.name === hierarchyParts[0]);
+                          gradeId = grade?.id;
+                          console.log('Found grade:', { name: hierarchyParts[0], id: gradeId });
+                        }
+                        
+                        if (hierarchyParts.length >= 2) {
+                          // Check if the second part is a unit (U1, U2) or a lesson (L1, L2)
+                          const secondPart = hierarchyParts[1];
+                          if (secondPart.startsWith('U')) {
+                            // This is a unit (U1, U2, etc.)
+                            const unit = units.find((u: any) => u.name === secondPart && u.grade_id === gradeId);
+                            unitId = unit?.id;
+                            bookId = unitId; // In this case, book_id = unit_id
+                            console.log('Found unit:', { name: secondPart, id: unitId, gradeId, note: 'U1/U2 are units, book_id = unit_id' });
+                          } else if (secondPart.startsWith('L')) {
+                            // This is a lesson (L1, L2, etc.) - no unit level
+                            // Find the lesson directly
+                            const lesson = lessons.find((l: any) => l.name === secondPart && l.grade_id === gradeId);
+                            lessonId = lesson?.id;
+                            unitId = null; // No unit level
+                            bookId = lessonId; // In this case, book_id = lesson_id
+                            console.log('Found lesson (no unit):', { name: secondPart, id: lessonId, gradeId, note: 'L1/L2 are lessons, book_id = lesson_id, unit_id = null' });
+                          }
+                        }
+                        
+                        if (hierarchyParts.length >= 3) {
+                          // This means we have G1 > U1 > L1 structure
+                          const thirdPart = hierarchyParts[2];
+                          if (thirdPart.startsWith('L')) {
+                            // L1, L2, L3 are lessons that belong to the unit
+                            // In the database, they map to unit_id, not lesson_id
+                            lessonId = null;
+                            console.log('Lesson mapping:', { name: thirdPart, lessonId: null, note: 'L1/L2/L3 map to unit_id in database' });
+                          }
+                        }
+                        
+                        // Debug: Log all extracted IDs
+                        console.log('Extracted IDs for task search:', {
+                          hierarchyParts,
+                          gradeId,
+                          bookId,
+                          unitId,
+                          lessonId,
+                          stageId: stage.id,
+                          projectId
+                        });
+                        
+                        // Make API call to get the specific task using taskService
+                        // Prepare API parameters, handling null values properly
+                        const apiParams: any = {
+                          grade_id: gradeId,
+                          stage_id: stage.id,
+                          project_id: projectId
+                        };
+                        
+                        // Only add parameters if they have values (not null/undefined)
+                        if (bookId !== null && bookId !== undefined) {
+                          apiParams.book_id = bookId;
+                        }
+                        if (unitId !== null && unitId !== undefined) {
+                          apiParams.unit_id = unitId;
+                        }
+                        if (lessonId !== null && lessonId !== undefined) {
+                          apiParams.lesson_id = lessonId;
+                        }
+                        
+                        console.log('Making API call with parameters:', apiParams);
+                        
+                        const taskData = await taskService.getAll(apiParams);
+                        
+                        console.log('API response:', taskData);
+                        
+                        if (taskData && taskData.data && taskData.data.length > 0) {
+                          const foundTask = taskData.data[0];
+                          console.log(`Found task for ${item.id} - ${stage.name}:`, foundTask);
+                          // Open the assignment modal directly with the found task
+                          handleTaskClick(foundTask);
+                        } else {
+                          console.warn(`No task found for ${item.id} - ${stage.name}`);
+                          console.warn('Task search parameters:', apiParams);
+                        }
+                      } catch (error) {
+                        console.error('Error fetching task:', error);
+                      }
+                    };
                     
-                    {/* Icon, progress bar, and percentage in one row */}
-                    <div className="flex items-center justify-center space-x-2">
-                      {/* Icon next to progress bar */}
-                      {stage.percentage === 100 ? (
-                        <CheckCircle className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <Clock className="w-3 h-3 text-gray-400" />
-                      )}
+                    // Debug logging
+                    console.log(`Stage ${stage.name} for ${item.id}:`, { 
+                      itemId: item.id, 
+                      stageId: stage.id
+                    });
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className="text-center space-y-1 bg-gray-50 rounded-lg p-1 border border-gray-200 cursor-pointer hover:bg-gray-100 hover:shadow-sm transition-all"
+                      onClick={() => {
+                        console.log('Stage clicked:', { stage: stage.name, item: item.id });
+                        fetchTaskForStage();
+                      }}
+                      title={`Click to assign ${stage.name} task`}
+                    >
+                      {/* Stage title */}
+                      <div className="text-xs font-medium text-gray-700 mb-2">{stage.name}</div>
                       
-                      {/* Progress bar */}
-                      <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                        <div 
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            stage.percentage === 100 ? 'bg-green-500' : 
-                            stage.percentage > 0 ? 'bg-blue-500' : 'bg-gray-300'
-                          }`}
-                          style={{ width: `${stage.percentage}%` }}
-                        ></div>
+                      {/* Icon, progress bar, and percentage in one row */}
+                      <div className="flex items-center justify-center space-x-2">
+                        {/* Icon next to progress bar */}
+                        {stage.percentage === 100 ? (
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <Clock className="w-3 h-3 text-gray-400" />
+                        )}
+                        
+                        {/* Progress bar */}
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              stage.percentage === 100 ? 'bg-green-500' : 
+                              stage.percentage > 0 ? 'bg-blue-500' : 'bg-gray-300'
+                            }`}
+                            style={{ width: `${stage.percentage}%` }}
+                          ></div>
+                        </div>
+                        
+                        {/* Percentage */}
+                        <span className="text-xs text-gray-600 font-medium">{stage.percentage}%</span>
                       </div>
-                      
-                      {/* Percentage */}
-                      <span className="text-xs text-gray-600 font-medium">{stage.percentage}%</span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -429,10 +703,114 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
           <div className="space-y-3">
             {item.children?.map(child => renderHierarchyItem(child, level + 1))}
           </div>
-        )}
-      </div>
-    );
+              )}
+    </div>
+  );
+}
+
+// Task Assignment Form Component
+interface TaskAssignmentFormProps {
+  task: any;
+  teamMembers: any[];
+  onAssign: (taskId: string, assigneeId: string, status: string, endDate: string) => void;
+  onCancel: () => void;
+}
+
+function TaskAssignmentForm({ task, teamMembers, onAssign, onCancel }: TaskAssignmentFormProps) {
+  // Pre-fill with existing task data
+  const [assigneeId, setAssigneeId] = useState(() => {
+    // Extract assignee ID from task.assigneeDetails if available
+    if (task.assigneeDetails && Array.isArray(task.assigneeDetails) && task.assigneeDetails.length > 0) {
+      return task.assigneeDetails[0].id?.toString() || '';
+    }
+    return '';
+  });
+  const [status, setStatus] = useState(task.status || 'not-started');
+  const [endDate, setEndDate] = useState(() => {
+    // Format existing end_date for date input
+    if (task.end_date || task.endDate) {
+      const date = new Date(task.end_date || task.endDate);
+      return date.toISOString().split('T')[0];
+    }
+    return '';
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAssign(task.id, assigneeId, status, endDate);
   };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {/* Assignee Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Assign to Team Member
+        </label>
+        <select
+          value={assigneeId}
+          onChange={(e) => setAssigneeId(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+        >
+          <option value="">Select team member...</option>
+          {teamMembers.map((member: any) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Status Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Status
+        </label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+        >
+          <option value="not-started">Not Started</option>
+          <option value="in-progress">In Progress</option>
+          <option value="under-review">Under Review</option>
+          <option value="completed">Completed</option>
+          <option value="blocked">Blocked</option>
+        </select>
+      </div>
+
+      {/* End Date */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Due Date
+        </label>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+        />
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-end space-x-3 pt-6">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-6 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 hover:shadow-md transition-all duration-200"
+        >
+          Assign Task
+        </button>
+      </div>
+    </form>
+  );
+};
 
   if (loading) {
     return (
@@ -537,6 +915,78 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
           )}
         </CardContent>
       </Card>
+
+      {/* Task Assignment Modal */}
+      {isAssignmentModalOpen && selectedTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Assign Task</h3>
+              <button
+                onClick={() => setIsAssignmentModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Task Details */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="p-1.5 bg-blue-100 rounded-lg">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <h4 className="text-base font-semibold text-gray-900">Task Details</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100">
+                    <span className="text-xs font-semibold text-gray-700">Name:</span>
+                    <span className="text-xs text-gray-900 font-medium truncate">{selectedTask.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100">
+                    <span className="text-xs font-semibold text-gray-700">Project:</span>
+                    <span className="text-xs text-gray-900 font-medium truncate">{project?.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 p-2 bg-white rounded-lg border border-blue-100 col-span-2">
+                    <span className="text-xs font-semibold text-gray-700">Hierarchy:</span>
+                    <div className="flex items-center space-x-1">
+                      {selectedTask.component_path?.split('>').map((part: string, index: number) => (
+                        <React.Fragment key={index}>
+                          {index > 0 && <span className="text-gray-400 mx-1">&gt;</span>}
+                          <div className="flex items-center space-x-1">
+                            {part.trim().startsWith('G') && (
+                              <GraduationCap className="w-3 h-3 text-blue-600" />
+                            )}
+                            {part.trim().startsWith('B') && (
+                              <BookOpen className="w-3 h-3 text-orange-600" />
+                            )}
+                            {part.trim().startsWith('U') && (
+                              <BookOpen className="w-3 h-3 text-orange-600" />
+                            )}
+                            {part.trim().startsWith('L') && (
+                              <FileText className="w-3 h-3 text-green-600" />
+                            )}
+                            <span className="text-xs text-gray-900 font-medium">{part.trim()}</span>
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment Form */}
+              <TaskAssignmentForm
+                task={selectedTask}
+                teamMembers={allTeamMembers}
+                onAssign={handleAssignTask}
+                onCancel={() => setIsAssignmentModalOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
