@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { 
@@ -16,8 +16,13 @@ import {
   Filter,
   ChevronDown,
   Eye,
-  EyeOff
+  EyeOff,
+  Users,
+  Calendar,
+  X,
+  Search
 } from 'lucide-react';
+import { taskService, projectService, stageService, teamService } from '../services/apiService';
 
 // Curriculum Development Dashboard Data Structure
 const curriculumData = {
@@ -127,6 +132,20 @@ export function CoreAnalytics() {
   const [activeTab, setActiveTab] = useState<'overview' | 'predictions'>('overview');
   const [selectedFilter, setSelectedFilter] = useState('Standard Bar Chart');
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  
+  // Real data state
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hoveredTask, setHoveredTask] = useState<any>(null);
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [allTeamMembers, setAllTeamMembers] = useState<any[]>([]);
+  const [allAdminUsers, setAllAdminUsers] = useState<any[]>([]);
+  const [hierarchySearch, setHierarchySearch] = useState<string>('');
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -142,6 +161,262 @@ export function CoreAnalytics() {
     if (progress >= 80) return 'bg-green-500';
     if (progress >= 50) return 'bg-yellow-500';
     return 'bg-red-500';
+  };
+
+  // Fetch real data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [tasksData, projectsData, stagesData, teamMembersData] = await Promise.all([
+          taskService.getAll({ all: 'true' }),
+          projectService.getAll(),
+          stageService.getAll(),
+          teamService.getMembers()
+        ]);
+
+        const tasks = tasksData.data || tasksData;
+        const projectsList = projectsData.data || projectsData;
+        const stagesList = stagesData.data || stagesData;
+        const teamMembersList = teamMembersData.data || teamMembersData;
+
+        setAllTasks(tasks);
+        setProjects(projectsList);
+        setStages(stagesList);
+        setAllTeamMembers(teamMembersList);
+      } catch (error) {
+        console.error('Failed to fetch analytics data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Calculate real analytics data
+  const getTaskStatusCounts = () => {
+    const counts = {
+      total: allTasks.length,
+      completed: allTasks.filter((task: any) => task.status === 'completed').length,
+      inProgress: allTasks.filter((task: any) => 
+        task.status === 'in-progress' || task.status === 'under-review'
+      ).length,
+      notStarted: allTasks.filter((task: any) => task.status === 'not-started').length,
+      overdue: allTasks.filter((task: any) => {
+        if (task.status === 'completed') return false;
+        const endDate = task.end_date || task.endDate;
+        if (!endDate) return false;
+        return new Date(endDate) < new Date();
+      }).length
+    };
+    return counts;
+  };
+
+  const getStageProgress = () => {
+    if (!selectedProject || selectedProject === 'all') {
+      return [];
+    }
+
+    // Get the selected project
+    const project = projects.find(p => p.id.toString() === selectedProject);
+    if (!project) return [];
+
+    // Get stages for the selected project's category only
+    const projectStages = stages.filter(stage => {
+      // Check if this stage belongs to the project's category
+      // We need to check if the stage is linked to the project's category
+      // This is a simplified check - you might need to adjust based on your data structure
+      return true; // For now, show all stages that have tasks for this project
+    });
+
+    const stageProgress = projectStages.map(stage => {
+      // Only get tasks for this specific project and stage
+      const stageTasks = allTasks.filter((task: any) => 
+        (task.category_stage_id === stage.id || task.stage_id === stage.id) &&
+        task.project_id?.toString() === selectedProject
+      );
+      
+      const total = stageTasks.length;
+      const completed = stageTasks.filter((task: any) => task.status === 'completed').length;
+      const inProgress = stageTasks.filter((task: any) => 
+        task.status === 'in-progress' || task.status === 'under-review'
+      ).length;
+      const overdue = stageTasks.filter((task: any) => {
+        if (task.status === 'completed') return false;
+        const endDate = task.end_date || task.endDate;
+        if (!endDate) return false;
+        return new Date(endDate) < new Date();
+      }).length;
+      const pending = total - completed - inProgress - overdue;
+
+      return {
+        name: stage.name,
+        total,
+        completed,
+        inProgress,
+        overdue,
+        pending
+      };
+    });
+
+    // Only return stages that actually have tasks for this project
+    return stageProgress.filter(stage => stage.total > 0);
+  };
+
+  const getTaskColor = (task: any) => {
+    if (task.status === 'completed') return 'bg-green-500';
+    if (task.status === 'in-progress' || task.status === 'under-review') return 'bg-blue-500';
+    
+    // Check if overdue
+    const endDate = task.end_date || task.endDate;
+    if (endDate && new Date(endDate) < new Date()) return 'bg-red-500';
+    
+    return 'bg-orange-300';
+  };
+
+  const getTaskTooltip = (task: any) => {
+    const project = projects.find((p: any) => p.id === task.project_id);
+    const stage = stages.find((s: any) => s.id === task.category_stage_id || s.id === task.stage_id);
+    
+    // Handle assignees - now with names from assigneeDetails
+    let assigneeText = 'Unassigned';
+    if (task.assigneeDetails && Array.isArray(task.assigneeDetails) && task.assigneeDetails.length > 0) {
+      if (task.assigneeDetails.length === 1) {
+        assigneeText = task.assigneeDetails[0].name || 'Unknown Assignee';
+      } else {
+        const names = task.assigneeDetails.map((a: any) => a.name || 'Unknown').join(', ');
+        assigneeText = names;
+      }
+    }
+    
+    return {
+      name: task.name,
+      project: project?.name || 'Unknown Project',
+      stage: stage?.name || 'Unknown Stage',
+      status: task.status,
+      componentPath: task.component_path || '',
+      dueDate: task.end_date || task.endDate,
+      assignee: assigneeText
+    };
+  };
+
+  // Handle task assignment
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task);
+    setIsAssignmentModalOpen(true);
+  };
+
+  const handleAssignTask = async (taskId: string, assigneeId: string, status: string, endDate: string) => {
+    try {
+      // Update task with new assignee, status, and end date
+      const updateData: any = {
+        status
+      };
+
+      // Add end date if provided
+      if (endDate) {
+        updateData.end_date = endDate;
+      }
+
+      // Add assignee if provided - send as array of IDs
+      if (assigneeId) {
+        updateData.assignees = [assigneeId]; // Backend expects array of IDs
+      }
+
+      console.log('Sending update data:', updateData);
+      await taskService.update(taskId, updateData);
+      
+      // Refresh tasks data
+      const tasksData = await taskService.getAll({ all: 'true' });
+      const tasks = tasksData.data || tasksData;
+      setAllTasks(tasks);
+      
+      setIsAssignmentModalOpen(false);
+      setSelectedTask(null);
+      
+      alert('Task assigned successfully!');
+    } catch (error) {
+      console.error('Failed to assign task:', error);
+      alert('Failed to assign task. Please try again.');
+    }
+  };
+
+  // Organize tasks by hierarchy and stages for selected project
+  const getOrganizedTasks = () => {
+    if (!selectedProject) return { hierarchies: [], stageNames: [], organized: {} };
+    
+    const projectTasks = allTasks.filter((task: any) => task.project_id === parseInt(selectedProject));
+    const organized: { [key: string]: { [key: string]: any } } = {};
+    
+    projectTasks.forEach((task: any) => {
+      const componentPath = task.component_path || '';
+      const stage = stages.find((s: any) => s.id === task.category_stage_id || s.id === task.stage_id);
+      const stageName = stage?.name || 'Unknown';
+      
+      if (!organized[componentPath]) {
+        organized[componentPath] = {};
+      }
+      
+      organized[componentPath][stageName] = task;
+    });
+    
+    return { hierarchies: [], stageNames: [], organized };
+  };
+
+  // Get unique hierarchies and stages for table headers
+  const getTableData = () => {
+    if (!selectedProject) return { hierarchies: [], stageNames: [], organized: {} };
+    
+    const projectTasks = allTasks.filter((task: any) => task.project_id === parseInt(selectedProject));
+    const organized: { [key: string]: { [key: string]: any } } = {};
+    
+    projectTasks.forEach((task: any) => {
+      const componentPath = task.component_path || '';
+      const stage = stages.find((s: any) => s.id === task.category_stage_id || s.id === task.stage_id);
+      const stageName = stage?.name || 'Unknown';
+      
+      if (!organized[componentPath]) {
+        organized[componentPath] = {};
+      }
+      
+      organized[componentPath][stageName] = task;
+    });
+    
+    let hierarchies = Object.keys(organized).sort();
+    
+    // Filter hierarchies based on search term
+    if (hierarchySearch.trim()) {
+      const searchTerm = hierarchySearch.toLowerCase().trim();
+      hierarchies = hierarchies.filter(hierarchy => 
+        hierarchy.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    const allStages = new Set<string>();
+    
+    // Collect all unique stages for this project
+    Object.values(organized).forEach(stageTasks => {
+      Object.keys(stageTasks).forEach(stage => allStages.add(stage));
+    });
+    
+    const stageNames = Array.from(allStages).sort();
+    
+    return { hierarchies, stageNames, organized };
+  };
+
+  // Get project-specific stages
+  const getProjectStages = () => {
+    if (!selectedProject) return [];
+    
+    const project = projects.find((p: any) => p.id === parseInt(selectedProject));
+    if (!project) return [];
+    
+    // Get stages that are linked to this project's category
+    return stages.filter((stage: any) => {
+      // This is a simplified filter - you might need to adjust based on your data structure
+      return true; // For now, show all stages for the selected project
+    });
   };
 
   const renderIconGrid = (type: 'projects' | 'books' | 'lessons') => {
@@ -246,8 +521,15 @@ export function CoreAnalytics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{curriculumData.summary.totalProjects}</p>
-                <p className="text-sm text-gray-600">Total Projects</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {selectedProject && selectedProject !== 'all' ? 
+                    projects.find(p => p.id.toString() === selectedProject)?.name || 'N/A' : 
+                    projects.length
+                  }
+                </p>
+                <p className="text-sm text-gray-600">
+                  {selectedProject && selectedProject !== 'all' ? 'Selected Project' : 'Total Projects'}
+                </p>
               </div>
               <div className="p-2 bg-blue-100 rounded-lg">
                 <FolderOpen className="w-6 h-6 text-blue-600" />
@@ -260,7 +542,15 @@ export function CoreAnalytics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{curriculumData.summary.inProgress}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {selectedProject && selectedProject !== 'all' ? 
+                    allTasks.filter((task: any) => 
+                      task.project_id?.toString() === selectedProject && 
+                      ['in-progress', 'under-review'].includes(task.status)
+                    ).length : 
+                    getTaskStatusCounts().inProgress
+                  }
+                </p>
                 <p className="text-sm text-gray-600">In Progress</p>
               </div>
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -274,7 +564,14 @@ export function CoreAnalytics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{curriculumData.summary.completed}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {selectedProject && selectedProject !== 'all' ? 
+                    allTasks.filter((task: any) => 
+                      task.project_id?.toString() === selectedProject && task.status === 'completed'
+                    ).length : 
+                    getTaskStatusCounts().completed
+                  }
+                </p>
                 <p className="text-sm text-gray-600">Completed</p>
               </div>
               <div className="p-2 bg-green-100 rounded-lg">
@@ -288,11 +585,18 @@ export function CoreAnalytics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{curriculumData.summary.totalBooks}</p>
-                <p className="text-sm text-gray-600">Total Books</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {selectedProject && selectedProject !== 'all' ? 
+                    allTasks.filter((task: any) => 
+                      task.project_id?.toString() === selectedProject
+                    ).length : 
+                    getTaskStatusCounts().total
+                  }
+                </p>
+                <p className="text-sm text-gray-600">Total Tasks</p>
               </div>
               <div className="p-2 bg-purple-100 rounded-lg">
-                <BookOpen className="w-6 h-6 text-purple-600" />
+                <FileText className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
@@ -302,128 +606,246 @@ export function CoreAnalytics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{curriculumData.summary.avgProgress}%</p>
-                <p className="text-sm text-gray-600">Avg Progress</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {selectedProject && selectedProject !== 'all' ? 
+                    allTasks.filter((task: any) => {
+                      if (task.project_id?.toString() !== selectedProject || task.status === 'completed') return false;
+                      const endDate = task.end_date || task.endDate;
+                      if (!endDate) return false;
+                      return new Date(endDate) < new Date();
+                    }).length : 
+                    getTaskStatusCounts().overdue
+                  }
+                </p>
+                <p className="text-sm text-gray-600">Overdue</p>
               </div>
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-blue-600" />
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Overall Progress Donut */}
+      {/* Task Matrix - Organized by Hierarchy and Stages */}
       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <FileText className="w-5 h-5 mr-2 text-blue-600" />
+            Task Matrix - Hierarchy vs Stages
+          </CardTitle>
+          <p className="text-sm text-gray-600">Select a project to view tasks organized by hierarchy and stages.</p>
+        </CardHeader>
         <CardContent className="p-6">
-          <div className="flex items-center justify-center">
-            <div className="relative w-32 h-32">
-              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="54"
-                  fill="none"
-                  stroke="#e5e7eb"
-                  strokeWidth="12"
-                />
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="54"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="12"
-                  strokeDasharray={`${2 * Math.PI * 54}`}
-                  strokeDashoffset={`${2 * Math.PI * 54 * (1 - curriculumData.summary.avgProgress / 100)}`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">0%</p>
-                  <p className="text-sm text-gray-600">Complete</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Loading tasks...</span>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Project Selector and Search */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <label className="text-sm font-medium text-gray-700">Select Project:</label>
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Choose a project...</option>
+                    {projects.map((project: any) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedProject && (
+                    <span className="text-sm text-gray-600">
+                      {projects.find((p: any) => p.id === parseInt(selectedProject))?.name}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Hierarchy Search */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">Search Hierarchy:</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="e.g., U5, G1, L3..."
+                      value={hierarchySearch}
+                      onChange={(e) => setHierarchySearch(e.target.value)}
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48"
+                    />
+                    {hierarchySearch && (
+                      <button
+                        onClick={() => setHierarchySearch('')}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {selectedProject ? (
+                (() => {
+                  const { hierarchies, stageNames, organized } = getTableData();
+                  
+                  if (hierarchies.length === 0) {
+                    return (
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500">No tasks found for this project</p>
+                        <p className="text-sm text-gray-400 mt-1">Try creating some tasks or selecting a different project</p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left p-3 font-semibold text-gray-700 bg-gray-50 sticky left-0 z-10 min-w-[120px]">
+                              Hierarchy
+                            </th>
+                            {stageNames.map((stage) => (
+                              <th key={stage} className="text-center p-3 font-semibold text-gray-700 bg-gray-50 min-w-[100px]">
+                                {stage}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {hierarchies.map((hierarchy) => (
+                            <tr key={hierarchy} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="p-3 font-medium text-gray-900 sticky left-0 z-10 bg-white min-w-[120px]">
+                                {hierarchy}
+                              </td>
+                              {stageNames.map((stage) => {
+                                const task = organized[hierarchy][stage];
+                                if (!task) {
+                                  return (
+                                    <td key={stage} className="p-3 text-center">
+                                      <div className="w-6 h-6 rounded-full bg-gray-200 mx-auto"></div>
+                                    </td>
+                                  );
+                                }
+                                
+                                const tooltip = getTaskTooltip(task);
+                                return (
+                                  <td key={stage} className="p-3 text-center">
+                                    <div
+                                      className={`w-6 h-6 rounded-full cursor-pointer transition-all duration-200 hover:scale-125 hover:shadow-lg mx-auto ${getTaskColor(task)}`}
+                                      onMouseEnter={(e) => {
+                                        setHoveredTask(tooltip);
+                                        setTooltipPosition({ x: e.clientX, y: e.clientY });
+                                      }}
+                                      onMouseLeave={() => setHoveredTask(null)}
+                                      onClick={() => handleTaskClick(task)}
+                                      title={`${tooltip.componentPath} - ${tooltip.stage} (Click to assign)`}
+                                    />
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Please select a project to view the task matrix</p>
+                  <p className="text-sm text-gray-400 mt-1">Choose a project from the dropdown above</p>
+                </div>
+              )}
+              
+              {/* Hover Tooltip */}
+              {hoveredTask && (
+                <div className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-4 max-w-sm pointer-events-none" 
+                     style={{
+                       left: `${tooltipPosition.x + 10}px`,
+                       top: `${tooltipPosition.y - 10}px`
+                     }}>
+                  <div className="space-y-2">
+                    <div className="font-semibold text-gray-900">{hoveredTask.name}</div>
+                    <div className="text-sm text-gray-600">
+                      <div><strong>Project:</strong> {hoveredTask.project}</div>
+                      <div><strong>Stage:</strong> {hoveredTask.stage}</div>
+                      <div><strong>Hierarchy:</strong> {hoveredTask.componentPath}</div>
+                      <div><strong>Status:</strong> 
+                        <span className={`ml-1 px-2 py-1 rounded text-xs ${
+                          hoveredTask.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          hoveredTask.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                          hoveredTask.status === 'under-review' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {hoveredTask.status.replace('-', ' ')}
+                        </span>
+                      </div>
+                      {hoveredTask.dueDate && (
+                        <div><strong>Due:</strong> {new Date(hoveredTask.dueDate).toLocaleDateString()}</div>
+                      )}
+                      <div><strong>Assignee:</strong> {hoveredTask.assignee}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Legend */}
+              <div className="flex items-center justify-center space-x-6 text-sm">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                  <span>Completed</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                  <span>In Progress</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-orange-300 rounded-full"></div>
+                  <span>Not Started</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                  <span>Overdue</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-gray-200 rounded-full"></div>
+                  <span>No Task</span>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-4 gap-4 text-center">
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <div className="text-lg font-bold text-green-600">{getTaskStatusCounts().completed}</div>
+                  <div className="text-xs text-green-700">Completed</div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="text-lg font-bold text-blue-600">{getTaskStatusCounts().inProgress}</div>
+                  <div className="text-xs text-blue-700">In Progress</div>
+                </div>
+                <div className="bg-orange-50 p-3 rounded-lg">
+                  <div className="text-lg font-bold text-orange-600">{getTaskStatusCounts().notStarted}</div>
+                  <div className="text-xs text-orange-700">Not Started</div>
+                </div>
+                <div className="bg-red-50 p-3 rounded-lg">
+                  <div className="text-lg font-bold text-red-600">{getTaskStatusCounts().overdue}</div>
+                  <div className="text-xs text-red-700">Overdue</div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Distribution Visualizations */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Projects Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <FolderOpen className="w-5 h-5 mr-2" />
-              Projects
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderIconGrid('projects')}
-            <p className="text-sm text-gray-600 mt-2">Total {curriculumData.distribution.projects.total}</p>
-          </CardContent>
-        </Card>
-
-        {/* Books Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BookOpen className="w-5 h-5 mr-2" />
-              Books
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderIconGrid('books')}
-            <p className="text-sm text-gray-600 mt-2">Total {curriculumData.distribution.books.total}</p>
-          </CardContent>
-        </Card>
-
-        {/* Lessons Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <FileText className="w-5 h-5 mr-2" />
-              Lessons
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderIconGrid('lessons')}
-            <p className="text-sm text-gray-600 mt-2">Total {curriculumData.distribution.lessons.total}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Stacked Bar Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Project Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderStackedBar('projects')}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Book Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderStackedBar('books')}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Lesson Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderStackedBar('lessons')}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Advanced Analytics Suite */}
       <Card>
@@ -436,71 +858,111 @@ export function CoreAnalytics() {
               </CardTitle>
               <p className="text-sm text-gray-600">Comprehensive data visualization and insights.</p>
             </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" size="sm">
-                <Filter className="w-4 h-4 mr-2" />
-                Filters
-              </Button>
-              <Button variant="outline" size="sm">
-                {selectedFilter}
-                <ChevronDown className="w-4 h-4 ml-2" />
-              </Button>
+            <div className="flex items-center space-x-4">
+              {/* Project Selector */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">Project:</label>
+                <select
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Select a Project</option>
+                  {projects.map((project: any) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="sm">
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filters
+                </Button>
+                <Button variant="outline" size="sm">
+                  {selectedFilter}
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-900">Development Stages Progress</h3>
-            <p className="text-sm text-gray-600">52 items for each stage</p>
-            
-            {curriculumData.developmentStages.map((stage, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium">{stage.name}</span>
-                  <span className="text-gray-600">{stage.total} items</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
-                  <div 
-                    className="absolute left-0 top-0 h-full bg-green-500" 
-                    style={{ width: `${(stage.completed / stage.total) * 100}%` }}
-                  ></div>
-                  <div 
-                    className="absolute left-0 top-0 h-full bg-blue-500" 
-                    style={{ 
-                      width: `${(stage.inProgress / stage.total) * 100}%`, 
-                      left: `${(stage.completed / stage.total) * 100}%` 
-                    }}
-                  ></div>
-                  <div 
-                    className="absolute left-0 top-0 h-full bg-red-500" 
-                    style={{ 
-                      width: `${(stage.overdue / stage.total) * 100}%`, 
-                      left: `${((stage.completed + stage.inProgress) / stage.total) * 100}%` 
-                    }}
-                  ></div>
-                  <div 
-                    className="absolute left-0 top-0 h-full bg-orange-500" 
-                    style={{ 
-                      width: `${(stage.pending / stage.total) * 100}%`, 
-                      left: `${((stage.completed + stage.inProgress + stage.overdue) / stage.total) * 100}%` 
-                    }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Completed: {stage.completed}</span>
-                  <span>In Progress: {stage.inProgress}</span>
-                  <span>Overdue: {stage.overdue}</span>
-                  <span>Pending: {stage.pending}</span>
+            {/* Project Selection Required */}
+            {(!selectedProject || selectedProject === 'all') ? (
+              <div className="text-center py-8">
+                <div className="text-gray-500 mb-4">
+                  <BarChart3 className="w-12 h-12 mx-auto mb-2" />
+                  <p className="text-lg font-medium">Select a Project to View Analytics</p>
+                  <p className="text-sm">Choose a project from the dropdown above to see detailed progress analytics.</p>
                 </div>
               </div>
-            ))}
+            ) : (
+              <>
+                <h3 className="font-semibold text-gray-900">Development Stages Progress</h3>
+                <p className="text-sm text-gray-600">
+                  {getStageProgress().length} stages with {allTasks.filter((task: any) => 
+                    task.project_id?.toString() === selectedProject
+                  ).length} total tasks
+                </p>
+                
+                {getStageProgress().map((stage, index) => (
+                  <div key={index} className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{stage.name}</span>
+                      <span className="text-gray-600">{stage.total} items</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-6 relative overflow-hidden">
+                      <div 
+                        className="absolute left-0 top-0 h-full bg-green-500 transition-all duration-300" 
+                        style={{ width: `${(stage.completed / stage.total) * 100}%` }}
+                      ></div>
+                      <div 
+                        className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-300" 
+                        style={{ 
+                          width: `${(stage.inProgress / stage.total) * 100}%`, 
+                          left: `${(stage.completed / stage.total) * 100}%` 
+                        }}
+                      ></div>
+                      <div 
+                        className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300" 
+                        style={{ 
+                          width: `${(stage.overdue / stage.total) * 100}%`, 
+                          left: `${((stage.completed + stage.inProgress) / stage.total) * 100}%` 
+                        }}
+                      ></div>
+                      <div 
+                        className="absolute left-0 top-0 h-full bg-orange-500 transition-all duration-300" 
+                        style={{ 
+                          width: `${(stage.pending / stage.total) * 100}%`, 
+                          left: `${((stage.completed + stage.inProgress + stage.overdue) / stage.total) * 100}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-600">
+                      <span>Completed: {stage.completed}</span>
+                      <span>In Progress: {stage.inProgress}</span>
+                      <span>Overdue: {stage.overdue}</span>
+                      <span>Pending: {stage.pending}</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Individual Curriculum Projects */}
+      {/* Individual Projects */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {curriculumData.projects.map((project) => (
+        {projects.map((project) => {
+          const projectTasks = allTasks.filter((task: any) => task.project_id === project.id);
+          const completedTasks = projectTasks.filter((task: any) => task.status === 'completed').length;
+          const progress = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
+          
+          return (
           <Card key={project.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -517,12 +979,12 @@ export function CoreAnalytics() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Overall Progress</span>
-                  <span>{project.progress}%</span>
+                  <span>{progress}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className={`h-2 rounded-full ${getProgressColor(project.progress)}`}
-                    style={{ width: `${project.progress}%` }}
+                    className={`h-2 rounded-full ${getProgressColor(progress)}`}
+                    style={{ width: `${progress}%` }}
                   ></div>
                 </div>
               </div>
@@ -530,37 +992,38 @@ export function CoreAnalytics() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-600">Start Date</p>
-                  <p className="font-medium">{project.startDate}</p>
+                  <p className="font-medium">{project.start_date ? new Date(project.start_date).toLocaleDateString() : 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Target Date</p>
-                  <p className="font-medium">{project.targetDate}</p>
+                  <p className="text-gray-600">End Date</p>
+                  <p className="font-medium">{project.end_date ? new Date(project.end_date).toLocaleDateString() : 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Proj. Completion</p>
-                  <p className="font-medium">{project.projectedCompletion}</p>
+                  <p className="text-gray-600">Status</p>
+                  <p className="font-medium">{project.status}</p>
                 </div>
                 <div>
                   <p className="text-gray-600">Tasks</p>
-                  <p className="font-medium">{project.tasks} tasks</p>
+                  <p className="font-medium">{projectTasks.length} tasks</p>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Task Progress</span>
-                  <span>{project.taskProgress}%</span>
+                  <span>{completedTasks}/{projectTasks.length}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1">
                   <div 
                     className="h-1 rounded-full bg-blue-500"
-                    style={{ width: `${project.taskProgress}%` }}
+                    style={{ width: `${progress}%` }}
                   ></div>
                 </div>
               </div>
             </CardContent>
           </Card>
-        ))}
+        );
+        })}
       </div>
 
       {/* Debug Info Panel */}
@@ -610,6 +1073,134 @@ export function CoreAnalytics() {
           {showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'}
         </Button>
       </div>
+
+      {/* Task Assignment Modal */}
+      {isAssignmentModalOpen && selectedTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Assign Task</h3>
+              <button
+                onClick={() => setIsAssignmentModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Task Details */}
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Task Details</h4>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div><strong>Name:</strong> {selectedTask.name}</div>
+                  <div><strong>Project:</strong> {projects.find((p: any) => p.id === selectedTask.project_id)?.name}</div>
+                  <div><strong>Stage:</strong> {stages.find((s: any) => s.id === selectedTask.category_stage_id)?.name}</div>
+                  <div><strong>Hierarchy:</strong> {selectedTask.component_path}</div>
+                </div>
+              </div>
+
+              {/* Assignment Form */}
+              <TaskAssignmentForm
+                task={selectedTask}
+                teamMembers={allTeamMembers}
+                onAssign={handleAssignTask}
+                onCancel={() => setIsAssignmentModalOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Task Assignment Form Component
+interface TaskAssignmentFormProps {
+  task: any;
+  teamMembers: any[];
+  onAssign: (taskId: string, assigneeId: string, status: string, endDate: string) => void;
+  onCancel: () => void;
+}
+
+function TaskAssignmentForm({ task, teamMembers, onAssign, onCancel }: TaskAssignmentFormProps) {
+  const [assigneeId, setAssigneeId] = useState('');
+  const [status, setStatus] = useState(task.status || 'not-started');
+  const [endDate, setEndDate] = useState(task.end_date || '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAssign(task.id, assigneeId, status, endDate);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Assignee Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Assign to Team Member
+        </label>
+        <select
+          value={assigneeId}
+          onChange={(e) => setAssigneeId(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select team member...</option>
+          {teamMembers.map((member: any) => (
+            <option key={member.id} value={member.id}>
+              {member.name} ({member.email})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Status Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Status
+        </label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="not-started">Not Started</option>
+          <option value="in-progress">In Progress</option>
+          <option value="under-review">Under Review</option>
+          <option value="completed">Completed</option>
+          <option value="blocked">Blocked</option>
+        </select>
+      </div>
+
+      {/* End Date */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Due Date
+        </label>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-end space-x-3 pt-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+        >
+          Assign Task
+        </button>
+      </div>
+    </form>
   );
 }

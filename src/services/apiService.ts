@@ -1,6 +1,6 @@
 // Modern API service for the new Node.js backend
-// const API_URL = 'https://workflow.bylinelms.com/api';
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://workflow.bylinelms.com/api';
+// const API_URL = 'http://localhost:3001/api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {

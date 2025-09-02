@@ -1196,7 +1196,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
               disabled={loading}
               className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
             >
-              🚀 Bulk Create Tasks
+              Bulk Create Tasks
             </Button>
             <Button icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateTaskModalOpen(true)}>
               Add Task

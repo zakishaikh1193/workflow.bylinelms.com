@@ -609,7 +609,7 @@ const bulkCreateTasks = async (req, res) => {
           status: 'not-started',
           priority: 'medium',
           start_date: new Date().toISOString().split('T')[0],
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+          end_date: project.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Use project end date or default to 30 days
           progress: 0,
           estimated_hours: 8,
           created_by: createdBy
@@ -1225,8 +1225,16 @@ const getTaskById = async (taskId) => {
   `;
   const skills = await db.query(skillsQuery, [taskId]);
 
-  // Get all assignees (both admin and team)
+  // Get all assignees (both admin and team) with names
   task.assignees = assignees.map(a => a.assignee_id);
+  
+  // Add assignee details with names
+  task.assigneeDetails = assignees.map(a => ({
+    id: a.assignee_id,
+    type: a.assignee_type,
+    name: a.assignee_type === 'team' ? a.team_name : a.admin_name,
+    email: a.assignee_type === 'team' ? a.team_email : a.admin_email
+  }));
   
   // For backward compatibility, also provide team assignees separately
   task.teamAssignees = assignees
