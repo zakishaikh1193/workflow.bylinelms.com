@@ -1716,7 +1716,7 @@ const getNotifications = async (req, res) => {
         t.name as task_name,
         p.name as project_name,
         CASE 
-          WHEN te.requested_by_type = 'admin' || 'team' THEN tm.name
+          WHEN te.requested_by_type = 'team' THEN tm.name
           WHEN te.requested_by_type = 'admin' THEN au.name
           ELSE 'Unknown User'
         END as requester_name
@@ -1744,7 +1744,7 @@ const getNotifications = async (req, res) => {
         t.name as task_name,
         p.name as project_name,
         CASE 
-          WHEN tr.added_by_type = 'admin' || 'team' THEN tm.name
+          WHEN tr.added_by_type = 'team' THEN tm.name
           WHEN tr.added_by_type = 'admin' THEN au.name
           ELSE 'Unknown User'
         END as user_name
@@ -1811,6 +1811,162 @@ const getNotifications = async (req, res) => {
   }
 };
 
+// Get notifications for team members
+const getTeamNotifications = async (req, res) => {
+  try {
+    const teamMemberId = req.user.id;
+    
+    // Get all tasks assigned to this team member
+    const tasksQuery = `
+      SELECT t.id, t.name as task_name, t.project_id, t.end_date
+      FROM tasks t
+      JOIN task_assignees ta ON t.id = ta.task_id
+      WHERE ta.assignee_id = ? AND ta.assignee_type = 'team'
+    `;
+    
+    const tasks = await db.query(tasksQuery, [teamMemberId]);
+    
+    if (tasks.length === 0) {
+      return res.json({
+        success: true,
+        data: { extensions: [], remarks: [] }
+      });
+    }
+    
+    const taskIds = tasks.map(t => t.id);
+    const taskIdsPlaceholder = taskIds.map(() => '?').join(',');
+    
+    // Get extension requests for team member's tasks (including requests from other team members and admins)
+    const extensionQuery = `
+      SELECT 
+        te.id,
+        te.task_id,
+        te.requested_by,
+        te.requested_by_type,
+        te.current_due_date,
+        te.requested_due_date,
+        te.reason,
+        te.status,
+        te.created_at,
+        te.review_notes,
+        te.reviewed_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN te.requested_by_type = 'team' THEN tm.name
+          WHEN te.requested_by_type = 'admin' THEN au.name
+          ELSE 'Unknown User'
+        END as requester_name,
+        CASE 
+          WHEN te.reviewed_by IS NOT NULL THEN admin_reviewer.name
+          ELSE NULL
+        END as reviewer_name,
+        CASE 
+          WHEN te.status = 'approved' THEN '✅ Extension Approved'
+          WHEN te.status = 'rejected' THEN '❌ Extension Rejected'
+          WHEN te.status = 'pending' THEN '⏳ Extension Pending'
+          ELSE te.status
+        END as status_display
+      FROM task_extensions te
+      JOIN tasks t ON te.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN team_members tm ON te.requested_by = tm.id
+      LEFT JOIN admin_users au ON te.requested_by = au.id
+      LEFT JOIN admin_users admin_reviewer ON te.reviewed_by = admin_reviewer.id
+      WHERE te.task_id IN (${taskIdsPlaceholder})
+      ORDER BY te.created_at DESC
+    `;
+    
+    // Get remarks for team member's tasks (including admin remarks and other team member remarks)
+    const remarksQuery = `
+      SELECT 
+        tr.id,
+        tr.task_id,
+        tr.added_by,
+        tr.added_by_type,
+        tr.remark_date,
+        tr.remark,
+        tr.remark_type,
+        tr.is_private,
+        tr.created_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN tr.added_by_type = 'team' THEN tm.name
+          WHEN tr.added_by_type = 'admin' THEN au.name
+          ELSE 'Unknown User'
+        END as user_name,
+        CASE 
+          WHEN tr.added_by_type = 'admin' THEN '👑 Admin Remark'
+          WHEN tr.added_by_type = 'team' THEN '👤 Team Remark'
+          ELSE 'Remark'
+        END as remark_type_display
+      FROM task_remarks tr
+      JOIN tasks t ON tr.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN admin_users au ON tr.added_by = au.id
+      LEFT JOIN team_members tm ON tr.added_by = tm.id
+      WHERE tr.task_id IN (${taskIdsPlaceholder})
+      ORDER BY tr.created_at DESC
+    `;
+    
+    const [extensions, remarks] = await Promise.all([
+      db.query(extensionQuery, taskIds),
+      db.query(remarksQuery, taskIds)
+    ]);
+    
+    // Format the data for team member notifications
+    const notifications = {
+      extensions: extensions.map(ext => ({
+        id: ext.id,
+        type: 'extension_request',
+        task_id: ext.task_id,
+        task_name: ext.task_name,
+        project_name: ext.project_name,
+        requester_name: ext.requester_name,
+        requester_type: ext.requested_by_type,
+        current_due_date: ext.current_due_date,
+        requested_due_date: ext.requested_due_date,
+        reason: ext.reason,
+        status: ext.status,
+        created_at: ext.created_at,
+        review_notes: ext.review_notes,
+        reviewed_at: ext.reviewed_at,
+        reviewer_name: ext.reviewer_name,
+        is_new: ext.status === 'pending' || 
+                (ext.reviewed_at && new Date(ext.reviewed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)) // New if pending or reviewed in last 24h
+      })),
+      remarks: remarks.map(remark => ({
+        id: remark.id,
+        type: 'remark',
+        task_id: remark.task_id,
+        task_name: remark.task_name,
+        project_name: remark.project_name,
+        user_name: remark.user_name,
+        user_type: remark.added_by_type,
+        remark: remark.remark,
+        remark_type: remark.remark_type,
+        is_private: remark.is_private,
+        created_at: remark.created_at,
+        is_new: new Date(remark.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if created in last 24h
+      }))
+    };
+    
+    res.json({
+      success: true,
+      data: notifications
+    });
+    
+  } catch (error) {
+    console.error('Error fetching team notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch team notifications',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
@@ -1827,5 +1983,6 @@ module.exports = {
   addTaskRemark,
   getTaskRemarks,
   deleteTaskRemark,
-  getNotifications
+  getNotifications,
+  getTeamNotifications
 };

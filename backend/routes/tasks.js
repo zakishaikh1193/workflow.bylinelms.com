@@ -16,9 +16,10 @@ const {
   addTaskRemark,
   getTaskRemarks,
   deleteTaskRemark,
-  getNotifications
+  getNotifications,
+  getTeamNotifications
 } = require('../controllers/taskController');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireTeamAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -294,6 +295,9 @@ router.get('/',
 
 // Get notifications for admin dashboard
 router.get('/notifications', requireAuth, getNotifications);
+
+// Get notifications for team members
+router.get('/team/notifications', requireTeamAuth, getTeamNotifications);
 
 // Get task by ID
 router.get('/:id',

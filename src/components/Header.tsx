@@ -23,7 +23,16 @@ export function Header() {
   const loadNotificationCount = async () => {
     try {
       const response = await notificationService.getAll();
-      const totalCount = (response.data.extensions?.length || 0) + (response.data.remarks?.length || 0);
+      const cutoff = new Date();
+      cutoff.setHours(cutoff.getHours() - 24);
+
+      const extensions = response?.data?.extensions || [];
+      const remarks = response?.data?.remarks || [];
+
+      const recentExtensions = extensions.filter((e: any) => new Date(e.created_at) >= cutoff);
+      const recentRemarks = remarks.filter((r: any) => new Date(r.created_at) >= cutoff);
+
+      const totalCount = recentExtensions.length + recentRemarks.length;
       setNotificationCount(totalCount);
     } catch (error) {
       console.error('Failed to load notification count:', error);

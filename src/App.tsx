@@ -19,8 +19,33 @@ function App() {
   const { user, loading } = useAuth();
   const [teamMemberUser, setTeamMemberUser] = useState<UserType | null>(null);
   const [showTeamPortal, setShowTeamPortal] = useState(false);
+  const [teamSessionLoading, setTeamSessionLoading] = useState(true);
 
-  if (loading) {
+  // Restore team member session on page load
+  useEffect(() => {
+    const restoreTeamSession = () => {
+      try {
+        const teamToken = localStorage.getItem('teamToken');
+        const teamUserData = localStorage.getItem('teamUserData');
+        
+        if (teamToken && teamUserData) {
+          const parsedUser = JSON.parse(teamUserData);
+          setTeamMemberUser(parsedUser);
+          setShowTeamPortal(true);
+        }
+      } catch (error) {
+        // Clear invalid data
+        localStorage.removeItem('teamToken');
+        localStorage.removeItem('teamUserData');
+      } finally {
+        setTeamSessionLoading(false);
+      }
+    };
+
+    restoreTeamSession();
+  }, []);
+
+  if (loading || teamSessionLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">

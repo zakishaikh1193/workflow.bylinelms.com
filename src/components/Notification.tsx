@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Bell, 
   Clock, 
@@ -17,7 +17,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { notificationService } from '../services/apiService';
+import { notificationService, teamService, teamTaskService } from '../services/apiService';
 
 interface Notification {
   id: number;
@@ -37,6 +37,9 @@ interface ExtensionRequest extends Notification {
   requested_due_date: string;
   reason: string;
   status: string;
+  review_notes?: string;
+  reviewed_at?: string;
+  reviewer_name?: string;
 }
 
 interface TaskRemark extends Notification {
@@ -61,19 +64,45 @@ export function Notification() {
   const [error, setError] = useState<string | null>(null);
   
   // Filter states
-  const [filterType, setFilterType] = useState<'all' | 'new'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'new'>(() => {
+    // Persist user's selection; default to 'all' for first-time users
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('notification_filter_type') : null;
+    return (stored === 'new' || stored === 'all') ? (stored as 'all' | 'new') : 'all';
+  });
   const [filterDate, setFilterDate] = useState<string>('');
   const [filterUser, setFilterUser] = useState<string>('');
   const [viewedTasks, setViewedTasks] = useState<Set<number>>(new Set());
 
-  // Check if user is admin
-  const isAdmin = user?.id !== undefined;
+  // Keep filterType in localStorage so user's choice persists until changed
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('notification_filter_type', filterType);
+    } catch {}
+  }, [filterType]);
+
+  // Build a unique list of users from notifications to drive the User filter dropdown
+  const uniqueUsers = useMemo(() => {
+    const set = new Set<string>();
+    notifications.extensions.forEach(ext => {
+      if (ext.requester_name) set.add(ext.requester_name);
+    });
+    notifications.remarks.forEach(r => {
+      if (r.user_name) set.add(r.user_name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [notifications.extensions, notifications.remarks]);
+
+  // Check if user is admin; team users authenticate via teamToken
+  const isTeamSession = typeof window !== 'undefined' && !!window.localStorage.getItem('teamToken');
+  const isAdmin = !isTeamSession && user?.id !== undefined;
 
   useEffect(() => {
     if (isAdmin) {
       loadNotifications();
+    } else if (isTeamSession) {
+      loadTeamNotifications();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isTeamSession]);
 
   const loadNotifications = async () => {
     try {
@@ -89,27 +118,52 @@ export function Notification() {
     }
   };
 
+  const loadTeamNotifications = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Use the new team notifications endpoint
+      const response = await notificationService.getTeamNotifications();
+      setNotifications(response.data);
+    } catch (err: any) {
+      console.error('Failed to load team notifications:', err);
+      setError(err.message || 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewTask = (taskId: number) => {
+    console.log('Marking task as viewed:', taskId);
+    console.log('Previous viewed tasks:', Array.from(viewedTasks));
+    
     // Mark this task as viewed
-    setViewedTasks(prev => new Set([...prev, taskId]));
+    setViewedTasks(prev => {
+      const newSet = new Set([...prev, taskId]);
+      console.log('New viewed tasks set:', Array.from(newSet));
+      return newSet;
+    });
+    
     // Set the previous view to notifications before navigating to task details
     dispatch({ type: 'SET_PREVIOUS_VIEW', payload: 'notifications' });
     // Navigate directly to the specific task details
     dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
   };
 
-  // Helper function to check if a task is new (unviewed)
-  const isTaskNew = (taskId: number) => !viewedTasks.has(taskId);
+  // Note: previously used a session-based "unviewed" check; now replaced by time-based filter
 
   // Filter notifications based on current filters
   const getFilteredNotifications = () => {
     let filteredExtensions = notifications.extensions;
     let filteredRemarks = notifications.remarks;
 
-    // Filter by type (new vs all)
+    // Filter by type (New = last 24 hours)
     if (filterType === 'new') {
-      filteredExtensions = filteredExtensions.filter(ext => isTaskNew(ext.task_id));
-      filteredRemarks = filteredRemarks.filter(remark => isTaskNew(remark.task_id));
+      const cutoff = new Date();
+      cutoff.setHours(cutoff.getHours() - 24);
+      filteredExtensions = filteredExtensions.filter(ext => new Date(ext.created_at) >= cutoff);
+      filteredRemarks = filteredRemarks.filter(remark => new Date(remark.created_at) >= cutoff);
     }
 
     // Filter by date
@@ -216,17 +270,7 @@ export function Notification() {
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Restricted</h3>
-          <p className="text-gray-600">Only admin users can view notifications.</p>
-        </div>
-      </div>
-    );
-  }
+  // Render unified notifications UI for both admin and team sessions
 
   if (loading) {
     return (
@@ -293,7 +337,7 @@ export function Notification() {
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Notifications</option>
-                <option value="new">New (Unviewed)</option>
+                <option value="new">New (Last 24 hours)</option>
               </select>
             </div>
 
@@ -318,16 +362,19 @@ export function Notification() {
               )}
             </div>
 
-            {/* Filter by User */}
+            {/* Filter by User (Dropdown) */}
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">User:</label>
-              <input
-                type="text"
-                placeholder="Search by user name..."
+              <select
                 value={filterUser}
                 onChange={(e) => setFilterUser(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+              >
+                <option value="">All Users</option>
+                {uniqueUsers.map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
               {filterUser && (
                 <Button
                   variant="ghost"
@@ -412,6 +459,25 @@ export function Notification() {
                         <p className="text-sm text-gray-700">
                           <span className="font-medium">Reason:</span> {extension.reason}
                         </p>
+                        
+                        {/* Admin Review Information */}
+                        {extension.status !== 'pending' && extension.reviewer_name && (
+                          <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="text-sm font-medium text-gray-900">
+                                Admin Review by {extension.reviewer_name}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {extension.reviewed_at && new Date(extension.reviewed_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {extension.review_notes && (
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Notes:</span> {extension.review_notes}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex items-center justify-between text-sm text-gray-500">
@@ -458,9 +524,6 @@ export function Notification() {
                           Remark on "{remark.task_name}"
                         </span>
                         {getRemarkTypeBadge(remark.remark_type)}
-                        {remark.is_private && (
-                          <Badge variant="secondary">Private</Badge>
-                        )}
                       </div>
                       
                       <div className="mb-3">

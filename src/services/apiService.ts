@@ -1002,4 +1002,5 @@ export const performanceFlagService = {
 // Notification service
 export const notificationService = {
   getAll: () => apiService.get('/tasks/notifications'),
+  getTeamNotifications: () => teamApiService.get('/tasks/team/notifications'),
 };
