@@ -27,9 +27,12 @@ export function TeamMemberLogin({ onLogin, onBackToAdmin }: TeamMemberLoginProps
       const response = await teamService.authenticate({ email, passcode });
       
       if (response.success && response.data) {
-        // Store the JWT token and user data in localStorage
+        // Store the JWT token, refresh token, and user data in localStorage
         if (response.token) {
           localStorage.setItem('teamToken', response.token);
+        }
+        if (response.refresh_token) {
+          localStorage.setItem('teamRefreshToken', response.refresh_token);
         }
         localStorage.setItem('teamUserData', JSON.stringify(response.data));
         onLogin(response.data);

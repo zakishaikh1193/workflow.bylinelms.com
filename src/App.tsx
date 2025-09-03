@@ -12,6 +12,7 @@ import { TeamMemberLogin } from './components/TeamMemberLogin';
 import { TeamMemberPortal } from './components/TeamMemberPortal';
 import { Loader2 } from 'lucide-react';
 import type { User as UserType } from './types';
+import tokenService from './services/tokenService';
 
 import { MainApp } from './components/MainApp';
 
@@ -44,6 +45,32 @@ function App() {
 
     restoreTeamSession();
   }, []);
+
+  // Initialize token auto-refresh for admin users
+  useEffect(() => {
+    if (user) {
+      console.log('🔐 Initializing token auto-refresh for admin user...');
+      tokenService.initializeAutoRefresh();
+      
+      return () => {
+        console.log('🧹 Cleaning up token service...');
+        tokenService.cleanup();
+      };
+    }
+  }, [user]);
+
+  // Initialize token auto-refresh for team members
+  useEffect(() => {
+    if (teamMemberUser) {
+      console.log('🔐 Initializing token auto-refresh for team member...');
+      tokenService.initializeTeamAutoRefresh();
+      
+      return () => {
+        console.log('🧹 Cleaning up team token service...');
+        tokenService.cleanup();
+      };
+    }
+  }, [teamMemberUser]);
 
   if (loading || teamSessionLoading) {
     return (

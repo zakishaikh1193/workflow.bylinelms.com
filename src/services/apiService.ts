@@ -1004,3 +1004,11 @@ export const notificationService = {
   getAll: () => apiService.get('/tasks/notifications'),
   getTeamNotifications: () => teamApiService.get('/tasks/team/notifications'),
 };
+
+// Auth service
+export const authService = {
+  adminLogin: (credentials: any) => apiService.post('/auth/admin/login', credentials),
+  teamLogin: (credentials: any) => apiService.post('/auth/team/login', credentials),
+  refreshToken: (data: { refresh_token: string }) => apiService.post('/auth/admin/refresh', data),
+  refreshTeamToken: (data: { refresh_token: string }) => apiService.post('/auth/team/refresh', data),
+};

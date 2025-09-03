@@ -32,6 +32,7 @@ import { TeamNotifications } from './TeamNotifications';
 import type { Task, User as UserType } from '../types';
 import notificationServiceRealTime from '../services/notificationService';
 import type { RealTimeNotification } from '../services/notificationService';
+import tokenService from '../services/tokenService';
 
 interface TeamMemberPortalProps {
   user: UserType;
@@ -67,6 +68,17 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     loadUserData();
     loadNotificationCount();
   }, [user.id]);
+
+  // Initialize token auto-refresh for team members
+  useEffect(() => {
+    console.log('🔐 Initializing team member token auto-refresh...');
+    tokenService.initializeTeamAutoRefresh();
+    
+    return () => {
+      console.log('🧹 Cleaning up team member token service...');
+      tokenService.cleanup();
+    };
+  }, []);
 
   // Separate effect for real-time notifications
   useEffect(() => {
@@ -448,7 +460,9 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 variant="ghost"
                 onClick={() => {
                   localStorage.removeItem('teamToken');
+                  localStorage.removeItem('teamRefreshToken');
                   localStorage.removeItem('teamUserData');
+                  tokenService.cleanup();
                   onLogout();
                 }}
                 className="p-3 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200"

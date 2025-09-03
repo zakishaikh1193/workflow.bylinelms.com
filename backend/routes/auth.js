@@ -64,6 +64,13 @@ router.post('/team/login', [
   handleValidationErrors
 ], authController.teamMemberLogin);
 
+router.post('/team/refresh', [
+  body('refresh_token')
+    .notEmpty()
+    .withMessage('Refresh token is required'),
+  handleValidationErrors
+], authController.refreshTeamMemberToken);
+
 router.post('/team/logout', 
   requireTeamAuth, 
   authController.teamMemberLogout
