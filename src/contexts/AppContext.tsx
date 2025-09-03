@@ -11,7 +11,7 @@ interface AppState {
   skills: string[];
   filters: FilterOptions;
   selectedProject: string | null;
-  selectedView: 'dashboard' | 'projects' | 'teams' | 'tasks' | 'allocations' | 'analytics' | 'settings';
+  selectedView: 'dashboard' | 'projects' | 'teams' | 'tasks' | 'allocations' | 'analytics' | 'core-analytics' | 'notifications' | 'settings';
 }
 
 type AppAction =

@@ -10,6 +10,7 @@ import { DailyAllocations } from './DailyAllocations';
 import { Settings } from './Settings';
 import { Analytics } from './Analytics';
 import { CoreAnalytics } from './CoreAnalytics';
+import { Notification } from './Notification';
 import { ToastProvider } from './ui/Toast';
 
 export function MainApp() {
@@ -29,6 +30,8 @@ export function MainApp() {
         return <Analytics />;
       case 'core-analytics':
         return <CoreAnalytics />;
+      case 'notifications':
+        return <Notification />;
       case 'settings':
         return <Settings />;
       default:

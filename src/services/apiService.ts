@@ -998,3 +998,8 @@ export const performanceFlagService = {
     return result.data;
   }
 };
+
+// Notification service
+export const notificationService = {
+  getAll: () => apiService.get('/tasks/notifications'),
+};

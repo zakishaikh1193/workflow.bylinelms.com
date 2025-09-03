@@ -1661,42 +1661,27 @@ const getTaskRemarks = async (req, res) => {
 const deleteTaskRemark = async (req, res) => {
   try {
     const { remarkId } = req.params;
-    const currentUserId = req.user?.id || req.teamMember?.id;
-    const isAdmin = req.user;
 
-    // Check if remark exists and get details
+    // Check if remark exists
     const remarkQuery = 'SELECT * FROM task_remarks WHERE id = ?';
     const remarks = await db.query(remarkQuery, [remarkId]);
-    
+
     if (remarks.length === 0) {
       return res.status(404).json({
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: 'Remark not found'
+          message: 'Task remark not found'
         }
       });
     }
 
-    const remark = remarks[0];
-
-    // Check permissions
-    if (!isAdmin && remark.added_by !== currentUserId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'You can only delete your own remarks'
-        }
-      });
-    }
-
-    // Delete remark
+    // Delete the remark
     await db.query('DELETE FROM task_remarks WHERE id = ?', [remarkId]);
 
     res.json({
       success: true,
-      message: 'Remark deleted successfully'
+      message: 'Task remark deleted successfully'
     });
 
   } catch (error) {
@@ -1705,8 +1690,123 @@ const deleteTaskRemark = async (req, res) => {
       success: false,
       error: {
         code: 'DATABASE_ERROR',
-        message: 'Failed to delete remark'
+        message: 'Failed to delete task remark'
       }
+    });
+  }
+};
+
+// Get notifications for admin dashboard
+const getNotifications = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    
+    // Get pending extension requests
+    const extensionQuery = `
+      SELECT 
+        te.id,
+        te.task_id,
+        te.requested_by,
+        te.requested_by_type,
+        te.current_due_date,
+        te.requested_due_date,
+        te.reason,
+        te.status,
+        te.created_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN te.requested_by_type = 'team' THEN tm.name
+          WHEN te.requested_by_type = 'admin' THEN au.name
+          ELSE 'Unknown'
+        END as requester_name
+      FROM task_extensions te
+      JOIN tasks t ON te.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN team_members tm ON te.requested_by = tm.id AND te.requested_by_type = 'team'
+      LEFT JOIN admin_users au ON te.requested_by = au.id AND te.requested_by_type = 'admin'
+      WHERE te.status = 'pending'
+      ORDER BY te.created_at DESC
+    `;
+    
+    // Get recent remarks (last 7 days)
+    const remarksQuery = `
+      SELECT 
+        tr.id,
+        tr.task_id,
+        tr.added_by,
+        tr.added_by_type,
+        tr.remark_date,
+        tr.remark,
+        tr.remark_type,
+        tr.is_private,
+        tr.created_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN tr.added_by_type = 'team' THEN tm.name
+          WHEN tr.added_by_type = 'admin' THEN au.name
+          ELSE 'Unknown'
+        END as user_name
+      FROM task_remarks tr
+      JOIN tasks t ON tr.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN team_members tm ON tr.added_by = tm.id AND tr.added_by_type = 'team'
+      LEFT JOIN admin_users au ON tr.added_by = au.id AND tr.added_by_type = 'admin'
+      WHERE tr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      ORDER BY tr.created_at DESC
+      LIMIT 50
+    `;
+    
+    const [extensions, remarks] = await Promise.all([
+      db.query(extensionQuery),
+      db.query(remarksQuery)
+    ]);
+    
+    // Format the data - db.query returns rows directly, not nested arrays
+    const notifications = {
+      extensions: extensions.map(ext => ({
+        id: ext.id,
+        type: 'extension_request',
+        task_id: ext.task_id,
+        task_name: ext.task_name,
+        project_name: ext.project_name,
+        requester_name: ext.requester_name,
+        requester_type: ext.requested_by_type,
+        current_due_date: ext.current_due_date,
+        requested_due_date: ext.requested_due_date,
+        reason: ext.reason,
+        status: ext.status,
+        created_at: ext.created_at,
+        is_new: true // All pending extensions are considered new
+      })),
+      remarks: remarks.map(remark => ({
+        id: remark.id,
+        type: 'remark',
+        task_id: remark.task_id,
+        task_name: remark.task_name,
+        project_name: remark.project_name,
+        user_name: remark.user_name,
+        user_type: remark.added_by_type,
+        remark: remark.remark,
+        remark_type: remark.remark_type,
+        is_private: remark.is_private,
+        created_at: remark.created_at,
+        is_new: true // All recent remarks are considered new
+      }))
+    };
+    
+    res.json({
+      success: true,
+      data: notifications
+    });
+    
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notifications',
+      error: error.message
     });
   }
 };
@@ -1726,5 +1826,6 @@ module.exports = {
   // Remark endpoints
   addTaskRemark,
   getTaskRemarks,
-  deleteTaskRemark
+  deleteTaskRemark,
+  getNotifications
 };

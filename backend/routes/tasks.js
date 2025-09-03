@@ -15,7 +15,8 @@ const {
   // Remark endpoints
   addTaskRemark,
   getTaskRemarks,
-  deleteTaskRemark
+  deleteTaskRemark,
+  getNotifications
 } = require('../controllers/taskController');
 const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
@@ -290,6 +291,9 @@ router.get('/',
   handleValidationErrors,
   getTasks
 );
+
+// Get notifications for admin dashboard
+router.get('/notifications', requireAuth, getNotifications);
 
 // Get task by ID
 router.get('/:id',
