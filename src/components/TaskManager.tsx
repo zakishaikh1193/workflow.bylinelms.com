@@ -26,7 +26,6 @@ export function TaskManager() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -875,15 +874,7 @@ export function TaskManager() {
     }, {})
   });
 
-  // Show task details if a task is selected
-  if (selectedTaskId) {
-    return (
-      <TaskDetails
-        taskId={selectedTaskId}
-        onBack={() => setSelectedTaskId(null)}
-      />
-    );
-  }
+
 
   if (loading) {
     return (
@@ -1406,7 +1397,8 @@ export function TaskManager() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedTaskId(task.id);
+                              dispatch({ type: 'SET_PREVIOUS_VIEW', payload: 'tasks' });
+                              dispatch({ type: 'SET_SELECTED_TASK', payload: task.id.toString() });
                             }}
                             title="View Details"
                           >

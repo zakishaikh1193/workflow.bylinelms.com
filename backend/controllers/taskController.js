@@ -1716,15 +1716,15 @@ const getNotifications = async (req, res) => {
         t.name as task_name,
         p.name as project_name,
         CASE 
-          WHEN te.requested_by_type = 'team' THEN tm.name
+          WHEN te.requested_by_type = 'admin' || 'team' THEN tm.name
           WHEN te.requested_by_type = 'admin' THEN au.name
-          ELSE 'Unknown'
+          ELSE 'Unknown User'
         END as requester_name
       FROM task_extensions te
       JOIN tasks t ON te.task_id = t.id
       JOIN projects p ON t.project_id = p.id
-      LEFT JOIN team_members tm ON te.requested_by = tm.id AND te.requested_by_type = 'team'
-      LEFT JOIN admin_users au ON te.requested_by = au.id AND te.requested_by_type = 'admin'
+      LEFT JOIN team_members tm ON te.requested_by = tm.id
+      LEFT JOIN admin_users au ON te.requested_by = au.id
       WHERE te.status = 'pending'
       ORDER BY te.created_at DESC
     `;
@@ -1744,15 +1744,15 @@ const getNotifications = async (req, res) => {
         t.name as task_name,
         p.name as project_name,
         CASE 
-          WHEN tr.added_by_type = 'team' THEN tm.name
+          WHEN tr.added_by_type = 'admin' || 'team' THEN tm.name
           WHEN tr.added_by_type = 'admin' THEN au.name
-          ELSE 'Unknown'
+          ELSE 'Unknown User'
         END as user_name
       FROM task_remarks tr
       JOIN tasks t ON tr.task_id = t.id
       JOIN projects p ON t.project_id = p.id
-      LEFT JOIN team_members tm ON tr.added_by = tm.id AND tr.added_by_type = 'team'
-      LEFT JOIN admin_users au ON tr.added_by = au.id AND tr.added_by_type = 'admin'
+      LEFT JOIN admin_users au ON tr.added_by = au.id
+      LEFT JOIN team_members tm ON tr.added_by = tm.id
       WHERE tr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
       ORDER BY tr.created_at DESC
       LIMIT 50

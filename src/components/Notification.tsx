@@ -59,6 +59,12 @@ export function Notification() {
   const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Filter states
+  const [filterType, setFilterType] = useState<'all' | 'new'>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
+  const [filterUser, setFilterUser] = useState<string>('');
+  const [viewedTasks, setViewedTasks] = useState<Set<number>>(new Set());
 
   // Check if user is admin
   const isAdmin = user?.id !== undefined;
@@ -84,11 +90,60 @@ export function Notification() {
   };
 
   const handleViewTask = (taskId: number) => {
-    // Navigate to tasks view - user can then search/filter to find the specific task
-    dispatch({ type: 'SET_SELECTED_VIEW', payload: 'tasks' });
-    // Note: The specific task details will need to be accessed from the TaskManager
-    // by searching for the task name or ID
+    // Mark this task as viewed
+    setViewedTasks(prev => new Set([...prev, taskId]));
+    // Set the previous view to notifications before navigating to task details
+    dispatch({ type: 'SET_PREVIOUS_VIEW', payload: 'notifications' });
+    // Navigate directly to the specific task details
+    dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
   };
+
+  // Helper function to check if a task is new (unviewed)
+  const isTaskNew = (taskId: number) => !viewedTasks.has(taskId);
+
+  // Filter notifications based on current filters
+  const getFilteredNotifications = () => {
+    let filteredExtensions = notifications.extensions;
+    let filteredRemarks = notifications.remarks;
+
+    // Filter by type (new vs all)
+    if (filterType === 'new') {
+      filteredExtensions = filteredExtensions.filter(ext => isTaskNew(ext.task_id));
+      filteredRemarks = filteredRemarks.filter(remark => isTaskNew(remark.task_id));
+    }
+
+    // Filter by date
+    if (filterDate) {
+      const filterDateObj = new Date(filterDate);
+      filterDateObj.setHours(0, 0, 0, 0);
+      
+      filteredExtensions = filteredExtensions.filter(ext => {
+        const extDate = new Date(ext.created_at);
+        extDate.setHours(0, 0, 0, 0);
+        return extDate.getTime() === filterDateObj.getTime();
+      });
+      
+      filteredRemarks = filteredRemarks.filter(remark => {
+        const remarkDate = new Date(remark.created_at);
+        remarkDate.setHours(0, 0, 0, 0);
+        return remarkDate.getTime() === filterDateObj.getTime();
+      });
+    }
+
+    // Filter by user
+    if (filterUser) {
+      filteredExtensions = filteredExtensions.filter(ext => 
+        ext.requester_name?.toLowerCase().includes(filterUser.toLowerCase())
+      );
+      filteredRemarks = filteredRemarks.filter(remark => 
+        remark.user_name?.toLowerCase().includes(filterUser.toLowerCase())
+      );
+    }
+
+    return { extensions: filteredExtensions, remarks: filteredRemarks };
+  };
+
+  const filteredNotifications = getFilteredNotifications();
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -144,15 +199,20 @@ export function Notification() {
     const date = new Date(dateString);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
     const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInDays > 0) {
-      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-    } else if (diffInHours > 0) {
-      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    } else {
+    if (diffInMinutes < 1) {
       return 'Just now';
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    } else {
+      return date.toLocaleDateString();
     }
   };
 
@@ -197,7 +257,7 @@ export function Notification() {
     );
   }
 
-  const totalNotifications = notifications.extensions.length + notifications.remarks.length;
+  const totalNotifications = filteredNotifications.extensions.length + filteredNotifications.remarks.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -220,18 +280,97 @@ export function Notification() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Filter by Type */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">Type:</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as 'all' | 'new')}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Notifications</option>
+                <option value="new">New (Unviewed)</option>
+              </select>
+            </div>
+
+            {/* Filter by Date */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">Date:</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {filterDate && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFilterDate('')}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Filter by User */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">User:</label>
+              <input
+                type="text"
+                placeholder="Search by user name..."
+                value={filterUser}
+                onChange={(e) => setFilterUser(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {filterUser && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFilterUser('')}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Clear All Filters */}
+            {(filterType !== 'all' || filterDate || filterUser) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterType('all');
+                  setFilterDate('');
+                  setFilterUser('');
+                }}
+                className="text-gray-600 hover:text-gray-800"
+              >
+                Clear All Filters
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Extension Requests */}
-      {notifications.extensions.length > 0 && (
+      {filteredNotifications.extensions.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Clock className="w-5 h-5 text-orange-500" />
-              <span>Extension Requests ({notifications.extensions.length})</span>
+              <span>Extension Requests ({filteredNotifications.extensions.length})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {notifications.extensions.map((extension) => (
+              {filteredNotifications.extensions.map((extension) => (
                 <div 
                   key={extension.id} 
                   className={`p-4 border rounded-lg ${getNotificationColor(extension.type)}`}
@@ -250,7 +389,7 @@ export function Notification() {
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600">
                             <User className="w-3 h-3 inline mr-1" />
-                            Requested by: <span className="font-medium">{extension.requester_name}</span>
+                            Requested by: <span className="font-medium">{extension.requester_name || 'Unknown User'}</span>
                           </p>
                           <p className="text-sm text-gray-600">
                             <FileText className="w-3 h-3 inline mr-1" />
@@ -276,14 +415,14 @@ export function Notification() {
                       </div>
                       
                       <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>{formatTimeAgo(extension.created_at)}</span>
+                        <span>Requested: {formatTimeAgo(extension.created_at)}</span>
                         <Button 
                           size="sm" 
                           onClick={() => handleViewTask(extension.task_id)}
                           className="flex items-center space-x-1"
                         >
                           <Eye className="w-3 h-3" />
-                          <span>View Task</span>
+                          <span>View Task Details</span>
                         </Button>
                       </div>
                     </div>
@@ -296,17 +435,17 @@ export function Notification() {
       )}
 
       {/* Task Remarks */}
-      {notifications.remarks.length > 0 && (
+      {filteredNotifications.remarks.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <MessageSquare className="w-5 h-5 text-blue-500" />
-              <span>Recent Remarks ({notifications.remarks.length})</span>
+              <span>Recent Remarks ({filteredNotifications.remarks.length})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {notifications.remarks.map((remark) => (
+              {filteredNotifications.remarks.map((remark) => (
                 <div 
                   key={remark.id} 
                   className={`p-4 border rounded-lg ${getNotificationColor(remark.type)}`}
@@ -334,7 +473,7 @@ export function Notification() {
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600">
                             <User className="w-3 h-3 inline mr-1" />
-                            Added by: <span className="font-medium">{remark.user_name}</span>
+                            Added by: <span className="font-medium">{remark.user_name || 'Unknown User'}</span>
                           </p>
                           <p className="text-sm text-gray-600">
                             <FileText className="w-3 h-3 inline mr-1" />
@@ -360,7 +499,7 @@ export function Notification() {
                           className="flex items-center space-x-1"
                         >
                           <Eye className="w-3 h-3" />
-                          <span>View Task</span>
+                          <span>View Task Details</span>
                         </Button>
                       </div>
                     </div>

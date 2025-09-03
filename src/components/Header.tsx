@@ -31,6 +31,8 @@ export function Header() {
   };
 
   const handleNotificationClick = () => {
+    // Always clear any selected task when navigating to notifications
+    dispatch({ type: 'SET_SELECTED_TASK', payload: null });
     dispatch({ type: 'SET_SELECTED_VIEW', payload: 'notifications' });
     setShowDropdown(false);
   };
@@ -79,6 +81,8 @@ export function Header() {
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                 <button
                   onClick={() => {
+                    // Always clear any selected task when navigating to settings
+                    dispatch({ type: 'SET_SELECTED_TASK', payload: null });
                     dispatch({ type: 'SET_SELECTED_VIEW', payload: 'settings' });
                     setShowDropdown(false);
                   }}

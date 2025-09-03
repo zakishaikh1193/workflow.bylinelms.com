@@ -12,6 +12,8 @@ interface AppState {
   filters: FilterOptions;
   selectedProject: string | null;
   selectedView: 'dashboard' | 'projects' | 'teams' | 'tasks' | 'allocations' | 'analytics' | 'core-analytics' | 'notifications' | 'settings';
+  selectedTaskId: string | null;
+  previousView: 'dashboard' | 'projects' | 'teams' | 'tasks' | 'allocations' | 'analytics' | 'core-analytics' | 'notifications' | 'settings';
 }
 
 type AppAction =
@@ -32,7 +34,9 @@ type AppAction =
   | { type: 'ADD_SKILL'; payload: string }
   | { type: 'SET_FILTERS'; payload: FilterOptions }
   | { type: 'SET_SELECTED_PROJECT'; payload: string | null }
-  | { type: 'SET_SELECTED_VIEW'; payload: AppState['selectedView'] };
+  | { type: 'SET_SELECTED_VIEW'; payload: AppState['selectedView'] }
+  | { type: 'SET_SELECTED_TASK'; payload: string | null }
+  | { type: 'SET_PREVIOUS_VIEW'; payload: AppState['previousView'] };
 
 const initialState: AppState = {
   projects: sampleProjects,
@@ -44,6 +48,8 @@ const initialState: AppState = {
   filters: {},
   selectedProject: null,
   selectedView: 'dashboard',
+  selectedTaskId: null,
+  previousView: 'dashboard',
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -103,6 +109,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, selectedProject: action.payload };
     case 'SET_SELECTED_VIEW':
       return { ...state, selectedView: action.payload };
+    case 'SET_SELECTED_TASK':
+      return { ...state, selectedTaskId: action.payload };
+    case 'SET_PREVIOUS_VIEW':
+      return { ...state, previousView: action.payload };
     default:
       return state;
   }
