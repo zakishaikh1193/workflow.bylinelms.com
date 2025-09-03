@@ -1310,8 +1310,15 @@ const requestTaskExtension = async (req, res) => {
   try {
     const { id } = req.params;
     const { requested_due_date, reason } = req.body;
-    const requested_by = req.user?.id || req.teamMember?.id;
-    const requested_by_type = req.user ? 'admin' : 'team';
+    const requested_by = req.user?.id;
+    const requested_by_type = req.user?.type || 'team';
+    
+    // Debug logging
+    console.log('🔍 Extension request - User info:', {
+      userId: requested_by,
+      userType: requested_by_type,
+      reqUser: req.user
+    });
 
     // Validate required fields
     if (!requested_due_date || !reason) {
@@ -1538,8 +1545,15 @@ const addTaskRemark = async (req, res) => {
   try {
     const { id } = req.params;
     const { remark, remark_date, remark_type = 'general', is_private = false } = req.body;
-    const added_by = req.user?.id || req.teamMember?.id;
-    const added_by_type = req.user ? 'admin' : 'team';
+    const added_by = req.user?.id;
+    const added_by_type = req.user?.type || 'team';
+    
+    // Debug logging
+    console.log('🔍 Add remark - User info:', {
+      userId: added_by,
+      userType: added_by_type,
+      reqUser: req.user
+    });
 
     // Validate required fields
     if (!remark) {
