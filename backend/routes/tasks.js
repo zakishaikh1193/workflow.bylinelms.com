@@ -7,6 +7,7 @@ const {
   updateTask,
   deleteTask,
   testStageFilter,
+  bulkCreateTasks,
   // Extension endpoints
   requestTaskExtension,
   getTaskExtensions,
@@ -14,7 +15,8 @@ const {
   // Remark endpoints
   addTaskRemark,
   getTaskRemarks,
-  deleteTaskRemark
+  deleteTaskRemark,
+  getNotifications
 } = require('../controllers/taskController');
 const { requireAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
@@ -270,6 +272,18 @@ const queryValidation = [
 // Test stage filter endpoint
 router.get('/test/stage-filter', testStageFilter);
 
+// Bulk create tasks for project hierarchy
+router.post('/project/:project_id/bulk-create',
+  requireAuth,
+  [
+    param('project_id')
+      .isInt({ min: 1 })
+      .withMessage('Project ID must be a positive integer')
+  ],
+  handleValidationErrors,
+  bulkCreateTasks
+);
+
 // Get all tasks
 router.get('/', 
   requireAuth,
@@ -277,6 +291,9 @@ router.get('/',
   handleValidationErrors,
   getTasks
 );
+
+// Get notifications for admin dashboard
+router.get('/notifications', requireAuth, getNotifications);
 
 // Get task by ID
 router.get('/:id',

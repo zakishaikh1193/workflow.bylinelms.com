@@ -10,29 +10,48 @@ import { DailyAllocations } from './DailyAllocations';
 import { Settings } from './Settings';
 import { Analytics } from './Analytics';
 import { CoreAnalytics } from './CoreAnalytics';
+import { Notification } from './Notification';
 import { ToastProvider } from './ui/Toast';
+import { TaskDetails } from './TaskDetails';
 
 export function MainApp() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
 
   const renderContent = () => {
-    switch (state.selectedView) {
-      case 'projects':
-        return <ProjectManager />;
-      case 'teams':
-        return <TeamManager />;
-      case 'tasks':
-        return <TaskManager />;
-      case 'allocations':
-        return <DailyAllocations />;
-      case 'analytics':
-        return <Analytics />;
-      case 'core-analytics':
-        return <CoreAnalytics />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
+    // If a specific task is selected, show task details
+    if (state.selectedTaskId) {
+      return (
+        <TaskDetails
+          taskId={state.selectedTaskId}
+          onBack={() => {
+            // Clear the selected task and go back to the previous view
+            dispatch({ type: 'SET_SELECTED_TASK', payload: null });
+            dispatch({ type: 'SET_SELECTED_VIEW', payload: state.previousView });
+          }}
+        />
+      );
+    } else {
+      // Otherwise, show the selected view
+      switch (state.selectedView) {
+        case 'projects':
+          return <ProjectManager />;
+        case 'teams':
+          return <TeamManager />;
+        case 'tasks':
+          return <TaskManager />;
+        case 'allocations':
+          return <DailyAllocations />;
+        case 'analytics':
+          return <Analytics />;
+        case 'core-analytics':
+          return <CoreAnalytics />;
+        case 'notifications':
+          return <Notification />;
+        case 'settings':
+          return <Settings />;
+        default:
+          return <Dashboard />;
+      }
     }
   };
 

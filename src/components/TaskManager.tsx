@@ -26,7 +26,6 @@ export function TaskManager() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -42,6 +41,7 @@ export function TaskManager() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
+  const [projectStages, setProjectStages] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
@@ -51,6 +51,8 @@ export function TaskManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
+  // Loading state for project-specific stages in top-level filters
+  const [loadingProjectStages, setLoadingProjectStages] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -65,10 +67,8 @@ export function TaskManager() {
       setLoading(true);
       try {
         // Check if we need to fetch all tasks (for cross-page filtering)
-        const needsAllTasks = selectedStatus === 'overdue' || 
-                             selectedPriority !== 'all' || 
-                             selectedAssignee !== 'all' || 
-                             debouncedSearch;
+        // Only when filters are handled on the frontend (due date or overdue toggles)
+        const needsAllTasks = selectedStatus === 'overdue' || selectedDueDate !== 'all' || onlyOverdue;
 
         // Build filters object
         const filters: any = {
@@ -92,14 +92,11 @@ export function TaskManager() {
         if (selectedPriority !== 'all') {
           filters.priority = selectedPriority;
         }
-        if (selectedProject !== 'all') {
-          filters.project_id = selectedProject;
-        }
-        // Note: Stage filtering is now handled on frontend
+        // Stage selection overrides project filter
         if (selectedStage !== 'all') {
-          console.log('🔍 Stage filter will be applied on frontend:', selectedStage);
-        } else {
-          console.log('🔍 No stage filter applied - selectedStage is "all"');
+          filters.stage_id = selectedStage;
+        } else if (selectedProject !== 'all') {
+          filters.project_id = selectedProject;
         }
         if (selectedDueDate !== 'all') {
           filters.due_date = selectedDueDate;
@@ -251,13 +248,61 @@ export function TaskManager() {
     });
   };
 
+  // Fetch stages for the selected project's category (top-level filters)
+  const fetchProjectStagesForProject = async (projectId: string) => {
+    if (!projectId || projectId === 'all') {
+      setProjectStages([]);
+      return;
+    }
+
+    try {
+      setLoadingProjectStages(true);
+      const proj = projects.find(p => p.id === parseInt(projectId) || p.id === projectId);
+      if (proj && proj.category_id) {
+        const stagesData = await stageService.getByCategory(proj.category_id);
+        const stagesArray = stagesData?.data || stagesData || [];
+        const unique = getUniqueStages(stagesArray);
+        setProjectStages(unique);
+      } else {
+        setProjectStages([]);
+      }
+    } catch (e) {
+      console.error('❌ Failed to fetch stages for selected project:', e);
+      setProjectStages([]);
+    } finally {
+      setLoadingProjectStages(false);
+    }
+  };
+
+  // When project changes, reset stage filter and fetch project-specific stages
+  useEffect(() => {
+    // Always reset stage on project change
+    setSelectedStage('all');
+    if (selectedProject && selectedProject !== 'all') {
+      fetchProjectStagesForProject(selectedProject);
+    } else {
+      setProjectStages([]);
+    }
+  }, [selectedProject]);
+
   // Helper function to get task count for a stage
   const getTaskCountForStage = (stageId: number) => {
     const tasksToCheck = allTasks.length > 0 ? allTasks : tasks;
+    const stageIdNum = parseInt(stageId.toString());
+
     return tasksToCheck.filter((task: any) => {
       const taskStageId = task.category_stage_id ? parseInt(task.category_stage_id.toString()) : null;
-      const stageIdNum = parseInt(stageId.toString());
-      return taskStageId === stageIdNum;
+      const matchesStage = taskStageId === stageIdNum;
+
+      // If a specific project is selected, constrain count to that project
+      if (selectedProject !== 'all') {
+        const taskProjectId = task.project_id || task.projectId;
+        const taskProjectNum = typeof taskProjectId === 'string' ? parseInt(taskProjectId) : taskProjectId;
+        const selectedProjectNum = typeof selectedProject === 'string' ? parseInt(selectedProject) : selectedProject;
+        return matchesStage && taskProjectNum === selectedProjectNum;
+      }
+
+      return matchesStage;
     }).length;
   };
 
@@ -555,8 +600,7 @@ export function TaskManager() {
 
         if (selectedStatus !== 'all') filters.status = selectedStatus;
         if (selectedPriority !== 'all') filters.priority = selectedPriority;
-        if (selectedProject !== 'all') filters.project_id = selectedProject;
-        // Stage filtering handled on frontend
+        if (selectedStage !== 'all') filters.stage_id = selectedStage; else if (selectedProject !== 'all') filters.project_id = selectedProject;
         if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
         if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
         if (debouncedSearch) filters.search = debouncedSearch;
@@ -643,8 +687,7 @@ export function TaskManager() {
 
         if (selectedStatus !== 'all') filters.status = selectedStatus;
         if (selectedPriority !== 'all') filters.priority = selectedPriority;
-        if (selectedProject !== 'all') filters.project_id = selectedProject;
-        // Stage filtering handled on frontend
+        if (selectedStage !== 'all') filters.stage_id = selectedStage; else if (selectedProject !== 'all') filters.project_id = selectedProject;
         if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
         if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
         if (debouncedSearch) filters.search = debouncedSearch;
@@ -725,8 +768,7 @@ export function TaskManager() {
 
       if (selectedStatus !== 'all') filters.status = selectedStatus;
       if (selectedPriority !== 'all') filters.priority = selectedPriority;
-      if (selectedProject !== 'all') filters.project_id = selectedProject;
-      // Stage filtering handled on frontend
+      if (selectedStage !== 'all') filters.stage_id = selectedStage; else if (selectedProject !== 'all') filters.project_id = selectedProject;
       if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
       if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
       if (debouncedSearch) filters.search = debouncedSearch;
@@ -832,15 +874,7 @@ export function TaskManager() {
     }, {})
   });
 
-  // Show task details if a task is selected
-  if (selectedTaskId) {
-    return (
-      <TaskDetails
-        taskId={selectedTaskId}
-        onBack={() => setSelectedTaskId(null)}
-      />
-    );
-  }
+
 
   if (loading) {
     return (
@@ -1053,40 +1087,35 @@ export function TaskManager() {
 
           <select
             value={selectedStage}
-            onChange={(e) => {
-              console.log('🔍 Stage selected:', e.target.value);
-              console.log('🔍 Stage selected type:', typeof e.target.value);
-              console.log('🔍 Stage selected value:', e.target.value);
-              setSelectedStage(e.target.value);
-            }}
+            onChange={(e) => setSelectedStage(e.target.value)}
             className={`border rounded-lg px-3 py-2 text-sm ${
               selectedStage !== 'all' 
                 ? 'border-blue-500 bg-blue-50 text-blue-700' 
                 : 'border-gray-300'
             }`}
+            disabled={selectedProject === 'all' || loadingProjectStages}
           >
-            <option value="all">All Stages</option>
-            {stages.map(stage => {
-              const taskCount = getTaskCountForStage(stage.id);
-              console.log('🔍 Stage option:', { 
-                id: stage.id, 
-                name: stage.name, 
-                idType: typeof stage.id,
-                idValue: stage.id,
-                taskCount
-              });
-              return (
-                <option key={stage.id} value={stage.id}>
-                  {stage.name} ({taskCount} tasks)
-                </option>
-              );
-            })}
+            {selectedProject === 'all' ? (
+              <option value="all">Select a project first</option>
+            ) : (
+              <>
+                <option value="all">All Stages</option>
+                {(projectStages || []).map(stage => {
+                  const taskCount = getTaskCountForStage(stage.id);
+                  return (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </option>
+                  );
+                })}
+              </>
+            )}
           </select>
           
           {selectedStage !== 'all' && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                {stages.find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}
+                {(projectStages || []).find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}
               </span>
               <button
                 onClick={() => setSelectedStage('all')}
@@ -1109,8 +1138,7 @@ export function TaskManager() {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-yellow-800">
-                    <strong>No tasks found</strong> for stage "{stages.find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}".
-                    This stage currently has no assigned tasks.
+                    <strong>No tasks found</strong> for stage "{(projectStages || []).find(s => s.id === parseInt(selectedStage))?.name || 'Unknown Stage'}" within the selected project.
                   </p>
                 </div>
               </div>
@@ -1146,55 +1174,10 @@ export function TaskManager() {
           {/* Overdue-only checkbox temporarily disabled; use the Overdue stat card to toggle */}
           
           {/* Debug Info Toggle Button */}
-          {process.env.NODE_ENV === 'development' && (
-            <button
-              onClick={() => setShowDebugInfo(!showDebugInfo)}
-              className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
-                showDebugInfo 
-                  ? 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200' 
-                  : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
-              }`}
-              title="Toggle debug information"
-            >
-              {showDebugInfo ? '🔽 Hide Debug Info' : '🔼 Show Debug Info'}
-            </button>
-          )}
         </div>
         
         {/* Debug Panel - Only show when enabled */}
-        {process.env.NODE_ENV === 'development' && showDebugInfo && (
-          <div className="mt-4 p-4 bg-gray-100 rounded-lg text-xs">
-            <h4 className="font-bold mb-2">Debug Info (Development Only)</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <strong>Available Stages:</strong>
-                <ul className="mt-1">
-                  {stages.map(stage => {
-                    const taskCount = tasks.filter(t => t.category_stage_id === stage.id).length;
-                    return (
-                      <li key={stage.id} className={taskCount === 0 ? 'text-gray-500' : 'text-black'}>
-                        ID: {stage.id} - {stage.name} ({taskCount} tasks)
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-              <div>
-                <strong>Stages with Tasks:</strong>
-                <ul className="mt-1">
-                  {stages.filter(stage => tasks.filter(t => t.category_stage_id === stage.id).length > 0).map(stage => (
-                    <li key={stage.id}>
-                      {stage.name}: {tasks.filter(t => t.category_stage_id === stage.id).length} tasks
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-2 text-gray-600">
-                  <strong>Empty Stages:</strong> {stages.filter(stage => tasks.filter(t => t.category_stage_id === stage.id).length === 0).length} stages have no tasks
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        
       </div>
 
             {/* Tasks List */}
@@ -1414,7 +1397,8 @@ export function TaskManager() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedTaskId(task.id);
+                              dispatch({ type: 'SET_PREVIOUS_VIEW', payload: 'tasks' });
+                              dispatch({ type: 'SET_SELECTED_TASK', payload: task.id.toString() });
                             }}
                             title="View Details"
                           >
@@ -1677,7 +1661,7 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
         name: editingTask.name,
         description: editingTask.description || '',
         projectId: editingTask.project_id || editingTask.projectId || '',
-        stageId: editingTask.stage_id || editingTask.stageId || '',
+        stageId: (editingTask.category_stage_id || editingTask.stage_id || editingTask.stageId || '').toString(),
         gradeId: (editingTask.grade_id || editingTask.gradeId || '').toString(),
         bookId: (editingTask.book_id || editingTask.bookId || '').toString(),
         unitId: (editingTask.unit_id || editingTask.unitId || '').toString(),

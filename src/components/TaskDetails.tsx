@@ -417,7 +417,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
           <div className="text-center">
             <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <p className="text-red-600 mb-4">{error || 'Task not found'}</p>
-            <Button onClick={onBack}>Go Back</Button>
+            <Button onClick={onBack}>Back to {state.previousView === 'notifications' ? 'Notifications' : 'Tasks'}</Button>
           </div>
         </div>
       </div>
@@ -431,7 +431,7 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
         <div className="flex items-center space-x-4">
           <Button variant="ghost" onClick={onBack}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Tasks
+            Back to {state.previousView === 'notifications' ? 'Notifications' : 'Tasks'}
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{task.name}</h1>

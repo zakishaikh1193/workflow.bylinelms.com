@@ -63,6 +63,10 @@ const getTasks = async (req, res) => {
       assignee_type,
       search,
       stage_id,
+      grade_id,
+      book_id,
+      unit_id,
+      lesson_id,
       all = false
     } = req.query;
 
@@ -133,6 +137,34 @@ const getTasks = async (req, res) => {
       console.log('🔍 No stage_id provided in query parameters or stage_id is "all"');
     }
 
+    // Add hierarchy filters
+    if (grade_id) {
+      query += ' AND t.grade_id = ?';
+      queryParams.push(parseInt(grade_id, 10));
+      console.log('🔍 Grade filter applied:', grade_id);
+    }
+
+    if (book_id) {
+      query += ' AND t.book_id = ?';
+      queryParams.push(parseInt(book_id, 10));
+      console.log('🔍 Book filter applied:', book_id);
+    }
+
+    if (unit_id) {
+      query += ' AND t.unit_id = ?';
+      queryParams.push(parseInt(unit_id, 10));
+      console.log('🔍 Unit filter applied:', unit_id);
+    }
+
+    if (lesson_id && lesson_id !== 'null') {
+      query += ' AND t.lesson_id = ?';
+      queryParams.push(parseInt(lesson_id, 10));
+      console.log('🔍 Lesson filter applied:', lesson_id);
+    } else if (lesson_id === 'null') {
+      query += ' AND t.lesson_id IS NULL';
+      console.log('🔍 Lesson filter applied: IS NULL');
+    }
+
     if (search) {
       query += ' AND (t.name LIKE ? OR t.description LIKE ?)';
       queryParams.push(`%${search}%`, `%${search}%`);
@@ -178,6 +210,7 @@ const getTasks = async (req, res) => {
     console.log('🔍 Task query:', query);
     console.log('🔍 Task params:', queryParams);
     console.log('🔍 Stage filter debug - stage_id from query:', req.query.stage_id);
+    console.log('🔍 Hierarchy filters:', { grade_id, book_id, unit_id, lesson_id });
     console.log('🔍 All query parameters:', req.query);
     console.log('🔍 Request URL:', req.url);
     console.log('🔍 Request method:', req.method);
@@ -241,6 +274,27 @@ const getTasks = async (req, res) => {
       countQuery += ' AND t.category_stage_id = ?';
       countParams.push(stageIdNum);
     }
+    
+    // Add hierarchy filters to count query
+    if (grade_id) {
+      countQuery += ' AND t.grade_id = ?';
+      countParams.push(parseInt(grade_id, 10));
+    }
+    if (book_id) {
+      countQuery += ' AND t.book_id = ?';
+      countParams.push(parseInt(book_id, 10));
+    }
+    if (unit_id) {
+      countQuery += ' AND t.unit_id = ?';
+      countParams.push(parseInt(unit_id, 10));
+    }
+    if (lesson_id && lesson_id !== 'null') {
+      countQuery += ' AND t.lesson_id = ?';
+      countParams.push(parseInt(lesson_id, 10));
+    } else if (lesson_id === 'null') {
+      countQuery += ' AND t.lesson_id IS NULL';
+    }
+    
     if (search) {
       countQuery += ' AND (t.name LIKE ? OR t.description LIKE ?)';
       countParams.push(`%${search}%`, `%${search}%`);
@@ -258,6 +312,7 @@ const getTasks = async (req, res) => {
     
     console.log('🔍 Count query:', countQuery);
     console.log('🔍 Count params:', countParams);
+    console.log('🔍 Count query hierarchy filters:', { grade_id, book_id, unit_id, lesson_id });
     
     let countResult;
     try {
@@ -356,6 +411,317 @@ const testStageFilter = async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+};
+
+// Bulk create tasks for all hierarchy units and stages
+const bulkCreateTasks = async (req, res) => {
+  try {
+    const { project_id } = req.params;
+    
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Project ID is required'
+        }
+      });
+    }
+
+    console.log(`🚀 Starting bulk task creation for project ${project_id}`);
+
+    // Step 1: Get project details and category
+    const projectQuery = 'SELECT * FROM projects WHERE id = ?';
+    const projects = await db.query(projectQuery, [project_id]);
+    
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Project not found'
+        }
+      });
+    }
+
+    const project = projects[0];
+    const categoryId = project.category_id;
+
+    if (!categoryId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Project must have a category assigned'
+        }
+      });
+    }
+
+    // Step 2: Get all stages for this project's category
+    const stagesQuery = `
+      SELECT cs.*, st.order_index as template_order
+      FROM category_stages cs
+      INNER JOIN stage_templates st ON cs.id = st.stage_id
+      WHERE st.category_id = ?
+      ORDER BY st.order_index ASC
+    `;
+    
+    const stages = await db.query(stagesQuery, [categoryId]);
+    
+    if (stages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No stages found for this project category'
+        }
+      });
+    }
+
+    console.log(`📋 Found ${stages.length} stages for category ${categoryId}`);
+
+    // Step 3: Get all educational hierarchy for this project
+    const gradesQuery = 'SELECT * FROM grades WHERE project_id = ? ORDER BY order_index ASC';
+    const grades = await db.query(gradesQuery, [project_id]);
+    
+    // Get books for all grades in this project
+    const gradeIds = grades.map(g => g.id);
+    const booksQuery = gradeIds.length > 0 ? 
+      `SELECT * FROM books WHERE grade_id IN (${gradeIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      'SELECT * FROM books WHERE 1=0';
+    const books = await db.query(booksQuery, gradeIds);
+    
+    // Get units for all books in this project
+    const bookIds = books.map(b => b.id);
+    const unitsQuery = bookIds.length > 0 ?
+      `SELECT * FROM units WHERE book_id IN (${bookIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      'SELECT * FROM units WHERE 1=0';
+    const units = await db.query(unitsQuery, bookIds);
+    
+    // Get lessons for all units in this project
+    const unitIds = units.map(u => u.id);
+    const lessonsQuery = unitIds.length > 0 ?
+      `SELECT * FROM lessons WHERE unit_id IN (${unitIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      'SELECT * FROM lessons WHERE 1=0';
+    const lessons = await db.query(lessonsQuery, unitIds);
+
+    console.log(`📚 Found ${grades.length} grades, ${books.length} books, ${units.length} units, ${lessons.length} lessons`);
+
+    // Step 4: Identify the lowest hierarchical units
+    const lowestUnits = [];
+    
+    // Process all lessons first (they are always the lowest units)
+    if (lessons.length > 0) {
+      lessons.forEach(lesson => {
+        const unit = units.find(u => u.id === lesson.unit_id);
+        const book = books.find(b => b.id === unit?.book_id);
+        const grade = grades.find(g => g.id === book?.grade_id);
+        
+        if (unit && book && grade) {
+          lowestUnits.push({
+            type: 'lesson',
+            grade_id: grade.id,
+            book_id: book.id,
+            unit_id: unit.id,
+            lesson_id: lesson.id,
+            component_path: `${grade.name} > ${book.name} > ${unit.name} > ${lesson.name}`,
+            name: lesson.name
+          });
+        }
+      });
+    }
+    
+    // Process units that don't have lessons (they are lowest units)
+    if (units.length > 0) {
+      units.forEach(unit => {
+        // Check if this unit has any lessons
+        const unitHasLessons = lessons.some(lesson => lesson.unit_id === unit.id);
+        
+        // Only add this unit if it doesn't have lessons
+        if (!unitHasLessons) {
+          const book = books.find(b => b.id === unit.book_id);
+          const grade = grades.find(g => g.id === book?.grade_id);
+          
+          if (book && grade) {
+            lowestUnits.push({
+              type: 'unit',
+              grade_id: grade.id,
+              book_id: book.id,
+              unit_id: unit.id,
+              lesson_id: null,
+              component_path: `${grade.name} > ${book.name} > ${unit.name}`,
+              name: unit.name
+            });
+          }
+        }
+      });
+    }
+    
+    // Process books that don't have units (they are lowest units)
+    if (books.length > 0) {
+      books.forEach(book => {
+        // Check if this book has any units
+        const bookHasUnits = units.some(unit => unit.book_id === book.id);
+        
+        // Only add this book if it doesn't have units
+        if (!bookHasUnits) {
+          const grade = grades.find(g => g.id === book.grade_id);
+          
+          if (grade) {
+            lowestUnits.push({
+              type: 'book',
+              grade_id: grade.id,
+              book_id: book.id,
+              unit_id: null,
+              lesson_id: null,
+              component_path: `${grade.name} > ${book.name}`,
+              name: book.name
+            });
+          }
+        }
+      });
+    }
+    
+    // Process grades that don't have books (they are lowest units)
+    if (grades.length > 0) {
+      grades.forEach(grade => {
+        // Check if this grade has any books
+        const gradeHasBooks = books.some(book => book.grade_id === grade.id);
+        
+        // Only add this grade if it doesn't have books
+        if (!gradeHasBooks) {
+          lowestUnits.push({
+            type: 'grade',
+            grade_id: grade.id,
+            book_id: null,
+            unit_id: null,
+            lesson_id: null,
+            component_path: grade.name,
+            name: grade.name
+          });
+        }
+      });
+    }
+
+    if (lowestUnits.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No educational hierarchy found for this project'
+        }
+      });
+    }
+
+    console.log(`🎯 Identified ${lowestUnits.length} lowest hierarchical units`);
+
+    // Step 5: Check for existing tasks to avoid duplicates
+    const existingTasksQuery = `
+      SELECT grade_id, book_id, unit_id, lesson_id, category_stage_id
+      FROM tasks 
+      WHERE project_id = ?
+    `;
+    const existingTasks = await db.query(existingTasksQuery, [project_id]);
+    
+    const existingTaskKeys = new Set();
+    existingTasks.forEach(task => {
+      const key = `${task.grade_id || 'null'}-${task.book_id || 'null'}-${task.unit_id || 'null'}-${task.lesson_id || 'null'}-${task.category_stage_id}`;
+      existingTaskKeys.add(key);
+    });
+
+    // Step 6: Create tasks for each lowest unit × each stage
+    const createdTasks = [];
+    const skippedTasks = [];
+    const createdBy = req.user?.id || req.teamMember?.id || 1;
+
+    for (const unit of lowestUnits) {
+      for (const stage of stages) {
+        const taskKey = `${unit.grade_id || 'null'}-${unit.book_id || 'null'}-${unit.unit_id || 'null'}-${unit.lesson_id || 'null'}-${stage.id}`;
+        
+        if (existingTaskKeys.has(taskKey)) {
+          skippedTasks.push({
+            ...unit,
+            stage_id: stage.id,
+            stage_name: stage.name,
+            reason: 'Task already exists'
+          });
+          continue;
+        }
+
+        // Create task
+        const taskData = {
+          name: `${unit.component_path} - ${stage.name}`,
+          description: `Task for ${unit.component_path} at ${stage.name} stage`,
+          project_id: parseInt(project_id),
+          category_stage_id: stage.id,
+          grade_id: unit.grade_id,
+          book_id: unit.book_id,
+          unit_id: unit.unit_id,
+          lesson_id: unit.lesson_id,
+          component_path: unit.component_path,
+          status: 'not-started',
+          priority: 'medium',
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: project.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Use project end date or default to 30 days
+          progress: 0,
+          estimated_hours: 8,
+          created_by: createdBy
+        };
+
+        const insertQuery = `
+          INSERT INTO tasks (
+            name, description, project_id, category_stage_id, grade_id, book_id, unit_id, lesson_id,
+            component_path, status, priority, start_date, end_date, progress, estimated_hours, created_by
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const insertParams = [
+          taskData.name, taskData.description, taskData.project_id, taskData.category_stage_id,
+          taskData.grade_id, taskData.book_id, taskData.unit_id, taskData.lesson_id,
+          taskData.component_path, taskData.status, taskData.priority, taskData.start_date,
+          taskData.end_date, taskData.progress, taskData.estimated_hours, taskData.created_by
+        ];
+
+        const result = await db.insert(insertQuery, insertParams);
+        
+        createdTasks.push({
+          id: result.insertId,
+          ...taskData
+        });
+
+        console.log(`✅ Created task: ${taskData.name}`);
+      }
+    }
+
+    console.log(`🎉 Bulk task creation completed! Created: ${createdTasks.length}, Skipped: ${skippedTasks.length}`);
+
+    res.json({
+      success: true,
+      data: {
+        project_id: parseInt(project_id),
+        project_name: project.name,
+        total_stages: stages.length,
+        total_lowest_units: lowestUnits.length,
+        expected_tasks: stages.length * lowestUnits.length,
+        created_tasks: createdTasks.length,
+        skipped_tasks: skippedTasks.length,
+        created_tasks_details: createdTasks,
+        skipped_tasks_details: skippedTasks
+      },
+      message: `Successfully created ${createdTasks.length} tasks for ${lowestUnits.length} hierarchical units across ${stages.length} stages`
+    });
+
+  } catch (error) {
+    console.error('Bulk create tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to bulk create tasks',
+        details: error.message
+      }
     });
   }
 };
@@ -914,8 +1280,16 @@ const getTaskById = async (taskId) => {
   `;
   const skills = await db.query(skillsQuery, [taskId]);
 
-  // Get all assignees (both admin and team)
+  // Get all assignees (both admin and team) with names
   task.assignees = assignees.map(a => a.assignee_id);
+  
+  // Add assignee details with names
+  task.assigneeDetails = assignees.map(a => ({
+    id: a.assignee_id,
+    type: a.assignee_type,
+    name: a.assignee_type === 'team' ? a.team_name : a.admin_name,
+    email: a.assignee_type === 'team' ? a.team_email : a.admin_email
+  }));
   
   // For backward compatibility, also provide team assignees separately
   task.teamAssignees = assignees
@@ -1287,42 +1661,27 @@ const getTaskRemarks = async (req, res) => {
 const deleteTaskRemark = async (req, res) => {
   try {
     const { remarkId } = req.params;
-    const currentUserId = req.user?.id || req.teamMember?.id;
-    const isAdmin = req.user;
 
-    // Check if remark exists and get details
+    // Check if remark exists
     const remarkQuery = 'SELECT * FROM task_remarks WHERE id = ?';
     const remarks = await db.query(remarkQuery, [remarkId]);
-    
+
     if (remarks.length === 0) {
       return res.status(404).json({
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: 'Remark not found'
+          message: 'Task remark not found'
         }
       });
     }
 
-    const remark = remarks[0];
-
-    // Check permissions
-    if (!isAdmin && remark.added_by !== currentUserId) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'You can only delete your own remarks'
-        }
-      });
-    }
-
-    // Delete remark
+    // Delete the remark
     await db.query('DELETE FROM task_remarks WHERE id = ?', [remarkId]);
 
     res.json({
       success: true,
-      message: 'Remark deleted successfully'
+      message: 'Task remark deleted successfully'
     });
 
   } catch (error) {
@@ -1331,8 +1690,123 @@ const deleteTaskRemark = async (req, res) => {
       success: false,
       error: {
         code: 'DATABASE_ERROR',
-        message: 'Failed to delete remark'
+        message: 'Failed to delete task remark'
       }
+    });
+  }
+};
+
+// Get notifications for admin dashboard
+const getNotifications = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    
+    // Get pending extension requests
+    const extensionQuery = `
+      SELECT 
+        te.id,
+        te.task_id,
+        te.requested_by,
+        te.requested_by_type,
+        te.current_due_date,
+        te.requested_due_date,
+        te.reason,
+        te.status,
+        te.created_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN te.requested_by_type = 'admin' || 'team' THEN tm.name
+          WHEN te.requested_by_type = 'admin' THEN au.name
+          ELSE 'Unknown User'
+        END as requester_name
+      FROM task_extensions te
+      JOIN tasks t ON te.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN team_members tm ON te.requested_by = tm.id
+      LEFT JOIN admin_users au ON te.requested_by = au.id
+      WHERE te.status = 'pending'
+      ORDER BY te.created_at DESC
+    `;
+    
+    // Get recent remarks (last 7 days)
+    const remarksQuery = `
+      SELECT 
+        tr.id,
+        tr.task_id,
+        tr.added_by,
+        tr.added_by_type,
+        tr.remark_date,
+        tr.remark,
+        tr.remark_type,
+        tr.is_private,
+        tr.created_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN tr.added_by_type = 'admin' || 'team' THEN tm.name
+          WHEN tr.added_by_type = 'admin' THEN au.name
+          ELSE 'Unknown User'
+        END as user_name
+      FROM task_remarks tr
+      JOIN tasks t ON tr.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN admin_users au ON tr.added_by = au.id
+      LEFT JOIN team_members tm ON tr.added_by = tm.id
+      WHERE tr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      ORDER BY tr.created_at DESC
+      LIMIT 50
+    `;
+    
+    const [extensions, remarks] = await Promise.all([
+      db.query(extensionQuery),
+      db.query(remarksQuery)
+    ]);
+    
+    // Format the data - db.query returns rows directly, not nested arrays
+    const notifications = {
+      extensions: extensions.map(ext => ({
+        id: ext.id,
+        type: 'extension_request',
+        task_id: ext.task_id,
+        task_name: ext.task_name,
+        project_name: ext.project_name,
+        requester_name: ext.requester_name,
+        requester_type: ext.requested_by_type,
+        current_due_date: ext.current_due_date,
+        requested_due_date: ext.requested_due_date,
+        reason: ext.reason,
+        status: ext.status,
+        created_at: ext.created_at,
+        is_new: true // All pending extensions are considered new
+      })),
+      remarks: remarks.map(remark => ({
+        id: remark.id,
+        type: 'remark',
+        task_id: remark.task_id,
+        task_name: remark.task_name,
+        project_name: remark.project_name,
+        user_name: remark.user_name,
+        user_type: remark.added_by_type,
+        remark: remark.remark,
+        remark_type: remark.remark_type,
+        is_private: remark.is_private,
+        created_at: remark.created_at,
+        is_new: true // All recent remarks are considered new
+      }))
+    };
+    
+    res.json({
+      success: true,
+      data: notifications
+    });
+    
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notifications',
+      error: error.message
     });
   }
 };
@@ -1343,6 +1817,8 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
+  testStageFilter,
+  bulkCreateTasks,
   // Extension endpoints
   requestTaskExtension,
   getTaskExtensions,
@@ -1350,5 +1826,6 @@ module.exports = {
   // Remark endpoints
   addTaskRemark,
   getTaskRemarks,
-  deleteTaskRemark
+  deleteTaskRemark,
+  getNotifications
 };

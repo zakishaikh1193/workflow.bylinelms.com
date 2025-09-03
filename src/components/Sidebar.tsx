@@ -7,7 +7,8 @@ import {
   BarChart3,
   Calendar,
   Settings,
-  TrendingUp
+  TrendingUp,
+  Bell
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Allocations', icon: Calendar, key: 'allocations' },
   { name: 'Analytics', icon: BarChart3, key: 'analytics' },
   { name: 'Core Analytics', icon: TrendingUp, key: 'core-analytics' },
+  { name: 'Notifications', icon: Bell, key: 'notifications' },
   { name: 'Settings', icon: Settings, key: 'settings' },
 ];
 
@@ -38,7 +40,11 @@ export function Sidebar() {
           return (
             <button
               key={item.key}
-              onClick={() => dispatch({ type: 'SET_SELECTED_VIEW', payload: item.key as any })}
+              onClick={() => {
+                // Always clear any selected task when navigating to a different section
+                dispatch({ type: 'SET_SELECTED_TASK', payload: null });
+                dispatch({ type: 'SET_SELECTED_VIEW', payload: item.key as any });
+              }}
               className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                 isActive
                   ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
