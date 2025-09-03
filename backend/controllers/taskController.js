@@ -1391,6 +1391,67 @@ const requestTaskExtension = async (req, res) => {
 
     console.log('✅ Extension request created:', result.insertId);
 
+    // Send real-time notification to admins
+    try {
+      console.log('🔍 Debug: Checking notification server...');
+      console.log('🔍 Debug: global.notificationServer exists?', !!global.notificationServer);
+      console.log('🔍 Debug: global keys:', Object.keys(global));
+      
+      if (global.notificationServer) {
+        console.log('🔍 Debug: Notification server found, proceeding...');
+        
+        // Get project ID for the task
+        const projectQuery = 'SELECT project_id FROM tasks WHERE id = ?';
+        const projectResult = await db.query(projectQuery, [id]);
+        console.log('🔍 Debug: Project query result:', projectResult);
+        
+        if (projectResult.length > 0) {
+          const projectId = projectResult[0].project_id;
+          console.log('🔍 Debug: Project ID:', projectId);
+          
+          // Get requester name
+          const requesterQuery = requested_by_type === 'admin' 
+            ? 'SELECT name FROM admin_users WHERE id = ?'
+            : 'SELECT name FROM team_members WHERE id = ?';
+          const requesterResult = await db.query(requesterQuery, [requested_by]);
+          const requesterName = requesterResult.length > 0 ? requesterResult[0].name : 'Unknown User';
+          console.log('🔍 Debug: Requester name:', requesterName);
+          
+          // Get task name
+          const taskQuery = 'SELECT name FROM tasks WHERE id = ?';
+          const taskResult = await db.query(taskQuery, [id]);
+          const taskName = taskResult.length > 0 ? taskResult[0].name : 'Unknown Task';
+          console.log('🔍 Debug: Task name:', taskName);
+          
+          const notificationData = {
+            id: result.insertId,
+            task_id: id,
+            task_name: taskName,
+            project_id: projectId,
+            requested_by: requested_by,
+            requested_by_type: requested_by_type,
+            requester_name: requesterName,
+            current_due_date: current_due_date,
+            requested_due_date: formattedRequestedDate,
+            reason: reason,
+            status: 'pending'
+          };
+          
+          console.log('🔍 Debug: Sending notification with data:', notificationData);
+          global.notificationServer.notifyExtensionRequest(notificationData);
+          console.log('📢 Real-time notification sent for extension request');
+        } else {
+          console.log('⚠️ Debug: No project found for task');
+        }
+      } else {
+        console.log('❌ Debug: Notification server not found in global scope');
+      }
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send real-time notification:', notificationError);
+      console.error('⚠️ Error stack:', notificationError.stack);
+      // Don't fail the main request if notification fails
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -1597,6 +1658,59 @@ const addTaskRemark = async (req, res) => {
     ]);
 
     console.log('✅ Task remark added:', result.insertId);
+
+    // Send real-time notification
+    try {
+      console.log('🔍 Debug: Checking notification server for remark...');
+      console.log('🔍 Debug: global.notificationServer exists?', !!global.notificationServer);
+      
+      if (global.notificationServer) {
+        console.log('🔍 Debug: Notification server found for remark, proceeding...');
+        
+        // Get project ID and task name
+        const taskQuery = 'SELECT name, project_id FROM tasks WHERE id = ?';
+        const taskResult = await db.query(taskQuery, [id]);
+        console.log('🔍 Debug: Task query result for remark:', taskResult);
+        
+        if (taskResult.length > 0) {
+          const taskName = taskResult[0].name;
+          const projectId = taskResult[0].project_id;
+          console.log('🔍 Debug: Task name for remark:', taskName, 'Project ID:', projectId);
+          
+          // Get user name
+          const userQuery = added_by_type === 'admin' 
+            ? 'SELECT name FROM admin_users WHERE id = ?'
+            : 'SELECT name FROM team_members WHERE id = ?';
+          const userResult = await db.query(userQuery, [added_by]);
+          const userName = userResult.length > 0 ? userResult[0].name : 'Unknown User';
+          console.log('🔍 Debug: User name for remark:', userName);
+          
+          const notificationData = {
+            id: result.insertId,
+            task_id: id,
+            task_name: taskName,
+            project_id: projectId,
+            user_name: userName,
+            user_type: added_by_type,
+            remark: remark,
+            remark_type: remark_type,
+            is_private: is_private
+          };
+          
+          console.log('🔍 Debug: Sending remark notification with data:', notificationData);
+          global.notificationServer.notifyNewRemark(notificationData);
+          console.log('📢 Real-time notification sent for new remark');
+        } else {
+          console.log('⚠️ Debug: No task found for remark notification');
+        }
+      } else {
+        console.log('❌ Debug: Notification server not found for remark');
+      }
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send real-time notification for remark:', notificationError);
+      console.error('⚠️ Error stack:', notificationError.stack);
+      // Don't fail the main request if notification fails
+    }
 
     res.status(201).json({
       success: true,

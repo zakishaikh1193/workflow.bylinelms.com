@@ -18,7 +18,9 @@ import {
   Activity,
   Home,
   Settings,
-  Bell
+  Bell,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -28,6 +30,8 @@ import { Modal } from './ui/Modal';
 import { teamTaskService, teamProjectService, teamService, performanceFlagService, notificationService } from '../services/apiService';
 import { TeamNotifications } from './TeamNotifications';
 import type { Task, User as UserType } from '../types';
+import notificationServiceRealTime from '../services/notificationService';
+import type { RealTimeNotification } from '../services/notificationService';
 
 interface TeamMemberPortalProps {
   user: UserType;
@@ -55,12 +59,50 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [detailsLoading, setDetailsLoading] = useState<Record<string, boolean>>({});
   const [notificationCount, setNotificationCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [recentNotifications, setRecentNotifications] = useState<RealTimeNotification[]>([]);
 
   // Load user's data
   useEffect(() => {
     loadUserData();
     loadNotificationCount();
   }, [user.id]);
+
+  // Separate effect for real-time notifications
+  useEffect(() => {
+    // Connect to real-time notification service
+    const token = localStorage.getItem('teamToken');
+    if (token && userProjects.length > 0) {
+      console.log('🔌 Connecting team member to notification service...');
+      
+      notificationServiceRealTime.connect(token, 'team');
+      
+      // Listen for connection status changes
+      const unsubscribeConnection = notificationServiceRealTime.onConnectionChange((connected) => {
+        setIsConnected(connected);
+        if (connected) {
+          console.log('✅ Team member connected, joining project rooms...');
+          // Join assigned project rooms for real-time updates
+          const projectIds = userProjects.map(project => project.id);
+          console.log('🔗 Joining project rooms:', projectIds);
+          notificationServiceRealTime.joinAssignedProjects(projectIds);
+        }
+      });
+      
+      // Listen for real-time notifications
+      const unsubscribeNotifications = notificationServiceRealTime.onNotification((notification) => {
+        console.log('📢 Team member received notification:', notification);
+        setRecentNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep last 5
+        setNotificationCount(prev => prev + 1);
+      });
+      
+      return () => {
+        unsubscribeConnection();
+        unsubscribeNotifications();
+        notificationServiceRealTime.disconnect();
+      };
+    }
+  }, [userProjects.length]);
 
   const loadUserData = async () => {
     try {
@@ -298,6 +340,92 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
               </Button>
+                        {/* Connection Status */}
+          <div className="flex items-center space-x-2 text-sm px-3 py-2">
+            {isConnected ? (
+              <div className="flex items-center space-x-1 text-green-600">
+                <Wifi className="w-4 h-4" />
+                <span className="font-medium">Live</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1 text-red-600">
+                <WifiOff className="w-4 h-4" />
+                <span className="font-medium">Offline</span>
+              </div>
+            )}
+          </div>
+
+          {/* Notification Permission Status */}
+          {typeof window !== 'undefined' && 'Notification' in window && (
+            <div className="flex items-center space-x-2">
+              {Notification.permission === 'default' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    Notification.requestPermission().then((permission) => {
+                      console.log('🔔 Team member notification permission:', permission);
+                      if (permission === 'granted') {
+                        // Force a notification test
+                        new Notification('Test Notification', {
+                          body: 'Team member notifications are now enabled!',
+                          icon: '/logo.png'
+                        });
+                      }
+                    });
+                  }}
+                  className="text-xs px-2 py-1 bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+                >
+                  🔔 Enable Notifications
+                </Button>
+              )}
+              
+              {Notification.permission === 'denied' && (
+                <div className="flex items-center space-x-1 text-red-600 text-xs">
+                  <span>🔔</span>
+                  <span>Notifications Disabled</span>
+                </div>
+              )}
+              
+              {Notification.permission === 'granted' && (
+                <div className="flex items-center space-x-1 text-green-600 text-xs">
+                  <span>🔔</span>
+                  <span>Notifications Enabled</span>
+                </div>
+              )}
+
+              {/* Test Notification Button */}
+              {Notification.permission === 'granted' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    console.log('🧪 Testing browser notification...');
+                    try {
+                      const testNotification = new Notification('Test Notification', {
+                        body: 'This is a test notification to verify they work!',
+                        icon: '/logo.png',
+                        tag: 'test-notification'
+                      });
+                      
+                      testNotification.onclick = () => {
+                        console.log('✅ Test notification clicked');
+                        testNotification.close();
+                      };
+                      
+                      console.log('✅ Test notification created successfully');
+                    } catch (error) {
+                      console.error('❌ Test notification failed:', error);
+                    }
+                  }}
+                  className="text-xs px-2 py-1 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                >
+                  🧪 Test Notification
+                </Button>
+              )}
+            </div>
+          )}
+
               <Button
                 variant="ghost"
                 onClick={() => setShowNotifications(true)}

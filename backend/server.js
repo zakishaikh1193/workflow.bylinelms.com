@@ -2,14 +2,21 @@ const express = require('express');
 const morgan = require('morgan');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
+const http = require('http');
 require('express-async-errors');
 require('dotenv').config();
 
 const db = require('./db');
+const NotificationServer = require('./socketServer');
 
-// Create Express app
+// Create Express app and HTTP server
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
+
+// Initialize WebSocket notification server
+const notificationServer = new NotificationServer(server);
+global.notificationServer = notificationServer; // Make it globally accessible
 
 // Simple CORS middleware to allow all origins
 app.use((req, res, next) => {
@@ -197,8 +204,8 @@ async function startServer() {
       process.exit(1);
     }
     
-    // Start HTTP server
-    app.listen(PORT, () => {
+    // Start HTTP server with WebSocket support
+    server.listen(PORT, () => {
       console.log('\n🚀 Server Information:');
       console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   Port: ${PORT}`);
@@ -207,7 +214,9 @@ async function startServer() {
       console.log(`\n📍 Endpoints:`);
       console.log(`   Health Check: http://localhost:${PORT}/health`);
       console.log(`   API Base: http://localhost:${PORT}/api`);
+      console.log(`   WebSocket: ws://localhost:${PORT}`);
       console.log(`\n✅ Server is running and ready to accept connections!`);
+      console.log(`✅ WebSocket notification server is active!`);
     });
     
   } catch (error) {

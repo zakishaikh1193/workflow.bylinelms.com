@@ -1,19 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, User, LogOut, Settings } from 'lucide-react';
+import { Bell, User, LogOut, Settings, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Button } from './ui/Button';
 import { notificationService } from '../services/apiService';
+import notificationServiceRealTime from '../services/notificationService';
+import type { RealTimeNotification } from '../services/notificationService';
 
 export function Header() {
   const { user, signOut } = useAuth();
   const { dispatch } = useApp();
   const [notificationCount, setNotificationCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [recentNotifications, setRecentNotifications] = useState<RealTimeNotification[]>([]);
 
   useEffect(() => {
     if (user?.id) {
       loadNotificationCount();
+      
+      // Connect to real-time notification service
+      const token = localStorage.getItem('access_token');
+      console.log('token', token);
+      if (token) {
+        notificationServiceRealTime.connect(token, 'admin');
+        
+        // Listen for connection status changes
+        const unsubscribeConnection = notificationServiceRealTime.onConnectionChange((connected) => {
+          setIsConnected(connected);
+        });
+        
+        // Listen for real-time notifications
+        const unsubscribeNotifications = notificationServiceRealTime.onNotification((notification) => {
+          setRecentNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep last 5
+          setNotificationCount(prev => prev + 1);
+        });
+        
+        // Join project rooms for real-time updates
+        // Join a general admin room and also listen for all notifications
+        notificationServiceRealTime.joinProject('admin-general');
+        
+        // Also join specific project rooms if available
+        // This will be updated when admin navigates to specific projects
+        
+        return () => {
+          unsubscribeConnection();
+          unsubscribeNotifications();
+          notificationServiceRealTime.disconnect();
+        };
+      }
+      
       // Refresh notification count every 5 minutes
       const interval = setInterval(loadNotificationCount, 5 * 60 * 1000);
       return () => clearInterval(interval);
@@ -46,6 +82,22 @@ export function Header() {
     setShowDropdown(false);
   };
 
+  // Function to join specific project room for real-time updates
+  const joinProjectRoom = (projectId: string) => {
+    if (isConnected) {
+      notificationServiceRealTime.joinProject(projectId);
+      console.log(`👑 Admin joined project room: ${projectId}`);
+    }
+  };
+
+  // Expose the function globally so other components can use it
+  useEffect(() => {
+    (window as any).joinProjectRoom = joinProjectRoom;
+    return () => {
+      delete (window as any).joinProjectRoom;
+    };
+  }, [isConnected]);
+
   const handleSignOut = () => {
     signOut();
     setShowDropdown(false);
@@ -59,6 +111,56 @@ export function Header() {
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* Connection Status */}
+          <div className="flex items-center space-x-2 text-sm">
+            {isConnected ? (
+              <div className="flex items-center space-x-1 text-green-600">
+                <Wifi className="w-4 h-4" />
+                <span>Live</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1 text-red-600">
+                <WifiOff className="w-4 h-4" />
+                <span>Offline</span>
+              </div>
+            )}
+          </div>
+
+          {/* Notification Permission Status */}
+          {typeof window !== 'undefined' && 'Notification' in window && (
+            <div className="flex items-center space-x-2">
+              {Notification.permission === 'default' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    Notification.requestPermission().then((permission) => {
+                      console.log('🔔 Notification permission:', permission);
+                      if (permission === 'granted') {
+                        // Force a notification test
+                        new Notification('Test Notification', {
+                          body: 'Notifications are now enabled!',
+                          icon: '/logo.png'
+                        });
+                      }
+                    });
+                  }}
+                  className="text-xs px-2 py-1 bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+                >
+                  🔔 Enable Notifications
+                </Button>
+              )}
+              
+              {Notification.permission === 'denied' && (
+                <div className="flex items-center space-x-1 text-red-600 text-xs">
+                  <span>🔔</span>
+                  <span>Notifications Disabled</span>
+                </div>
+              )}
+              
+            </div>
+          )}
+
           {/* Notification Bell */}
           <Button
             variant="ghost"
