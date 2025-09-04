@@ -355,9 +355,8 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                         {/* Connection Status */}
           <div className="flex items-center space-x-2 text-sm px-3 py-2">
             {isConnected ? (
-              <div className="flex items-center space-x-1 text-green-600">
-                <Wifi className="w-4 h-4" />
-                <span className="font-medium">Live</span>
+              <div className="flex items-center bg-green-500 p-1 rounded-xl text-sm">
+               
               </div>
             ) : (
               <div className="flex items-center space-x-1 text-red-600">
@@ -367,76 +366,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             )}
           </div>
 
-          {/* Notification Permission Status */}
-          {typeof window !== 'undefined' && 'Notification' in window && (
-            <div className="flex items-center space-x-2">
-              {Notification.permission === 'default' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    Notification.requestPermission().then((permission) => {
-                      console.log('🔔 Team member notification permission:', permission);
-                      if (permission === 'granted') {
-                        // Force a notification test
-                        new Notification('Test Notification', {
-                          body: 'Team member notifications are now enabled!',
-                          icon: '/logo.png'
-                        });
-                      }
-                    });
-                  }}
-                  className="text-xs px-2 py-1 bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
-                >
-                  🔔 Enable Notifications
-                </Button>
-              )}
-              
-              {Notification.permission === 'denied' && (
-                <div className="flex items-center space-x-1 text-red-600 text-xs">
-                  <span>🔔</span>
-                  <span>Notifications Disabled</span>
-                </div>
-              )}
-              
-              {Notification.permission === 'granted' && (
-                <div className="flex items-center space-x-1 text-green-600 text-xs">
-                  <span>🔔</span>
-                  <span>Notifications Enabled</span>
-                </div>
-              )}
-
-              {/* Test Notification Button */}
-              {Notification.permission === 'granted' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    console.log('🧪 Testing browser notification...');
-                    try {
-                      const testNotification = new Notification('Test Notification', {
-                        body: 'This is a test notification to verify they work!',
-                        icon: '/logo.png',
-                        tag: 'test-notification'
-                      });
-                      
-                      testNotification.onclick = () => {
-                        console.log('✅ Test notification clicked');
-                        testNotification.close();
-                      };
-                      
-                      console.log('✅ Test notification created successfully');
-                    } catch (error) {
-                      console.error('❌ Test notification failed:', error);
-                    }
-                  }}
-                  className="text-xs px-2 py-1 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
-                >
-                  🧪 Test Notification
-                </Button>
-              )}
-            </div>
-          )}
+         
 
               <Button
                 variant="ghost"
@@ -1069,6 +999,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               <option value="progress">Progress Update</option>
               <option value="issue">Issue/Problem</option>
               <option value="update">Update</option>
+              <option value="complete">Complete</option>
               <option value="other">Other</option>
             </select>
           </div>

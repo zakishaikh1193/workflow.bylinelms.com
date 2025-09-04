@@ -23,26 +23,7 @@ class TokenService {
     
     if (accessToken && refreshToken) {
       this.userType = 'admin';
-      console.log('🔐 Admin token auto-refresh initialized');
-      
-      // Log current token expiration info
-      const expiresAt = this.getTokenExpirationTime();
-      if (expiresAt) {
-        const now = new Date();
-        const timeUntilExpiry = expiresAt.getTime() - now.getTime();
-        const hoursUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60 * 60));
-        
-        console.log('⏰ Current token expires at:', expiresAt.toLocaleString());
-        console.log('⏰ Time until expiry:', hoursUntilExpiry, 'hours');
-        
-        if (hoursUntilExpiry < 1) {
-          console.warn('⚠️ Token expires in less than 1 hour!');
-        }
-      }
-      
       this.scheduleTokenRefresh();
-    } else {
-      console.warn('⚠️ No admin tokens found for auto-refresh');
     }
   }
 
@@ -53,26 +34,7 @@ class TokenService {
     
     if (teamToken && refreshToken) {
       this.userType = 'team';
-      console.log('🔐 Team token auto-refresh initialized');
-      
-      // Log current token expiration info
-      const expiresAt = this.getTeamTokenExpirationTime();
-      if (expiresAt) {
-        const now = new Date();
-        const timeUntilExpiry = expiresAt.getTime() - now.getTime();
-        const hoursUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60 * 60));
-        
-        console.log('⏰ Current team token expires at:', expiresAt.toLocaleString());
-        console.log('⏰ Time until expiry:', hoursUntilExpiry, 'hours');
-        
-        if (hoursUntilExpiry < 1) {
-          console.warn('⚠️ Team token expires in less than 1 hour!');
-        }
-      }
-      
       this.scheduleTeamTokenRefresh();
-    } else {
-      console.warn('⚠️ No team tokens found for auto-refresh');
     }
   }
 
@@ -93,15 +55,8 @@ class TokenService {
       // Refresh token 5 minutes before expiration
       const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 1000);
       
-      const hoursUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60 * 60));
-      const minutesUntilRefresh = Math.round(refreshTime / (1000 * 60));
-      
-      console.log('🔄 Admin token expires in:', hoursUntilExpiry, 'hours');
-      console.log('🔄 Will refresh in:', minutesUntilRefresh, 'minutes');
-      
-      if (hoursUntilExpiry < 2) {
-        console.warn('⚠️ Token expires soon! Scheduling refresh...');
-      }
+      console.log('🔄 Admin token expires in:', Math.round(timeUntilExpiry / 1000), 'seconds');
+      console.log('🔄 Will refresh in:', Math.round(refreshTime / 1000), 'seconds');
 
       // Clear existing timeout
       if (this.refreshTimeout) {
@@ -135,15 +90,8 @@ class TokenService {
       // Refresh token 5 minutes before expiration
       const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 1000);
       
-      const hoursUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60 * 60));
-      const minutesUntilRefresh = Math.round(refreshTime / (1000 * 60));
-      
-      console.log('🔄 Team token expires in:', hoursUntilExpiry, 'hours');
-      console.log('🔄 Will refresh in:', minutesUntilRefresh, 'minutes');
-      
-      if (hoursUntilExpiry < 2) {
-        console.warn('⚠️ Team token expires soon! Scheduling refresh...');
-      }
+      console.log('🔄 Team token expires in:', Math.round(timeUntilExpiry / 1000), 'seconds');
+      console.log('🔄 Will refresh in:', Math.round(refreshTime / 1000), 'seconds');
 
       // Clear existing timeout
       if (this.refreshTimeout) {

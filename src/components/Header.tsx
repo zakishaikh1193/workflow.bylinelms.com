@@ -114,12 +114,13 @@ export function Header() {
           {/* Connection Status */}
           <div className="flex items-center space-x-2 text-sm">
             {isConnected ? (
-              <div className="flex items-center space-x-1 text-green-600">
-                <div className="bg-green-500 text-white px-2 py-2 rounded-2xl"></div>
+              <div className="flex items-center bg-green-500 p-1 rounded-xl text-sm">
+                
               </div>
             ) : (
               <div className="flex items-center space-x-1 text-red-600">
-                <div className="bg-red-500 text-white px-2 py-2 rounded-2xl"></div>
+                <WifiOff className="w-4 h-4" />
+                <span>Offline</span>
               </div>
             )}
           </div>

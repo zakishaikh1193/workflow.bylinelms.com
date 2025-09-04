@@ -47,29 +47,36 @@ class NotificationService {
       return;
     }
 
+    // Force enable WebSocket in production
+    console.log('🔌 Attempting WebSocket connection in production...');
+
           try {
         // For development, always use localhost
         // For production, use the environment variable
         let serverUrl: string;
-
-        serverUrl = 'ws://localhost:3001';
+        
+        if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+          // Development: Use localhost with the correct port
+          serverUrl = 'http://localhost:3001';
           console.log('🔌 Development mode: Connecting to localhost:3001');
-        
-       
-          // Production: Use your hosted domain
-          // serverUrl = 'wss://workflow.bylinelms.com';
-
-          console.log('🔌 Production mode: Connecting to hosted server');
+        } else {
+          // Production: Use the same origin as the frontend to avoid CORS issues
+          serverUrl = window.location.origin;
           console.log('🔌 Production mode: Connecting to:', serverUrl);
-        
+        }
         
         this.socket = io(serverUrl, {
         auth: { token },
-        transports: ['websocket', 'polling'],
-        timeout: 20000,
+        transports: ['polling', 'websocket'], // Try polling first, then websocket
+        timeout: 10000,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: this.reconnectDelay
+        reconnectionDelay: this.reconnectDelay,
+        path: '/api/socket.io/',
+        forceNew: true,
+        upgrade: true,
+        rememberUpgrade: false,
+        autoConnect: true
       });
 
       this.setupSocketEventHandlers();

@@ -4,10 +4,18 @@ const jwt = require('jsonwebtoken');
 class NotificationServer {
   constructor(server) {
     this.io = new Server(server, {
+      path: '/api/socket.io/',
       cors: {
-        origin: process.env.CORS_ORIGIN || "http://localhost:5173" || "https://workflow.bylinelms.com",
-        methods: ["GET", "POST"]
-      }
+        origin: [
+          "http://localhost:5173",
+          "https://workflow.bylinelms.com",
+          "https://www.workflow.bylinelms.com"
+        ],
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true
+      },
+      allowEIO3: true
     });
     
     this.adminSockets = new Map(); // Map admin IDs to socket IDs
@@ -87,6 +95,11 @@ class NotificationServer {
       this.io.to(socketId).emit(event, data);
     });
     console.log(`📢 Broadcasted ${event} to ${this.adminSockets.size} admins`);
+  }
+
+  // Get connected clients count
+  getConnectedClients() {
+    return this.adminSockets.size + this.teamSockets.size;
   }
 
   // Broadcast notification to specific project room

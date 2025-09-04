@@ -12,17 +12,30 @@ const NotificationServer = require('./socketServer');
 // Create Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 443 : 3001);
 
 // Initialize WebSocket notification server
 const notificationServer = new NotificationServer(server);
 global.notificationServer = notificationServer; // Make it globally accessible
 
-// Simple CORS middleware to allow all origins
+// Enhanced CORS middleware for production
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://workflow.bylinelms.com',
+    'https://www.workflow.bylinelms.com'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
@@ -45,7 +58,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   try {
     const dbStatus = await db.testConnection();
     res.json({
@@ -62,6 +75,15 @@ app.get('/health', async (req, res) => {
       message: error.message
     });
   }
+});
+
+// Socket.IO health check
+app.get('/api/socket.io/health', (req, res) => {
+  res.json({ 
+    status: 'Socket.IO Server Ready', 
+    timestamp: new Date().toISOString(),
+    connectedClients: notificationServer ? notificationServer.getConnectedClients() : 0
+  });
 });
 
 // Import routes

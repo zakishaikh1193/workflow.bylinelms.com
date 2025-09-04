@@ -165,11 +165,15 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     }
   };
 
-  const getNotificationColor = (type: string) => {
+  const getNotificationColor = (type: string, remarkType?: string) => {
     switch (type) {
       case 'extension_request':
         return 'border-orange-200 bg-orange-50';
       case 'remark':
+        // Special handling for complete remarks - green background
+        if (remarkType === 'complete') {
+          return 'border-green-200 bg-green-50';
+        }
         return 'border-blue-200 bg-blue-50';
       default:
         return 'border-gray-200 bg-gray-50';
@@ -197,6 +201,8 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
         return <Badge variant="danger">Issue</Badge>;
       case 'update':
         return <Badge variant="primary">Update</Badge>;
+      case 'complete':
+        return <Badge variant="success">Complete</Badge>;
       case 'general':
         return <Badge variant="default">General</Badge>;
       default:
@@ -478,7 +484,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                 {filteredNotifications.remarks.map((remark) => (
                   <div 
                     key={remark.id} 
-                    className={`p-4 border rounded-lg ${getNotificationColor(remark.type)}`}
+                    className={`p-4 border rounded-lg ${getNotificationColor(remark.type, remark.remark_type)}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">

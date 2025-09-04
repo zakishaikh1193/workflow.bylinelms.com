@@ -62,7 +62,7 @@ interface TaskRemark {
   added_by_type: 'admin' | 'team';
   remark_date: string;
   remark: string;
-  remark_type: 'general' | 'progress' | 'issue' | 'update' | 'other';
+  remark_type: 'general' | 'progress' | 'issue' | 'update' | 'other' | 'complete';
   is_private: boolean;
   user_name: string;
   created_at: string;
@@ -630,9 +630,6 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
                           <Badge variant={getRemarkTypeVariant(remark.remark_type)}>
                             {remark.remark_type}
                           </Badge>
-                          {remark.is_private && (
-                            <Badge variant="secondary">Private</Badge>
-                          )}
                         </div>
                         {isAdmin && (
                           <Button
@@ -1060,6 +1057,7 @@ function AddRemarkForm({ onSubmit, onCancel }: AddRemarkFormProps) {
           <option value="progress">Progress</option>
           <option value="issue">Issue</option>
           <option value="update">Update</option>
+          <option value="complete">Complete</option>
           <option value="other">Other</option>
         </select>
       </div>

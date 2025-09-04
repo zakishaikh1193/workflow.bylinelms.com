@@ -614,44 +614,13 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
                           // Debug: Log all extracted IDs
                           console.log('🎯 Final extracted IDs for task search:', {
                             hierarchyParts,
+                            gradeId,
                             bookId,
                             unitId,
                             lessonId,
                             stageId: stage.id,
                             projectId
                           });
-                          
-                          // Debug: Log the data arrays to see what's available
-                          console.log('🔍 Available data for lookup:', {
-                            grades: grades.length,
-                            units: units.length,
-                            lessons: lessons.length,
-                            books: books.length
-                          });
-                          
-                          // Debug: Log specific lookup attempts
-                          if (hierarchyParts.length >= 2) {
-                            const secondPart = hierarchyParts[1];
-                            console.log('🔍 Looking for second part:', secondPart);
-                            
-                            if (secondPart.startsWith('U')) {
-                              const unit = units.find((u: any) => u.name === secondPart && u.grade_id === gradeId);
-                              console.log('🔍 Unit lookup result:', { 
-                                searchingFor: secondPart, 
-                                gradeId, 
-                                foundUnit: unit,
-                                allUnits: units.map((u: any) => ({ name: u.name, grade_id: u.grade_id }))
-                              });
-                            } else if (secondPart.startsWith('L')) {
-                              const lesson = lessons.find((l: any) => l.name === secondPart && l.grade_id === gradeId);
-                              console.log('🔍 Lesson lookup result:', { 
-                                searchingFor: secondPart, 
-                                gradeId, 
-                                foundLesson: lesson,
-                                allLessons: lessons.map((l: any) => ({ name: l.name, grade_id: l.grade_id }))
-                              });
-                            }
-                          }
                           
                           // Make API call to get the specific task using taskService
                           // Prepare API parameters, handling null values properly

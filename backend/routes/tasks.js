@@ -404,8 +404,8 @@ router.post('/:id/remarks',
       .withMessage('Remark date must be a valid date'),
     body('remark_type')
       .optional()
-      .isIn(['general', 'progress', 'issue', 'update', 'other'])
-      .withMessage('Remark type must be one of: general, progress, issue, update, other'),
+      .isIn(['general', 'progress', 'issue', 'update', 'other', 'complete'])
+      .withMessage('Remark type must be one of: general, progress, issue, update, other, complete'),
     body('is_private')
       .optional()
       .isBoolean()
