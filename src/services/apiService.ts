@@ -1,6 +1,6 @@
 // Modern API service for the new Node.js backend
-// const API_URL = 'https://workflow.bylinelms.com/api';
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://workflow.bylinelms.com/api';
+// const API_URL = 'http://localhost:3001/api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -1002,4 +1002,13 @@ export const performanceFlagService = {
 // Notification service
 export const notificationService = {
   getAll: () => apiService.get('/tasks/notifications'),
+  getTeamNotifications: () => teamApiService.get('/tasks/team/notifications'),
+};
+
+// Auth service
+export const authService = {
+  adminLogin: (credentials: any) => apiService.post('/auth/admin/login', credentials),
+  teamLogin: (credentials: any) => apiService.post('/auth/team/login', credentials),
+  refreshToken: (data: { refresh_token: string }) => apiService.post('/auth/admin/refresh', data),
+  refreshTeamToken: (data: { refresh_token: string }) => apiService.post('/auth/team/refresh', data),
 };

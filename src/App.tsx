@@ -12,6 +12,7 @@ import { TeamMemberLogin } from './components/TeamMemberLogin';
 import { TeamMemberPortal } from './components/TeamMemberPortal';
 import { Loader2 } from 'lucide-react';
 import type { User as UserType } from './types';
+import tokenService from './services/tokenService';
 
 import { MainApp } from './components/MainApp';
 
@@ -19,8 +20,59 @@ function App() {
   const { user, loading } = useAuth();
   const [teamMemberUser, setTeamMemberUser] = useState<UserType | null>(null);
   const [showTeamPortal, setShowTeamPortal] = useState(false);
+  const [teamSessionLoading, setTeamSessionLoading] = useState(true);
 
-  if (loading) {
+  // Restore team member session on page load
+  useEffect(() => {
+    const restoreTeamSession = () => {
+      try {
+        const teamToken = localStorage.getItem('teamToken');
+        const teamUserData = localStorage.getItem('teamUserData');
+        
+        if (teamToken && teamUserData) {
+          const parsedUser = JSON.parse(teamUserData);
+          setTeamMemberUser(parsedUser);
+          setShowTeamPortal(true);
+        }
+      } catch (error) {
+        // Clear invalid data
+        localStorage.removeItem('teamToken');
+        localStorage.removeItem('teamUserData');
+      } finally {
+        setTeamSessionLoading(false);
+      }
+    };
+
+    restoreTeamSession();
+  }, []);
+
+  // Initialize token auto-refresh for admin users
+  useEffect(() => {
+    if (user) {
+      console.log('🔐 Initializing token auto-refresh for admin user...');
+      tokenService.initializeAutoRefresh();
+      
+      return () => {
+        console.log('🧹 Cleaning up token service...');
+        tokenService.cleanup();
+      };
+    }
+  }, [user]);
+
+  // Initialize token auto-refresh for team members
+  useEffect(() => {
+    if (teamMemberUser) {
+      console.log('🔐 Initializing token auto-refresh for team member...');
+      tokenService.initializeTeamAutoRefresh();
+      
+      return () => {
+        console.log('🧹 Cleaning up team token service...');
+        tokenService.cleanup();
+      };
+    }
+  }, [teamMemberUser]);
+
+  if (loading || teamSessionLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">

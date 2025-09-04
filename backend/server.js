@@ -2,20 +2,40 @@ const express = require('express');
 const morgan = require('morgan');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
+const http = require('http');
 require('express-async-errors');
 require('dotenv').config();
 
 const db = require('./db');
+const NotificationServer = require('./socketServer');
 
-// Create Express app
+// Create Express app and HTTP server
 const app = express();
-const PORT = process.env.PORT || 3001;
+const server = http.createServer(app);
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 443 : 3001);
 
-// Simple CORS middleware to allow all origins
+// Initialize WebSocket notification server
+const notificationServer = new NotificationServer(server);
+global.notificationServer = notificationServer; // Make it globally accessible
+
+// Enhanced CORS middleware for production
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://workflow.bylinelms.com',
+    'https://www.workflow.bylinelms.com'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
@@ -38,7 +58,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   try {
     const dbStatus = await db.testConnection();
     res.json({
@@ -55,6 +75,15 @@ app.get('/health', async (req, res) => {
       message: error.message
     });
   }
+});
+
+// Socket.IO health check
+app.get('/api/socket.io/health', (req, res) => {
+  res.json({ 
+    status: 'Socket.IO Server Ready', 
+    timestamp: new Date().toISOString(),
+    connectedClients: notificationServer ? notificationServer.getConnectedClients() : 0
+  });
 });
 
 // Import routes
@@ -197,8 +226,8 @@ async function startServer() {
       process.exit(1);
     }
     
-    // Start HTTP server
-    app.listen(PORT, () => {
+    // Start HTTP server with WebSocket support
+    server.listen(PORT, () => {
       console.log('\n🚀 Server Information:');
       console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   Port: ${PORT}`);
@@ -207,7 +236,9 @@ async function startServer() {
       console.log(`\n📍 Endpoints:`);
       console.log(`   Health Check: http://localhost:${PORT}/health`);
       console.log(`   API Base: http://localhost:${PORT}/api`);
+      console.log(`   WebSocket: ws://localhost:${PORT}`);
       console.log(`\n✅ Server is running and ready to accept connections!`);
+      console.log(`✅ WebSocket notification server is active!`);
     });
     
   } catch (error) {

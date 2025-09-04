@@ -18,15 +18,21 @@ import {
   Activity,
   Home,
   Settings,
-  Bell
+  Bell,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
-import { teamTaskService, teamProjectService, teamService, performanceFlagService } from '../services/apiService';
+import { teamTaskService, teamProjectService, teamService, performanceFlagService, notificationService } from '../services/apiService';
+import { TeamNotifications } from './TeamNotifications';
 import type { Task, User as UserType } from '../types';
+import notificationServiceRealTime from '../services/notificationService';
+import type { RealTimeNotification } from '../services/notificationService';
+import tokenService from '../services/tokenService';
 
 interface TeamMemberPortalProps {
   user: UserType;
@@ -47,11 +53,68 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [performanceFlags, setPerformanceFlags] = useState<any[]>([]);
+  // Per-task details state: remarks & extensions
+  const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
+  const [remarksByTask, setRemarksByTask] = useState<Record<string, any[]>>({});
+  const [extensionsByTask, setExtensionsByTask] = useState<Record<string, any[]>>({});
+  const [detailsLoading, setDetailsLoading] = useState<Record<string, boolean>>({});
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [recentNotifications, setRecentNotifications] = useState<RealTimeNotification[]>([]);
 
   // Load user's data
   useEffect(() => {
     loadUserData();
+    loadNotificationCount();
   }, [user.id]);
+
+  // Initialize token auto-refresh for team members
+  useEffect(() => {
+    console.log('🔐 Initializing team member token auto-refresh...');
+    tokenService.initializeTeamAutoRefresh();
+    
+    return () => {
+      console.log('🧹 Cleaning up team member token service...');
+      tokenService.cleanup();
+    };
+  }, []);
+
+  // Separate effect for real-time notifications
+  useEffect(() => {
+    // Connect to real-time notification service
+    const token = localStorage.getItem('teamToken');
+    if (token && userProjects.length > 0) {
+      console.log('🔌 Connecting team member to notification service...');
+      
+      notificationServiceRealTime.connect(token, 'team');
+      
+      // Listen for connection status changes
+      const unsubscribeConnection = notificationServiceRealTime.onConnectionChange((connected) => {
+        setIsConnected(connected);
+        if (connected) {
+          console.log('✅ Team member connected, joining project rooms...');
+          // Join assigned project rooms for real-time updates
+          const projectIds = userProjects.map(project => project.id);
+          console.log('🔗 Joining project rooms:', projectIds);
+          notificationServiceRealTime.joinAssignedProjects(projectIds);
+        }
+      });
+      
+      // Listen for real-time notifications
+      const unsubscribeNotifications = notificationServiceRealTime.onNotification((notification) => {
+        console.log('📢 Team member received notification:', notification);
+        setRecentNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep last 5
+        setNotificationCount(prev => prev + 1);
+      });
+      
+      return () => {
+        unsubscribeConnection();
+        unsubscribeNotifications();
+        notificationServiceRealTime.disconnect();
+      };
+    }
+  }, [userProjects.length]);
 
   const loadUserData = async () => {
     try {
@@ -74,9 +137,31 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     }
   };
 
+  const loadNotificationCount = async () => {
+    try {
+      const response = await notificationService.getTeamNotifications();
+      const { extensions, remarks } = response.data;
+      
+      // Count new notifications (pending extensions + recent remarks)
+      const newExtensions = extensions.filter((ext: any) => 
+        ext.status === 'pending' || 
+        (ext.reviewed_at && new Date(ext.reviewed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000))
+      );
+      const newRemarks = remarks.filter((remark: any) => 
+        new Date(remark.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+      );
+      
+      setNotificationCount(newExtensions.length + newRemarks.length);
+    } catch (error) {
+      console.error('Failed to load notification count:', error);
+      // Don't set count to 0 on error, just keep the previous count
+      // This prevents the notification bell from disappearing on temporary errors
+    }
+  };
+
   const refreshData = async () => {
     setRefreshing(true);
-    await loadUserData();
+    await Promise.all([loadUserData(), loadNotificationCount()]);
     setRefreshing(false);
   };
 
@@ -116,6 +201,28 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const handleAddRemark = (task: Task) => {
     setSelectedTask(task);
     setIsRemarkModalOpen(true);
+  };
+
+  // Toggle remarks & extensions section for a task; lazy-load on first open
+  const toggleTaskDetails = async (taskId: string) => {
+    setDetailsOpen(prev => ({ ...prev, [taskId]: !prev[taskId] }));
+    const alreadyLoaded = remarksByTask[taskId] !== undefined || extensionsByTask[taskId] !== undefined;
+    const willOpen = !detailsOpen[taskId];
+    if (willOpen && !alreadyLoaded) {
+      try {
+        setDetailsLoading(prev => ({ ...prev, [taskId]: true }));
+        const [remarks, extensions] = await Promise.all([
+          teamTaskService.getRemarks(taskId).catch(() => []),
+          teamTaskService.getExtensions(taskId).catch(() => []),
+        ]);
+        setRemarksByTask(prev => ({ ...prev, [taskId]: Array.isArray(remarks) ? remarks : [] }));
+        setExtensionsByTask(prev => ({ ...prev, [taskId]: Array.isArray(extensions) ? extensions : [] }));
+      } catch (e) {
+        // Swallow errors; UI will show empty lists
+      } finally {
+        setDetailsLoading(prev => ({ ...prev, [taskId]: false }));
+      }
+    }
   };
 
   const submitExtensionRequest = async () => {
@@ -245,12 +352,33 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
               </Button>
+                        {/* Connection Status */}
+          <div className="flex items-center space-x-2 text-sm px-3 py-2">
+            {isConnected ? (
+              <div className="flex items-center bg-green-500 p-1 rounded-xl text-sm">
+               
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1 text-red-600">
+                <WifiOff className="w-4 h-4" />
+                <span className="font-medium">Offline</span>
+              </div>
+            )}
+          </div>
+
+         
+
               <Button
                 variant="ghost"
+                onClick={() => setShowNotifications(true)}
                 className="relative p-3 hover:bg-gray-100 rounded-xl transition-all duration-200"
               >
                 <Bell className="w-5 h-5 text-gray-600" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
+                    {notificationCount > 99 ? '99+' : notificationCount}
+                  </span>
+                )}
               </Button>
               <Button
                 variant="ghost"
@@ -262,6 +390,9 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 variant="ghost"
                 onClick={() => {
                   localStorage.removeItem('teamToken');
+                  localStorage.removeItem('teamRefreshToken');
+                  localStorage.removeItem('teamUserData');
+                  tokenService.cleanup();
                   onLogout();
                 }}
                 className="p-3 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200"
@@ -678,7 +809,84 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                             <MessageSquare className="w-3 h-3 mr-1" />
                             Add Remark
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleTaskDetails(task.id)}
+                            className="ml-2"
+                          >
+                            <Bell className="w-4 h-4 mr-2" />
+                            Remarks & Extensions
+                          </Button>
                         </div>
+
+                        {/* Remarks & Extensions (Expandable) */}
+                        {detailsOpen[task.id] && (
+                          <div className="mt-4 space-y-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            {detailsLoading[task.id] ? (
+                              <div className="text-sm text-gray-600">Loading details...</div>
+                            ) : (
+                              <>
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <MessageSquare className="w-4 h-4 text-blue-600" />
+                                      <span className="text-sm font-semibold text-gray-800">Remarks</span>
+                                    </div>
+                                    <Badge variant="secondary">{(remarksByTask[task.id] || []).length}</Badge>
+                                  </div>
+                                  {(remarksByTask[task.id] || []).length === 0 ? (
+                                    <p className="text-xs text-gray-500">No remarks yet.</p>
+                                  ) : (
+                                    <ul className="space-y-2">
+                                      {(remarksByTask[task.id] || []).map((r: any) => (
+                                        <li key={r.id} className="p-2 bg-white rounded border border-gray-200">
+                                          <div className="flex items-center justify-between">
+                                            <div className="text-sm text-gray-800 font-medium">{r.remark_type || 'general'}</div>
+                                            <div className="text-xs text-gray-500">{new Date(r.created_at || r.remark_date).toLocaleString()}</div>
+                                          </div>
+                                          <div className="text-sm text-gray-700 mt-1">{r.remark}</div>
+                                          {r.user_name && (
+                                            <div className="text-xs text-gray-500 mt-1">by {r.user_name}</div>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <Clock className="w-4 h-4 text-orange-600" />
+                                      <span className="text-sm font-semibold text-gray-800">Extension Requests</span>
+                                    </div>
+                                    <Badge variant="secondary">{(extensionsByTask[task.id] || []).length}</Badge>
+                                  </div>
+                                  {(extensionsByTask[task.id] || []).length === 0 ? (
+                                    <p className="text-xs text-gray-500">No extension requests.</p>
+                                  ) : (
+                                    <ul className="space-y-2">
+                                      {(extensionsByTask[task.id] || []).map((e: any) => (
+                                        <li key={e.id} className="p-2 bg-white rounded border border-gray-200">
+                                          <div className="flex items-center justify-between">
+                                            <div className="text-sm text-gray-800 font-medium capitalize">{e.status || 'pending'}</div>
+                                            <div className="text-xs text-gray-500">{new Date(e.created_at).toLocaleString()}</div>
+                                          </div>
+                                          <div className="text-xs text-gray-600 mt-1">Current due: {e.current_due_date ? new Date(e.current_due_date).toLocaleDateString() : '-'}</div>
+                                          <div className="text-xs text-gray-600">Requested due: {e.requested_due_date ? new Date(e.requested_due_date).toLocaleDateString() : '-'}</div>
+                                          {e.reason && (
+                                            <div className="text-sm text-gray-700 mt-1">Reason: {e.reason}</div>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -791,6 +999,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               <option value="progress">Progress Update</option>
               <option value="issue">Issue/Problem</option>
               <option value="update">Update</option>
+              <option value="complete">Complete</option>
               <option value="other">Other</option>
             </select>
           </div>
@@ -827,6 +1036,19 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           </div>
         </div>
       </Modal>
+
+      {/* Notifications View */}
+      {showNotifications && (
+        <div className="fixed inset-0 z-50 bg-white overflow-auto">
+          <TeamNotifications onBack={() => {
+            setShowNotifications(false);
+            // Refresh notification count when returning from notifications
+            loadNotificationCount();
+          }} />
+        </div>
+      )}
+      
+
     </div>
   );
 }

@@ -14,15 +14,11 @@ const calculateProjectProgress = async (projectId) => {
     `;
     
     const result = await db.query(progressQuery, [projectId]);
-    console.log(`📊 Project ${projectId} progress result:`, result[0]);
     
     if (result.length > 0 && result[0].total_tasks > 0) {
       const calculatedProgress = Math.round(result[0].avg_progress || 0);
-      console.log(`✅ Project ${projectId} calculated progress: ${calculatedProgress}%`);
       return calculatedProgress;
     }
-    
-    console.log(`❌ Project ${projectId} has no tasks or no progress`);
     return 0; // No tasks or no progress
   } catch (error) {
     console.error('Error calculating project progress:', error);
@@ -33,7 +29,6 @@ const calculateProjectProgress = async (projectId) => {
 // Helper function to calculate unique users assigned to project tasks
 const calculateProjectUserCount = async (projectId) => {
   try {
-    console.log(`🔍 Calculating user count for project ${projectId}`);
     
     const userCountQuery = `
       SELECT COUNT(DISTINCT ta.assignee_id) as unique_users
@@ -44,8 +39,6 @@ const calculateProjectUserCount = async (projectId) => {
     
     const result = await db.query(userCountQuery, [projectId]);
     const userCount = result[0]?.unique_users || 0;
-    
-    console.log(`👥 Project ${projectId} has ${userCount} unique users assigned`);
     return userCount;
   } catch (error) {
     console.error('Error calculating project user count:', error);
@@ -69,8 +62,6 @@ const getProjects = async (req, res) => {
     const offset = (page - 1) * limit;
     // Test with simplest possible query first
     const testQuery = 'SELECT COUNT(*) as count FROM projects';
-    console.log('🔍 Testing projects table exists...');
-    
     try {
       const testResult = await db.query(testQuery);
       console.log('✅ Projects table exists, count:', testResult[0].count);

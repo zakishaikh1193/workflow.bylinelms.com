@@ -1310,8 +1310,15 @@ const requestTaskExtension = async (req, res) => {
   try {
     const { id } = req.params;
     const { requested_due_date, reason } = req.body;
-    const requested_by = req.user?.id || req.teamMember?.id;
-    const requested_by_type = req.user ? 'admin' : 'team';
+    const requested_by = req.user?.id;
+    const requested_by_type = req.user?.type || 'team';
+    
+    // Debug logging
+    console.log('🔍 Extension request - User info:', {
+      userId: requested_by,
+      userType: requested_by_type,
+      reqUser: req.user
+    });
 
     // Validate required fields
     if (!requested_due_date || !reason) {
@@ -1383,6 +1390,67 @@ const requestTaskExtension = async (req, res) => {
     ]);
 
     console.log('✅ Extension request created:', result.insertId);
+
+    // Send real-time notification to admins
+    try {
+      console.log('🔍 Debug: Checking notification server...');
+      console.log('🔍 Debug: global.notificationServer exists?', !!global.notificationServer);
+      console.log('🔍 Debug: global keys:', Object.keys(global));
+      
+      if (global.notificationServer) {
+        console.log('🔍 Debug: Notification server found, proceeding...');
+        
+        // Get project ID for the task
+        const projectQuery = 'SELECT project_id FROM tasks WHERE id = ?';
+        const projectResult = await db.query(projectQuery, [id]);
+        console.log('🔍 Debug: Project query result:', projectResult);
+        
+        if (projectResult.length > 0) {
+          const projectId = projectResult[0].project_id;
+          console.log('🔍 Debug: Project ID:', projectId);
+          
+          // Get requester name
+          const requesterQuery = requested_by_type === 'admin' 
+            ? 'SELECT name FROM admin_users WHERE id = ?'
+            : 'SELECT name FROM team_members WHERE id = ?';
+          const requesterResult = await db.query(requesterQuery, [requested_by]);
+          const requesterName = requesterResult.length > 0 ? requesterResult[0].name : 'Unknown User';
+          console.log('🔍 Debug: Requester name:', requesterName);
+          
+          // Get task name
+          const taskQuery = 'SELECT name FROM tasks WHERE id = ?';
+          const taskResult = await db.query(taskQuery, [id]);
+          const taskName = taskResult.length > 0 ? taskResult[0].name : 'Unknown Task';
+          console.log('🔍 Debug: Task name:', taskName);
+          
+          const notificationData = {
+            id: result.insertId,
+            task_id: id,
+            task_name: taskName,
+            project_id: projectId,
+            requested_by: requested_by,
+            requested_by_type: requested_by_type,
+            requester_name: requesterName,
+            current_due_date: current_due_date,
+            requested_due_date: formattedRequestedDate,
+            reason: reason,
+            status: 'pending'
+          };
+          
+          console.log('🔍 Debug: Sending notification with data:', notificationData);
+          global.notificationServer.notifyExtensionRequest(notificationData);
+          console.log('📢 Real-time notification sent for extension request');
+        } else {
+          console.log('⚠️ Debug: No project found for task');
+        }
+      } else {
+        console.log('❌ Debug: Notification server not found in global scope');
+      }
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send real-time notification:', notificationError);
+      console.error('⚠️ Error stack:', notificationError.stack);
+      // Don't fail the main request if notification fails
+    }
 
     res.status(201).json({
       success: true,
@@ -1538,8 +1606,15 @@ const addTaskRemark = async (req, res) => {
   try {
     const { id } = req.params;
     const { remark, remark_date, remark_type = 'general', is_private = false } = req.body;
-    const added_by = req.user?.id || req.teamMember?.id;
-    const added_by_type = req.user ? 'admin' : 'team';
+    const added_by = req.user?.id;
+    const added_by_type = req.user?.type || 'team';
+    
+    // Debug logging
+    console.log('🔍 Add remark - User info:', {
+      userId: added_by,
+      userType: added_by_type,
+      reqUser: req.user
+    });
 
     // Validate required fields
     if (!remark) {
@@ -1583,6 +1658,59 @@ const addTaskRemark = async (req, res) => {
     ]);
 
     console.log('✅ Task remark added:', result.insertId);
+
+    // Send real-time notification
+    try {
+      console.log('🔍 Debug: Checking notification server for remark...');
+      console.log('🔍 Debug: global.notificationServer exists?', !!global.notificationServer);
+      
+      if (global.notificationServer) {
+        console.log('🔍 Debug: Notification server found for remark, proceeding...');
+        
+        // Get project ID and task name
+        const taskQuery = 'SELECT name, project_id FROM tasks WHERE id = ?';
+        const taskResult = await db.query(taskQuery, [id]);
+        console.log('🔍 Debug: Task query result for remark:', taskResult);
+        
+        if (taskResult.length > 0) {
+          const taskName = taskResult[0].name;
+          const projectId = taskResult[0].project_id;
+          console.log('🔍 Debug: Task name for remark:', taskName, 'Project ID:', projectId);
+          
+          // Get user name
+          const userQuery = added_by_type === 'admin' 
+            ? 'SELECT name FROM admin_users WHERE id = ?'
+            : 'SELECT name FROM team_members WHERE id = ?';
+          const userResult = await db.query(userQuery, [added_by]);
+          const userName = userResult.length > 0 ? userResult[0].name : 'Unknown User';
+          console.log('🔍 Debug: User name for remark:', userName);
+          
+          const notificationData = {
+            id: result.insertId,
+            task_id: id,
+            task_name: taskName,
+            project_id: projectId,
+            user_name: userName,
+            user_type: added_by_type,
+            remark: remark,
+            remark_type: remark_type,
+            is_private: is_private
+          };
+          
+          console.log('🔍 Debug: Sending remark notification with data:', notificationData);
+          global.notificationServer.notifyNewRemark(notificationData);
+          console.log('📢 Real-time notification sent for new remark');
+        } else {
+          console.log('⚠️ Debug: No task found for remark notification');
+        }
+      } else {
+        console.log('❌ Debug: Notification server not found for remark');
+      }
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send real-time notification for remark:', notificationError);
+      console.error('⚠️ Error stack:', notificationError.stack);
+      // Don't fail the main request if notification fails
+    }
 
     res.status(201).json({
       success: true,
@@ -1716,7 +1844,7 @@ const getNotifications = async (req, res) => {
         t.name as task_name,
         p.name as project_name,
         CASE 
-          WHEN te.requested_by_type = 'admin' || 'team' THEN tm.name
+          WHEN te.requested_by_type = 'team' THEN tm.name
           WHEN te.requested_by_type = 'admin' THEN au.name
           ELSE 'Unknown User'
         END as requester_name
@@ -1744,7 +1872,7 @@ const getNotifications = async (req, res) => {
         t.name as task_name,
         p.name as project_name,
         CASE 
-          WHEN tr.added_by_type = 'admin' || 'team' THEN tm.name
+          WHEN tr.added_by_type = 'team' THEN tm.name
           WHEN tr.added_by_type = 'admin' THEN au.name
           ELSE 'Unknown User'
         END as user_name
@@ -1811,6 +1939,162 @@ const getNotifications = async (req, res) => {
   }
 };
 
+// Get notifications for team members
+const getTeamNotifications = async (req, res) => {
+  try {
+    const teamMemberId = req.user.id;
+    
+    // Get all tasks assigned to this team member
+    const tasksQuery = `
+      SELECT t.id, t.name as task_name, t.project_id, t.end_date
+      FROM tasks t
+      JOIN task_assignees ta ON t.id = ta.task_id
+      WHERE ta.assignee_id = ? AND ta.assignee_type = 'team'
+    `;
+    
+    const tasks = await db.query(tasksQuery, [teamMemberId]);
+    
+    if (tasks.length === 0) {
+      return res.json({
+        success: true,
+        data: { extensions: [], remarks: [] }
+      });
+    }
+    
+    const taskIds = tasks.map(t => t.id);
+    const taskIdsPlaceholder = taskIds.map(() => '?').join(',');
+    
+    // Get extension requests for team member's tasks (including requests from other team members and admins)
+    const extensionQuery = `
+      SELECT 
+        te.id,
+        te.task_id,
+        te.requested_by,
+        te.requested_by_type,
+        te.current_due_date,
+        te.requested_due_date,
+        te.reason,
+        te.status,
+        te.created_at,
+        te.review_notes,
+        te.reviewed_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN te.requested_by_type = 'team' THEN tm.name
+          WHEN te.requested_by_type = 'admin' THEN au.name
+          ELSE 'Unknown User'
+        END as requester_name,
+        CASE 
+          WHEN te.reviewed_by IS NOT NULL THEN admin_reviewer.name
+          ELSE NULL
+        END as reviewer_name,
+        CASE 
+          WHEN te.status = 'approved' THEN '✅ Extension Approved'
+          WHEN te.status = 'rejected' THEN '❌ Extension Rejected'
+          WHEN te.status = 'pending' THEN '⏳ Extension Pending'
+          ELSE te.status
+        END as status_display
+      FROM task_extensions te
+      JOIN tasks t ON te.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN team_members tm ON te.requested_by = tm.id
+      LEFT JOIN admin_users au ON te.requested_by = au.id
+      LEFT JOIN admin_users admin_reviewer ON te.reviewed_by = admin_reviewer.id
+      WHERE te.task_id IN (${taskIdsPlaceholder})
+      ORDER BY te.created_at DESC
+    `;
+    
+    // Get remarks for team member's tasks (including admin remarks and other team member remarks)
+    const remarksQuery = `
+      SELECT 
+        tr.id,
+        tr.task_id,
+        tr.added_by,
+        tr.added_by_type,
+        tr.remark_date,
+        tr.remark,
+        tr.remark_type,
+        tr.is_private,
+        tr.created_at,
+        t.name as task_name,
+        p.name as project_name,
+        CASE 
+          WHEN tr.added_by_type = 'team' THEN tm.name
+          WHEN tr.added_by_type = 'admin' THEN au.name
+          ELSE 'Unknown User'
+        END as user_name,
+        CASE 
+          WHEN tr.added_by_type = 'admin' THEN '👑 Admin Remark'
+          WHEN tr.added_by_type = 'team' THEN '👤 Team Remark'
+          ELSE 'Remark'
+        END as remark_type_display
+      FROM task_remarks tr
+      JOIN tasks t ON tr.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN admin_users au ON tr.added_by = au.id
+      LEFT JOIN team_members tm ON tr.added_by = tm.id
+      WHERE tr.task_id IN (${taskIdsPlaceholder})
+      ORDER BY tr.created_at DESC
+    `;
+    
+    const [extensions, remarks] = await Promise.all([
+      db.query(extensionQuery, taskIds),
+      db.query(remarksQuery, taskIds)
+    ]);
+    
+    // Format the data for team member notifications
+    const notifications = {
+      extensions: extensions.map(ext => ({
+        id: ext.id,
+        type: 'extension_request',
+        task_id: ext.task_id,
+        task_name: ext.task_name,
+        project_name: ext.project_name,
+        requester_name: ext.requester_name,
+        requester_type: ext.requested_by_type,
+        current_due_date: ext.current_due_date,
+        requested_due_date: ext.requested_due_date,
+        reason: ext.reason,
+        status: ext.status,
+        created_at: ext.created_at,
+        review_notes: ext.review_notes,
+        reviewed_at: ext.reviewed_at,
+        reviewer_name: ext.reviewer_name,
+        is_new: ext.status === 'pending' || 
+                (ext.reviewed_at && new Date(ext.reviewed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)) // New if pending or reviewed in last 24h
+      })),
+      remarks: remarks.map(remark => ({
+        id: remark.id,
+        type: 'remark',
+        task_id: remark.task_id,
+        task_name: remark.task_name,
+        project_name: remark.project_name,
+        user_name: remark.user_name,
+        user_type: remark.added_by_type,
+        remark: remark.remark,
+        remark_type: remark.remark_type,
+        is_private: remark.is_private,
+        created_at: remark.created_at,
+        is_new: new Date(remark.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if created in last 24h
+      }))
+    };
+    
+    res.json({
+      success: true,
+      data: notifications
+    });
+    
+  } catch (error) {
+    console.error('Error fetching team notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch team notifications',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
@@ -1827,5 +2111,6 @@ module.exports = {
   addTaskRemark,
   getTaskRemarks,
   deleteTaskRemark,
-  getNotifications
+  getNotifications,
+  getTeamNotifications
 };

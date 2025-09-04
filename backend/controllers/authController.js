@@ -16,6 +16,38 @@ function generateToken(user) {
   );
 }
 
+// Helper function to generate team JWT token
+function generateTeamToken(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      type: 'team'
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+  );
+}
+
+// Helper function to generate refresh token
+function generateRefreshToken(user) {
+  return jwt.sign(
+    { id: user.id, type: 'admin' },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+  );
+}
+
+// Helper function to generate team refresh token
+function generateTeamRefreshToken(user) {
+  return jwt.sign(
+    { id: user.id, type: 'team' },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+  );
+}
+
 // Helper function to generate refresh token
 function generateRefreshToken(user) {
   return jwt.sign(
@@ -209,6 +241,76 @@ const authController = {
 
     } catch (error) {
       console.error('Refresh token error:', error);
+      res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token'
+      });
+    }
+  },
+
+  // Refresh team member token
+  async refreshTeamMemberToken(req, res) {
+    try {
+      const { refresh_token } = req.body;
+
+      if (!refresh_token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Refresh token is required'
+        });
+      }
+
+      // Verify refresh token
+      const decoded = jwt.verify(refresh_token, process.env.JWT_REFRESH_SECRET);
+      
+      // Check if session exists and is valid
+      const session = await db.queryFirst(
+        'SELECT * FROM team_sessions WHERE user_id = ? AND refresh_token = ? AND expires_at > NOW()',
+        [decoded.id, refresh_token]
+      );
+
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired refresh token'
+        });
+      }
+
+      // Get team member data
+      const teamMember = await db.queryFirst(
+        'SELECT * FROM team_members WHERE id = ? AND is_active = true',
+        [decoded.id]
+      );
+
+      if (!teamMember) {
+        return res.status(401).json({
+          success: false,
+          message: 'Team member not found or inactive'
+        });
+      }
+
+      // Generate new tokens
+      const newAccessToken = generateTeamToken(teamMember);
+      const newRefreshToken = generateTeamRefreshToken(teamMember);
+
+      // Update session with new tokens
+      await db.execute(
+        'UPDATE team_sessions SET access_token = ?, refresh_token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 24 HOUR), updated_at = NOW() WHERE id = ?',
+        [newAccessToken, newRefreshToken, session.id]
+      );
+
+      res.json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          access_token: newAccessToken,
+          refresh_token: newRefreshToken,
+          expires_in: 24 * 60 * 60 // 24 hours in seconds
+        }
+      });
+
+    } catch (error) {
+      console.error('Team refresh token error:', error);
       res.status(401).json({
         success: false,
         message: 'Invalid refresh token'

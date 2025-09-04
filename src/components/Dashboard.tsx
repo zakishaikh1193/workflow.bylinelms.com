@@ -16,6 +16,7 @@ import { Button } from './ui/Button';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { dashboardService } from '../services/apiService';
+import tokenService from '../services/tokenService';
 // import { calculateProjectProgress } from '../utils/progressCalculator';
 
 export function Dashboard() {
@@ -34,6 +35,17 @@ export function Dashboard() {
         setLoading(true);
         setError(null);
         
+        // Check if token is expired before making API calls
+        if (tokenService.isTokenExpired()) {
+          console.log('🚨 Token expired, attempting refresh...');
+          const refreshed = await tokenService.refreshToken();
+          if (!refreshed) {
+            setError('Session expired. Please login again.');
+            setLoading(false);
+            return;
+          }
+        }
+        
         const data = await dashboardService.getOverview();
         
         if (isMounted) {
@@ -42,7 +54,28 @@ export function Dashboard() {
       } catch (err: any) {
         if (isMounted) {
           console.error('Dashboard fetch error:', err);
-          setError(err.message || 'Failed to load dashboard data');
+          
+          // Check if it's an authentication error
+          if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+            console.log('🚨 Authentication error, attempting token refresh...');
+            try {
+              const refreshed = await tokenService.refreshToken();
+              if (refreshed) {
+                // Retry the API call
+                const retryData = await dashboardService.getOverview();
+                if (isMounted) {
+                  setDashboardData(retryData);
+                  setError(null);
+                }
+              } else {
+                setError('Session expired. Please login again.');
+              }
+            } catch (refreshError) {
+              setError('Session expired. Please login again.');
+            }
+          } else {
+            setError(err.message || 'Failed to load dashboard data');
+          }
         }
       } finally {
         if (isMounted) {
