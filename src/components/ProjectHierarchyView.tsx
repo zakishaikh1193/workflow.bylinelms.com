@@ -552,116 +552,163 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
               
               {/* Stage Progress Grid */}
               <div className="grid grid-cols-5 gap-3">
-                                  {item.stages.map((stage, index) => {
-                    // Get the task for this specific hierarchy item and stage using API
-                    const fetchTaskForStage = async () => {
-                      try {
-                        // Parse the hierarchy item ID to get the individual IDs
-                        const hierarchyParts = item.id.split('>');
-                        let gradeId = null, bookId = null, unitId = null, lessonId = null;
-                        
-                        // Extract IDs based on hierarchy level
-                        if (hierarchyParts.length >= 1) {
-                          // Find grade by name (e.g., "G1" -> find grade with name "G1")
-                          const grade = grades.find((g: any) => g.name === hierarchyParts[0]);
-                          gradeId = grade?.id;
-                          console.log('Found grade:', { name: hierarchyParts[0], id: gradeId });
-                        }
-                        
-                        if (hierarchyParts.length >= 2) {
-                          // Check if the second part is a unit (U1, U2) or a lesson (L1, L2)
-                          const secondPart = hierarchyParts[1];
-                          if (secondPart.startsWith('U')) {
-                            // This is a unit (U1, U2, etc.)
-                            const unit = units.find((u: any) => u.name === secondPart && u.grade_id === gradeId);
-                            unitId = unit?.id;
-                            bookId = unitId; // In this case, book_id = unit_id
-                            console.log('Found unit:', { name: secondPart, id: unitId, gradeId, note: 'U1/U2 are units, book_id = unit_id' });
-                          } else if (secondPart.startsWith('L')) {
-                            // This is a lesson (L1, L2, etc.) - no unit level
-                            // Find the lesson directly
-                            const lesson = lessons.find((l: any) => l.name === secondPart && l.grade_id === gradeId);
-                            lessonId = lesson?.id;
-                            unitId = null; // No unit level
-                            bookId = lessonId; // In this case, book_id = lesson_id
-                            console.log('Found lesson (no unit):', { name: secondPart, id: lessonId, gradeId, note: 'L1/L2 are lessons, book_id = lesson_id, unit_id = null' });
-                          }
-                        }
-                        
-                        if (hierarchyParts.length >= 3) {
-                          // This means we have G1 > U1 > L1 structure
-                          const thirdPart = hierarchyParts[2];
-                          if (thirdPart.startsWith('L')) {
-                            // L1, L2, L3 are lessons that belong to the unit
-                            // In the database, they map to unit_id, not lesson_id
-                            lessonId = null;
-                            console.log('Lesson mapping:', { name: thirdPart, lessonId: null, note: 'L1/L2/L3 map to unit_id in database' });
-                          }
-                        }
-                        
-                        // Debug: Log all extracted IDs
-                        console.log('Extracted IDs for task search:', {
-                          hierarchyParts,
-                          gradeId,
-                          bookId,
-                          unitId,
-                          lessonId,
-                          stageId: stage.id,
-                          projectId
-                        });
-                        
-                        // Make API call to get the specific task using taskService
-                        // Prepare API parameters, handling null values properly
-                        const apiParams: any = {
-                          grade_id: gradeId,
-                          stage_id: stage.id,
-                          project_id: projectId
-                        };
-                        
-                        // Only add parameters if they have values (not null/undefined)
-                        if (bookId !== null && bookId !== undefined) {
-                          apiParams.book_id = bookId;
-                        }
-                        if (unitId !== null && unitId !== undefined) {
-                          apiParams.unit_id = unitId;
-                        }
-                        if (lessonId !== null && lessonId !== undefined) {
-                          apiParams.lesson_id = lessonId;
-                        }
-                        
-                        console.log('Making API call with parameters:', apiParams);
-                        
-                        const taskData = await taskService.getAll(apiParams);
-                        
-                        console.log('API response:', taskData);
-                        
-                        if (taskData && taskData.data && taskData.data.length > 0) {
-                          const foundTask = taskData.data[0];
-                          console.log(`Found task for ${item.id} - ${stage.name}:`, foundTask);
-                          // Open the assignment modal directly with the found task
-                          handleTaskClick(foundTask);
-                        } else {
-                          console.warn(`No task found for ${item.id} - ${stage.name}`);
-                          console.warn('Task search parameters:', apiParams);
-                        }
-                      } catch (error) {
-                        console.error('Error fetching task:', error);
-                      }
-                    };
-                    
-                    // Debug logging
-                    console.log(`Stage ${stage.name} for ${item.id}:`, { 
-                      itemId: item.id, 
-                      stageId: stage.id
-                    });
-                  
+                {item.stages.map((stage, index) => {
+                  // Debug logging
+                  console.log(`Stage ${stage.name} for ${item.id}:`, { 
+                    itemId: item.id, 
+                    stageId: stage.id
+                  });
+                
                   return (
                     <div 
                       key={index} 
                       className="text-center space-y-1 bg-gray-50 rounded-lg p-1 border border-gray-200 cursor-pointer hover:bg-gray-100 hover:shadow-sm transition-all"
-                      onClick={() => {
-                        console.log('Stage clicked:', { stage: stage.name, item: item.id });
-                        fetchTaskForStage();
+                      onClick={async () => {
+                        console.log('🎯 Stage clicked:', { stage: stage.name, item: item.id });
+                        
+                        try {
+                          // Parse the hierarchy item ID to get the individual IDs
+                          const hierarchyParts = item.id.split('>').map((part: string) => part.trim());
+                          let gradeId = null, bookId = null, unitId = null, lessonId = null;
+                          
+                          console.log('🔍 Parsing hierarchy:', { itemId: item.id, hierarchyParts });
+                          
+                          // Extract IDs based on hierarchy level
+                          if (hierarchyParts.length >= 1) {
+                            // Find grade by name (e.g., "G1" -> find grade with name "G1")
+                            const grade = grades.find((g: any) => g.name === hierarchyParts[0]);
+                            gradeId = grade?.id;
+                            console.log('✅ Found grade:', { name: hierarchyParts[0], id: gradeId });
+                          }
+                          
+                          if (hierarchyParts.length >= 2) {
+                            const secondPart = hierarchyParts[1];
+                            if (secondPart.startsWith('U')) {
+                              // This is a unit (U1, U2, etc.)
+                              const unit = units.find((u: any) => u.name === secondPart && u.grade_id === gradeId);
+                              unitId = unit?.id;
+                              bookId = unitId; // book_id = unit_id for units
+                              console.log('✅ Found unit:', { name: secondPart, id: unitId, gradeId });
+                            } else if (secondPart.startsWith('L')) {
+                              // This is a lesson (L1, L2, etc.) - no unit level
+                              const lesson = lessons.find((l: any) => l.name === secondPart && l.grade_id === gradeId);
+                              lessonId = lesson?.id;
+                              unitId = null;
+                              bookId = lessonId; // book_id = lesson_id for direct lessons
+                              console.log('✅ Found lesson (no unit):', { name: secondPart, id: lessonId, gradeId });
+                            }
+                          }
+                          
+                          if (hierarchyParts.length >= 3) {
+                            // This means we have G1 > U1 > L1 structure
+                            const thirdPart = hierarchyParts[2];
+                            if (thirdPart.startsWith('L')) {
+                              // L1, L2, L3 are lessons that belong to the unit
+                              // Find the lesson by name and grade_id
+                              const lesson = lessons.find((l: any) => l.name === thirdPart && l.grade_id === gradeId);
+                              lessonId = lesson?.id;
+                              console.log('✅ Found lesson in unit:', { name: thirdPart, id: lessonId, gradeId, unitId });
+                            }
+                          }
+                          
+                          // Debug: Log all extracted IDs
+                          console.log('🎯 Final extracted IDs for task search:', {
+                            hierarchyParts,
+                            bookId,
+                            unitId,
+                            lessonId,
+                            stageId: stage.id,
+                            projectId
+                          });
+                          
+                          // Debug: Log the data arrays to see what's available
+                          console.log('🔍 Available data for lookup:', {
+                            grades: grades.length,
+                            units: units.length,
+                            lessons: lessons.length,
+                            books: books.length
+                          });
+                          
+                          // Debug: Log specific lookup attempts
+                          if (hierarchyParts.length >= 2) {
+                            const secondPart = hierarchyParts[1];
+                            console.log('🔍 Looking for second part:', secondPart);
+                            
+                            if (secondPart.startsWith('U')) {
+                              const unit = units.find((u: any) => u.name === secondPart && u.grade_id === gradeId);
+                              console.log('🔍 Unit lookup result:', { 
+                                searchingFor: secondPart, 
+                                gradeId, 
+                                foundUnit: unit,
+                                allUnits: units.map((u: any) => ({ name: u.name, grade_id: u.grade_id }))
+                              });
+                            } else if (secondPart.startsWith('L')) {
+                              const lesson = lessons.find((l: any) => l.name === secondPart && l.grade_id === gradeId);
+                              console.log('🔍 Lesson lookup result:', { 
+                                searchingFor: secondPart, 
+                                gradeId, 
+                                foundLesson: lesson,
+                                allLessons: lessons.map((l: any) => ({ name: l.name, grade_id: l.grade_id }))
+                              });
+                            }
+                          }
+                          
+                          // Make API call to get the specific task using taskService
+                          // Prepare API parameters, handling null values properly
+                          const apiParams: any = {
+                            grade_id: gradeId,
+                            stage_id: stage.id,
+                            project_id: projectId
+                          };
+                          
+                          // Add unit_id if available (this is the key fix!)
+                          if (unitId !== null && unitId !== undefined) {
+                            apiParams.unit_id = unitId;
+                          }
+                          
+                          // Add book_id if available
+                          if (bookId !== null && bookId !== undefined) {
+                            apiParams.book_id = bookId;
+                          }
+                          
+                          // Add lesson_id if available
+                          if (lessonId !== null && lessonId !== undefined) {
+                            apiParams.lesson_id = lessonId;
+                          }
+                          
+                          console.log('🚀 Making API call with parameters:', apiParams);
+                          
+                          const taskData = await taskService.getAll(apiParams);
+                          
+                          console.log('📡 API response:', taskData);
+                          
+                          if (taskData && taskData.data && taskData.data.length > 0) {
+                            const foundTask = taskData.data[0];
+                            console.log(`✅ Found task for ${item.id} - ${stage.name}:`, foundTask);
+                            
+                            // Verify this is the correct task by checking component_path
+                            if (foundTask.component_path === item.id) {
+                              console.log('🎯 Task component_path matches hierarchy item!');
+                              handleTaskClick(foundTask);
+                            } else {
+                              console.warn('⚠️ Task component_path mismatch:', {
+                                expected: item.id,
+                                actual: foundTask.component_path
+                              });
+                              // Still show the task but log the warning
+                              handleTaskClick(foundTask);
+                            }
+                          } else {
+                            console.warn(`❌ No task found for ${item.id} - ${stage.name}`);
+                            console.warn('🔍 Task search parameters:', apiParams);
+                            
+                            // Show user-friendly error
+                            alert(`No task found for ${item.id} - ${stage.name}. Please check the task configuration.`);
+                          }
+                        } catch (error) {
+                          console.error('❌ Error fetching task:', error);
+                          alert('Error fetching task. Please try again.');
+                        }
                       }}
                       title={`Click to assign ${stage.name} task`}
                     >

@@ -48,15 +48,6 @@ function generateTeamRefreshToken(user) {
   );
 }
 
-// Helper function to generate refresh token
-function generateRefreshToken(user) {
-  return jwt.sign(
-    { id: user.id, type: 'admin' },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
-  );
-}
-
 const authController = {
   // Admin Login
   async adminLogin(req, res) {

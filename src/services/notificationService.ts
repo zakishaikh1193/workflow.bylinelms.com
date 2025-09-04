@@ -51,16 +51,17 @@ class NotificationService {
         // For development, always use localhost
         // For production, use the environment variable
         let serverUrl: string;
-        
-        if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
-          // Development: Always use localhost
-          serverUrl = 'ws://localhost:3001';
+
+        serverUrl = 'ws://localhost:3001';
           console.log('🔌 Development mode: Connecting to localhost:3001');
-        } else {
-          // Production: Use environment variable
-          serverUrl = import.meta.env.VITE_API_URL?.replace('http', 'ws') || 'ws://localhost:3001';
+        
+       
+          // Production: Use your hosted domain
+          // serverUrl = 'wss://workflow.bylinelms.com';
+
+          console.log('🔌 Production mode: Connecting to hosted server');
           console.log('🔌 Production mode: Connecting to:', serverUrl);
-        }
+        
         
         this.socket = io(serverUrl, {
         auth: { token },

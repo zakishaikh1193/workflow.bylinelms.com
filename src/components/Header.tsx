@@ -115,13 +115,11 @@ export function Header() {
           <div className="flex items-center space-x-2 text-sm">
             {isConnected ? (
               <div className="flex items-center space-x-1 text-green-600">
-                <Wifi className="w-4 h-4" />
-                <span>Live</span>
+                <div className="bg-green-500 text-white px-2 py-2 rounded-2xl"></div>
               </div>
             ) : (
               <div className="flex items-center space-x-1 text-red-600">
-                <WifiOff className="w-4 h-4" />
-                <span>Offline</span>
+                <div className="bg-red-500 text-white px-2 py-2 rounded-2xl"></div>
               </div>
             )}
           </div>
