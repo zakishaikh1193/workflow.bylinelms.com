@@ -3,8 +3,6 @@ import {
   ArrowLeft, 
   Calendar, 
   Users, 
-  CheckSquare, 
-  Clock,
   BarChart3,
   Edit2,
   AlertTriangle,
@@ -12,8 +10,6 @@ import {
   BookOpen,
   Layers,
   FileText,
-  User,
-  Tag,
   Flag,
   MessageSquare,
   Clock as ClockIcon,
@@ -27,6 +23,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
+import { RichTextEditor, RichTextDisplay } from './ui/RichTextEditor';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, TaskStatus, Priority, PerformanceFlag } from '../types';
@@ -332,15 +329,6 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
     }
   };
 
-  const getFlagColor = (type: string) => {
-    switch (type) {
-      case 'red': return 'bg-red-100 text-red-800 border-red-200';
-      case 'orange': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'yellow': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'green': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
 
   const getStatusVariant = (status: TaskStatus) => {
     switch (status) {
@@ -642,7 +630,9 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
                           </Button>
                         )}
                       </div>
-                      <p className="text-gray-700 mb-2">{remark.remark}</p>
+                      <div className="text-gray-700 mb-2">
+                        <RichTextDisplay content={remark.remark} />
+                      </div>
                       <div className="flex items-center justify-between text-sm text-gray-600">
                         <span>By {remark.user_name}</span>
                         <span>{new Date(remark.remark_date).toLocaleDateString()}</span>
@@ -1006,9 +996,11 @@ function AddRemarkForm({ onSubmit, onCancel }: AddRemarkFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (remark.trim()) {
+    // Check if remark has meaningful content (not just empty HTML tags)
+    const hasContent = remark.replace(/<[^>]*>/g, '').trim().length > 0;
+    if (hasContent) {
       onSubmit({
-        remark: remark.trim(),
+        remark: remark,
         remark_date: remarkDate,
         remark_type: remarkType,
         is_private: isPrivate
@@ -1022,13 +1014,11 @@ function AddRemarkForm({ onSubmit, onCancel }: AddRemarkFormProps) {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Remark
         </label>
-        <textarea
+        <RichTextEditor
           value={remark}
-          onChange={(e) => setRemark(e.target.value)}
-          rows={4}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          onChange={setRemark}
           placeholder="Enter your remark..."
-          required
+          height="150px"
         />
       </div>
 
@@ -1079,7 +1069,7 @@ function AddRemarkForm({ onSubmit, onCancel }: AddRemarkFormProps) {
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!remark.trim()}>
+        <Button type="submit" disabled={remark.replace(/<[^>]*>/g, '').trim().length === 0}>
           Add Remark
         </Button>
       </div>

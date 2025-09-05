@@ -123,14 +123,41 @@ class NotificationServer {
   }
 
   // Notify all team members assigned to a specific task
-  notifyTaskAssignees(taskId, event, data) {
-    // Team members will receive notifications through the project room they joined
-    // This ensures all team members assigned to tasks in that project get notified
-    console.log(`📢 Task assignee notification: ${event} sent to project room for task ${taskId}`);
+  async notifyTaskAssignees(taskId, event, data) {
+    try {
+      // Import db here to avoid circular dependency
+      const db = require('./db');
+      
+      // Get all assignees for this specific task
+      const assigneesQuery = `
+        SELECT ta.assignee_id, ta.assignee_type
+        FROM task_assignees ta
+        WHERE ta.task_id = ?
+      `;
+      
+      const assignees = await db.query(assigneesQuery, [taskId]);
+      
+      console.log(`📋 Found ${assignees.length} assignees for task ${taskId}:`, assignees);
+      
+      // Send notification to each assignee
+      for (const assignee of assignees) {
+        if (assignee.assignee_type === 'team') {
+          // Send to team member
+          this.sendToUser(assignee.assignee_id, 'team', event, data);
+        } else if (assignee.assignee_type === 'admin') {
+          // Send to admin (though they already get it via broadcastToAdmins)
+          this.sendToUser(assignee.assignee_id, 'admin', event, data);
+        }
+      }
+      
+      console.log(`📢 Task assignee notification: ${event} sent to ${assignees.length} assignees for task ${taskId}`);
+    } catch (error) {
+      console.error('Error notifying task assignees:', error);
+    }
   }
 
   // Notify about new extension request
-  notifyExtensionRequest(extensionData) {
+  async notifyExtensionRequest(extensionData) {
     const notification = {
       type: 'extension_request',
       title: 'New Extension Request',
@@ -140,20 +167,17 @@ class NotificationServer {
       priority: 'high'
     };
 
-    // Broadcast to all admins
+    // Broadcast to all admins (they can see all extension requests)
     this.broadcastToAdmins('new-notification', notification);
     
-    // Broadcast to the specific project room (includes team members assigned to that project)
-    this.broadcastToProject(extensionData.project_id, 'new-notification', notification);
+    // Get task assignees and notify only them
+    await this.notifyTaskAssignees(extensionData.task_id, 'new-notification', notification);
     
-    // Also notify the specific team members assigned to this task
-    this.notifyTaskAssignees(extensionData.task_id, 'new-notification', notification);
-    
-    console.log(`📢 Extension notification sent to ${this.adminSockets.size} admins, project ${extensionData.project_id}, and task assignees`);
+    console.log(`📢 Extension notification sent to ${this.adminSockets.size} admins and task assignees for task ${extensionData.task_id}`);
   }
 
   // Notify about new remark
-  notifyNewRemark(remarkData) {
+  async notifyNewRemark(remarkData) {
     const notification = {
       type: 'new_remark',
       title: 'New Task Remark',
@@ -163,20 +187,17 @@ class NotificationServer {
       priority: 'medium'
     };
 
-    // Broadcast to all admins
+    // Broadcast to all admins (they can see all remarks)
     this.broadcastToAdmins('new-notification', notification);
     
-    // Broadcast to the specific project room (includes team members assigned to that project)
-    this.broadcastToProject(remarkData.project_id, 'new-notification', notification);
+    // Get task assignees and notify only them
+    await this.notifyTaskAssignees(remarkData.task_id, 'new-notification', notification);
     
-    // Also notify the specific team members assigned to this task
-    this.notifyTaskAssignees(remarkData.task_id, 'new-notification', notification);
-    
-    console.log(`📢 Remark notification sent to ${this.adminSockets.size} admins, project ${remarkData.project_id}, and task assignees`);
+    console.log(`📢 Remark notification sent to ${this.adminSockets.size} admins and task assignees for task ${remarkData.task_id}`);
   }
 
   // Notify about extension review (to team member)
-  notifyExtensionReview(extensionData) {
+  async notifyExtensionReview(extensionData) {
     const notification = {
       type: 'extension_reviewed',
       title: 'Extension Request Reviewed',
@@ -187,11 +208,12 @@ class NotificationServer {
     };
 
     // Send to the team member who requested the extension
-    this.sendToUser(extensionData.requested_by, 'team', 'new-notification', notification);
+    this.sendToUser(extensionData.requested_by, extensionData.requested_by_type, 'new-notification', notification);
     
     // Also notify other team members assigned to the same task
-    // They'll receive this through the project room
-    console.log(`📢 Extension review notification sent to requester and project room for task ${extensionData.task_id}`);
+    await this.notifyTaskAssignees(extensionData.task_id, 'new-notification', notification);
+    
+    console.log(`📢 Extension review notification sent to requester and task assignees for task ${extensionData.task_id}`);
   }
 
   // Get connected users count
