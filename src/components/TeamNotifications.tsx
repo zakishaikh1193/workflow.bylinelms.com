@@ -16,7 +16,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
-import { notificationService } from '../services/apiService';
+import { notificationService as apiNotificationService } from '../services/apiService';
+import notificationService from '../services/notificationService';
 
 interface ExtensionRequest {
   id: number;
@@ -96,11 +97,23 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     loadNotifications();
   }, []);
 
+  // Real-time notification listening
+  useEffect(() => {
+    const unsubscribe = notificationService.onNotification((realTimeNotification) => {
+      console.log('📢 Real-time notification received in TeamNotifications component:', realTimeNotification);
+      
+      // Reload notifications to get the latest data
+      loadNotifications();
+    });
+
+    return unsubscribe;
+  }, []);
+
   const loadNotifications = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await notificationService.getTeamNotifications();
+      const response = await apiNotificationService.getTeamNotifications();
       setNotifications(response.data);
     } catch (err: any) {
       console.error('Failed to load notifications:', err);
@@ -211,21 +224,40 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
   };
 
   const formatTimeAgo = (dateString: string) => {
+    console.log('🕐 TeamNotifications - Original date string:', dateString);
+    
+    // Parse the date string - it's already in UTC format
     const date = new Date(dateString);
+    console.log('🕐 TeamNotifications - Parsed date (UTC):', date);
+    
+    // Use UTC time for comparison to avoid timezone issues
     const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const nowUTC = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
+    console.log('🕐 TeamNotifications - Current time (local):', now);
+    console.log('🕐 TeamNotifications - Current time (UTC):', nowUTC);
+    
+    const diffInMs = nowUTC.getTime() - date.getTime();
+    console.log('🕐 TeamNotifications - Difference in ms:', diffInMs);
+    console.log('🕐 TeamNotifications - Difference in hours:', diffInMs / (1000 * 60 * 60));
+    
+    // Handle negative differences (future dates)
+    if (diffInMs < 0) {
+      return 'Just now';
+    }
+    
+    const diffInSeconds = Math.floor(diffInMs / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInMinutes < 1) {
+    if (diffInSeconds < 60) {
       return 'Just now';
     } else if (diffInMinutes < 60) {
-      return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+      return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
     } else if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
     } else if (diffInDays < 7) {
-      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+      return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
     } else {
       return date.toLocaleDateString();
     }

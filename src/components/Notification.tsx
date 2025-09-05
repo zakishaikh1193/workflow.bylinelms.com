@@ -17,7 +17,8 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { notificationService, teamService, teamTaskService } from '../services/apiService';
+import { notificationService as apiNotificationService, teamService, teamTaskService } from '../services/apiService';
+import notificationService from '../services/notificationService';
 
 interface Notification {
   id: number;
@@ -104,11 +105,27 @@ export function Notification() {
     }
   }, [isAdmin, isTeamSession]);
 
+  // Real-time notification listening
+  useEffect(() => {
+    const unsubscribe = notificationService.onNotification((realTimeNotification) => {
+      console.log('📢 Real-time notification received in Notification component:', realTimeNotification);
+      
+      // Reload notifications to get the latest data
+      if (isAdmin) {
+        loadNotifications();
+      } else if (isTeamSession) {
+        loadTeamNotifications();
+      }
+    });
+
+    return unsubscribe;
+  }, [isAdmin, isTeamSession]);
+
   const loadNotifications = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await notificationService.getAll();
+      const response = await apiNotificationService.getAll();
       setNotifications(response.data);
     } catch (err: any) {
       console.error('Failed to load notifications:', err);
@@ -124,7 +141,7 @@ export function Notification() {
       setError(null);
       
       // Use the new team notifications endpoint
-      const response = await notificationService.getTeamNotifications();
+      const response = await apiNotificationService.getTeamNotifications();
       setNotifications(response.data);
     } catch (err: any) {
       console.error('Failed to load team notifications:', err);
@@ -256,21 +273,40 @@ export function Notification() {
   };
 
   const formatTimeAgo = (dateString: string) => {
+    console.log('🕐 Original date string:', dateString);
+    
+    // Parse the date string - it's already in UTC format
     const date = new Date(dateString);
+    console.log('🕐 Parsed date (UTC):', date);
+    
+    // Use UTC time for comparison to avoid timezone issues
     const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const nowUTC = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
+    console.log('🕐 Current time (local):', now);
+    console.log('🕐 Current time (UTC):', nowUTC);
+    
+    const diffInMs = nowUTC.getTime() - date.getTime();
+    console.log('🕐 Difference in ms:', diffInMs);
+    console.log('🕐 Difference in hours:', diffInMs / (1000 * 60 * 60));
+    
+    // Handle negative differences (future dates)
+    if (diffInMs < 0) {
+      return 'Just now';
+    }
+    
+    const diffInSeconds = Math.floor(diffInMs / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInMinutes < 1) {
+    if (diffInSeconds < 60) {
       return 'Just now';
     } else if (diffInMinutes < 60) {
-      return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+      return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
     } else if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
     } else if (diffInDays < 7) {
-      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+      return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
     } else {
       return date.toLocaleDateString();
     }
@@ -320,7 +356,7 @@ export function Notification() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
             <p className="text-gray-600">
-              {totalNotifications} new activity{totalNotifications !== 1 ? 'ies' : 'y'}
+              {totalNotifications} New Activit{totalNotifications !== 1 ? 'ies' : 'y'}
             </p>
           </div>
         </div>
