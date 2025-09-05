@@ -1438,7 +1438,7 @@ const requestTaskExtension = async (req, res) => {
           };
           
           console.log('🔍 Debug: Sending notification with data:', notificationData);
-          global.notificationServer.notifyExtensionRequest(notificationData);
+          await global.notificationServer.notifyExtensionRequest(notificationData);
           console.log('📢 Real-time notification sent for extension request');
         } else {
           console.log('⚠️ Debug: No project found for task');
@@ -1698,7 +1698,7 @@ const addTaskRemark = async (req, res) => {
           };
           
           console.log('🔍 Debug: Sending remark notification with data:', notificationData);
-          global.notificationServer.notifyNewRemark(notificationData);
+          await global.notificationServer.notifyNewRemark(notificationData);
           console.log('📢 Real-time notification sent for new remark');
         } else {
           console.log('⚠️ Debug: No task found for remark notification');

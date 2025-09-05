@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Bell, 
   Clock, 
@@ -7,17 +7,16 @@ import {
   User, 
   FileText, 
   AlertTriangle,
-  CheckCircle,
-  XCircle,
   Eye,
   RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { RichTextDisplay } from './ui/RichTextEditor';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { notificationService as apiNotificationService, teamService, teamTaskService } from '../services/apiService';
+import { notificationService as apiNotificationService } from '../services/apiService';
 import notificationService from '../services/notificationService';
 
 interface Notification {
@@ -569,9 +568,12 @@ export function Notification() {
                       </div>
                       
                       <div className="mb-3">
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Remark:</span> {remark.remark}
-                        </p>
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">Remark:</span>
+                          <div className="mt-1">
+                            <RichTextDisplay content={remark.remark} />
+                          </div>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">

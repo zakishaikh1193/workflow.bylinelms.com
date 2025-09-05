@@ -2007,11 +2007,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
                 const formUnitId = formData.unitId ? parseInt(formData.unitId) : null;
                 const formLessonId = formData.lessonId ? parseInt(formData.lessonId) : null;
 
-                console.log('🔍 Educational hierarchy matching:', {
-                  formData: { gradeId: formGradeId, bookId: formBookId, unitId: formUnitId, lessonId: formLessonId },
-                  availableHierarchy: availableEducationalHierarchy.length
-                });
-
                 const matchingHierarchyItem = availableEducationalHierarchy.find(c => {
                   return c.gradeId === formGradeId &&
                     c.bookId === formBookId &&
@@ -2019,7 +2014,6 @@ export function CreateTaskModal({ isOpen, onClose, onSubmit, users, teams, skill
                     c.lessonId === formLessonId;
                 });
 
-                console.log('🔍 Matching hierarchy item:', matchingHierarchyItem);
                 return matchingHierarchyItem ? matchingHierarchyItem.id : '';
               })()}
               onChange={(e) => {

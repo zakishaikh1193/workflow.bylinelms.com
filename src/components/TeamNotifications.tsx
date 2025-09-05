@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Bell, 
   Clock, 
@@ -7,7 +7,6 @@ import {
   User, 
   FileText, 
   AlertTriangle,
-  CheckCircle,
   XCircle,
   Eye,
   RefreshCw,
@@ -16,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { RichTextDisplay } from './ui/RichTextEditor';
 import { notificationService as apiNotificationService } from '../services/apiService';
 import notificationService from '../services/notificationService';
 
@@ -81,17 +81,6 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     } catch {}
   }, [filterType]);
 
-  // Build unique users list
-  const uniqueUsers = React.useMemo(() => {
-    const set = new Set<string>();
-    notifications.extensions.forEach(ext => {
-      if (ext.requester_name) set.add(ext.requester_name);
-    });
-    notifications.remarks.forEach(r => {
-      if (r.user_name) set.add(r.user_name);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [notifications.extensions, notifications.remarks]);
 
   useEffect(() => {
     loadNotifications();
@@ -123,7 +112,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     }
   };
 
-  const handleViewTask = (taskId: number) => {
+  const handleViewTask = () => {
     // For now, just go back to the portal
     // In a full implementation, you might want to navigate to task details
     onBack();
@@ -193,18 +182,6 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="warning">Pending</Badge>;
-      case 'approved':
-        return <Badge variant="success">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="danger">Rejected</Badge>;
-      default:
-        return <Badge variant="default">{status}</Badge>;
-    }
-  };
 
   const getRemarkTypeBadge = (type: string) => {
     switch (type) {
@@ -486,7 +463,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                           <span>Requested: {formatTimeAgo(extension.created_at)}</span>
                           <Button 
                             size="sm" 
-                            onClick={() => handleViewTask(extension.task_id)}
+                            onClick={handleViewTask}
                             className="flex items-center space-x-1"
                           >
                             <Eye className="w-3 h-3" />
@@ -539,9 +516,12 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                         </div>
                         
                         <div className="mb-3">
-                          <p className="text-sm text-gray-700">
-                            <span className="font-medium">Remark:</span> {remark.remark}
-                          </p>
+                          <div className="text-sm text-gray-700">
+                            <span className="font-medium">Remark:</span>
+                            <div className="mt-1">
+                              <RichTextDisplay content={remark.remark} />
+                            </div>
+                          </div>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
@@ -570,7 +550,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                         <div className="flex items-center justify-end">
                           <Button 
                             size="sm" 
-                            onClick={() => handleViewTask(remark.task_id)}
+                            onClick={handleViewTask}
                             className="flex items-center space-x-1"
                           >
                             <Eye className="w-3 h-3" />

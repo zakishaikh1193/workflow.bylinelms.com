@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CheckSquare,
   Clock,
-  Calendar,
   AlertTriangle,
   Award,
   Flag,
   MessageSquare,
   TrendingUp,
-  User,
   LogOut,
   CheckCircle,
-  XCircle,
   RefreshCw,
   Target,
   BarChart3,
@@ -19,14 +16,13 @@ import {
   Home,
   Settings,
   Bell,
-  Wifi,
   WifiOff
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
-import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
+import { RichTextEditor, RichTextDisplay } from './ui/RichTextEditor';
 import { teamTaskService, teamProjectService, teamService, performanceFlagService, notificationService } from '../services/apiService';
 import { TeamNotifications } from './TeamNotifications';
 import type { Task, User as UserType } from '../types';
@@ -61,7 +57,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [recentNotifications, setRecentNotifications] = useState<RealTimeNotification[]>([]);
+  const [, setRecentNotifications] = useState<RealTimeNotification[]>([]);
 
   // Load user's data
   useEffect(() => {
@@ -174,24 +170,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
   // Performance metrics
   const completionRate = userTasks.length > 0 ? Math.round((completedTasks.length / userTasks.length) * 100) : 0;
-  const onTimeCompletions = completedTasks.filter(task =>
-    task.updated_at && task.end_date && new Date(task.updated_at) <= new Date(task.end_date)
-  ).length;
 
-  const handleMarkComplete = async (taskId: string) => {
-    try {
-      await teamTaskService.update(taskId, {
-        status: 'completed',
-        progress: 100,
-        actual_hours: 0 // You might want to add actual hours tracking
-      });
-
-      // Refresh data
-      await loadUserData();
-    } catch (error) {
-      console.error('Failed to mark task complete:', error);
-    }
-  };
 
   const handleRequestExtension = (task: Task) => {
     setSelectedTask(task);
@@ -248,7 +227,10 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   };
 
   const submitRemark = async () => {
-    if (selectedTask) {
+    // Check if remark has meaningful content (not just empty HTML tags)
+    const hasContent = remarkContent.replace(/<[^>]*>/g, '').trim().length > 0;
+    
+    if (selectedTask && hasContent) {
       try {
         // Add remark using the new API
         await teamTaskService.addRemark(selectedTask.id, {
@@ -271,14 +253,6 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     setRemarkType('general');
   };
 
-  const getTaskPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'text-red-600 bg-red-50';
-      case 'high': return 'text-orange-600 bg-orange-50';
-      case 'medium': return 'text-blue-600 bg-blue-50';
-      default: return 'text-gray-600 bg-gray-50';
-    }
-  };
 
   const isTaskOverdue = (task: Task) => {
     if (!task.end_date) return false;
@@ -845,7 +819,9 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                                             <div className="text-sm text-gray-800 font-medium">{r.remark_type || 'general'}</div>
                                             <div className="text-xs text-gray-500">{new Date(r.created_at || r.remark_date).toLocaleString()}</div>
                                           </div>
-                                          <div className="text-sm text-gray-700 mt-1">{r.remark}</div>
+                                          <div className="text-sm text-gray-700 mt-1">
+                                            <RichTextDisplay content={r.remark} />
+                                          </div>
                                           {r.user_name && (
                                             <div className="text-xs text-gray-500 mt-1">by {r.user_name}</div>
                                           )}
@@ -1008,13 +984,11 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             <label className="block text-sm font-semibold text-gray-700 mb-3">
               Remark Content
             </label>
-            <textarea
+            <RichTextEditor
               value={remarkContent}
-              onChange={(e) => setRemarkContent(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-              rows={4}
+              onChange={setRemarkContent}
               placeholder="Add your remark or comment about this task..."
-              required
+              height="150px"
             />
           </div>
 
@@ -1028,7 +1002,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             </Button>
             <Button
               onClick={submitRemark}
-              disabled={!remarkContent.trim()}
+              disabled={remarkContent.replace(/<[^>]*>/g, '').trim().length === 0}
               className="px-6 py-3 font-semibold bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
             >
               Add Remark
