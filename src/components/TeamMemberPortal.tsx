@@ -116,6 +116,13 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     try {
       setLoading(true);
 
+      // Check if team token is expired before making API calls
+      if (tokenService.isTeamTokenExpired()) {
+        console.log('🚨 Team member token expired, logging out...');
+        onLogout();
+        return;
+      }
+
       // Load user's tasks, projects, and performance flags using team-specific APIs
       const [tasksData, projectsData, flagsData] = await Promise.all([
         teamService.getMyTasks(),
@@ -126,8 +133,14 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
       setUserTasks(tasksData);
       setUserProjects(projectsData);
       setPerformanceFlags(flagsData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load user data:', error);
+      
+      // Check if it's an authentication error
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('Token expired')) {
+        console.log('🚨 Authentication error, logging out team member...');
+        onLogout();
+      }
     } finally {
       setLoading(false);
     }
@@ -135,6 +148,13 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
   const loadNotificationCount = async () => {
     try {
+      // Check if team token is expired before making API calls
+      if (tokenService.isTeamTokenExpired()) {
+        console.log('🚨 Team member token expired, logging out...');
+        onLogout();
+        return;
+      }
+
       const response = await notificationService.getTeamNotifications();
       const { extensions, remarks } = response.data;
       
@@ -148,8 +168,16 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
       );
       
       setNotificationCount(newExtensions.length + newRemarks.length);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load notification count:', error);
+      
+      // Check if it's an authentication error
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('Token expired')) {
+        console.log('🚨 Authentication error, logging out team member...');
+        onLogout();
+        return;
+      }
+      
       // Don't set count to 0 on error, just keep the previous count
       // This prevents the notification bell from disappearing on temporary errors
     }
@@ -207,6 +235,13 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const submitExtensionRequest = async () => {
     if (selectedTask) {
       try {
+        // Check if team token is expired before making API calls
+        if (tokenService.isTeamTokenExpired()) {
+          console.log('🚨 Team member token expired, logging out...');
+          onLogout();
+          return;
+        }
+
         // Request extension using the new API
         await teamTaskService.requestExtension(selectedTask.id, {
           requested_due_date: extensionDate, // This will be the new date
@@ -215,8 +250,14 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
         // Refresh data
         await loadUserData();
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to submit extension request:', error);
+        
+        // Check if it's an authentication error
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('Token expired')) {
+          console.log('🚨 Authentication error, logging out team member...');
+          onLogout();
+        }
       }
     }
 
@@ -232,6 +273,13 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     
     if (selectedTask && hasContent) {
       try {
+        // Check if team token is expired before making API calls
+        if (tokenService.isTeamTokenExpired()) {
+          console.log('🚨 Team member token expired, logging out...');
+          onLogout();
+          return;
+        }
+
         // Add remark using the new API
         await teamTaskService.addRemark(selectedTask.id, {
           remark: remarkContent,
@@ -241,8 +289,14 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
         // Refresh data
         await loadUserData();
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to add remark:', error);
+        
+        // Check if it's an authentication error
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('Token expired')) {
+          console.log('🚨 Authentication error, logging out team member...');
+          onLogout();
+        }
       }
     }
 

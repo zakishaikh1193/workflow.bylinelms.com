@@ -30,14 +30,27 @@ function App() {
         const teamUserData = localStorage.getItem('teamUserData');
         
         if (teamToken && teamUserData) {
-          const parsedUser = JSON.parse(teamUserData);
-          setTeamMemberUser(parsedUser);
-          setShowTeamPortal(true);
+          // Check if team token is expired
+          if (tokenService.isTeamTokenExpired()) {
+            console.log('🚨 Team member token expired, clearing session...');
+            localStorage.removeItem('teamToken');
+            localStorage.removeItem('teamUserData');
+            localStorage.removeItem('teamRefreshToken');
+            setTeamMemberUser(null);
+            setShowTeamPortal(false);
+          } else {
+            const parsedUser = JSON.parse(teamUserData);
+            setTeamMemberUser(parsedUser);
+            setShowTeamPortal(true);
+          }
         }
       } catch (error) {
         // Clear invalid data
         localStorage.removeItem('teamToken');
         localStorage.removeItem('teamUserData');
+        localStorage.removeItem('teamRefreshToken');
+        setTeamMemberUser(null);
+        setShowTeamPortal(false);
       } finally {
         setTeamSessionLoading(false);
       }
@@ -65,9 +78,25 @@ function App() {
       console.log('🔐 Initializing token auto-refresh for team member...');
       tokenService.initializeTeamAutoRefresh();
       
+      // Set up periodic token expiration checking for team members
+      const checkTokenExpiration = () => {
+        if (tokenService.isTeamTokenExpired()) {
+          console.log('🚨 Team member token expired during session, logging out...');
+          localStorage.removeItem('teamToken');
+          localStorage.removeItem('teamUserData');
+          localStorage.removeItem('teamRefreshToken');
+          setTeamMemberUser(null);
+          setShowTeamPortal(false);
+        }
+      };
+      
+      // Check token expiration every 5 minutes
+      const expirationCheckInterval = setInterval(checkTokenExpiration, 5 * 60 * 1000);
+      
       return () => {
         console.log('🧹 Cleaning up team token service...');
         tokenService.cleanup();
+        clearInterval(expirationCheckInterval);
       };
     }
   }, [teamMemberUser]);

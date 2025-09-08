@@ -12,7 +12,7 @@ function generateToken(user) {
       type: 'admin'
     },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '10d' }
   );
 }
 
@@ -26,7 +26,7 @@ function generateTeamToken(user) {
       type: 'team'
     },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '10d' }
   );
 }
 
@@ -35,7 +35,7 @@ function generateRefreshToken(user) {
   return jwt.sign(
     { id: user.id, type: 'admin' },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '10d' }
   );
 }
 
@@ -44,7 +44,7 @@ function generateTeamRefreshToken(user) {
   return jwt.sign(
     { id: user.id, type: 'team' },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '10d' }
   );
 }
 
@@ -53,7 +53,7 @@ function generateRefreshToken(user) {
   return jwt.sign(
     { id: user.id, type: 'admin' },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '10d' }
   );
 }
 
@@ -106,7 +106,7 @@ const authController = {
       // Store session in database
       const sessionId = `admin_${admin.id}_${Date.now()}`;
       await db.execute(
-        'INSERT INTO admin_sessions (id, user_id, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR))',
+        'INSERT INTO admin_sessions (id, user_id, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 DAY))',
         [sessionId, admin.id, accessToken, refreshToken]
       );
 
@@ -120,7 +120,7 @@ const authController = {
           user: admin,
           access_token: accessToken,
           refresh_token: refreshToken,
-          expires_in: 24 * 60 * 60 // 24 hours in seconds
+          expires_in: 10 * 24 * 60 * 60 // 10 days in seconds
         }
       });
 
@@ -223,7 +223,7 @@ const authController = {
 
       // Update session
       await db.execute(
-        'UPDATE admin_sessions SET access_token = ?, refresh_token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 24 HOUR), updated_at = NOW() WHERE id = ?',
+        'UPDATE admin_sessions SET access_token = ?, refresh_token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 DAY), updated_at = NOW() WHERE id = ?',
         [newAccessToken, newRefreshToken, session.id]
       );
 
@@ -235,7 +235,7 @@ const authController = {
           user: admin,
           access_token: newAccessToken,
           refresh_token: newRefreshToken,
-          expires_in: 24 * 60 * 60
+          expires_in: 10 * 24 * 60 * 60
         }
       });
 
@@ -295,7 +295,7 @@ const authController = {
 
       // Update session with new tokens
       await db.execute(
-        'UPDATE team_sessions SET access_token = ?, refresh_token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 24 HOUR), updated_at = NOW() WHERE id = ?',
+        'UPDATE team_sessions SET access_token = ?, refresh_token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 DAY), updated_at = NOW() WHERE id = ?',
         [newAccessToken, newRefreshToken, session.id]
       );
 
@@ -305,7 +305,7 @@ const authController = {
         data: {
           access_token: newAccessToken,
           refresh_token: newRefreshToken,
-          expires_in: 24 * 60 * 60 // 24 hours in seconds
+          expires_in: 10 * 24 * 60 * 60 // 10 days in seconds
         }
       });
 
@@ -418,13 +418,13 @@ const authController = {
           type: 'team'
         },
         process.env.JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: '10d' }
       );
 
       // Create session record
       const sessionId = `team_${teamMember.id}_${Date.now()}`;
       await db.execute(
-        'INSERT INTO team_member_sessions (id, team_member_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR))',
+        'INSERT INTO team_member_sessions (id, team_member_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 DAY))',
         [sessionId, teamMember.id]
       );
 
@@ -445,7 +445,7 @@ const authController = {
         data: {
           user: teamMember,
           session_token: sessionToken,
-          expires_in: 24 * 60 * 60
+          expires_in: 10 * 24 * 60 * 60 // 10 days in seconds
         }
       });
 

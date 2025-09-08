@@ -306,7 +306,7 @@ class TokenService {
           Your session has expired for security reasons. You'll be redirected to the login page in a few seconds.
         </p>
         <div style="font-size: 12px; opacity: 0.7;">
-          This is normal after 24 hours of inactivity
+          This is normal after 10 days of inactivity
         </div>
       </div>
     `;
