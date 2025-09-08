@@ -71,7 +71,7 @@ const authenticateTeamMember = async (req, res) => {
         type: 'team'
       },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '10d' }
     );
 
     res.json({
