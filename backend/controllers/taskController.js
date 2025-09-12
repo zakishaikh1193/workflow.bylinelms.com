@@ -1185,6 +1185,66 @@ const updateTask = async (req, res) => {
     // Recalculate project progress
     await recalculateProjectProgress(updatedTask.project_id);
 
+    // Send notification if task was marked as completed by a team member
+    if (status === 'completed' && req.user?.type === 'team') {
+      try {
+        const notificationServer = global.notificationServer;
+        
+        // Get user name
+        const userQuery = 'SELECT name FROM team_members WHERE id = ?';
+        const users = await db.query(userQuery, [req.user.id]);
+        const userName = users.length > 0 ? users[0].name : 'Unknown User';
+        
+        // Get task hierarchy information
+        const hierarchyQuery = `
+          SELECT 
+            t.name as task_name,
+            g.name as grade_name,
+            b.name as book_name,
+            u.name as unit_name,
+            l.name as lesson_name,
+            cs.name as stage_name
+          FROM tasks t
+          LEFT JOIN grades g ON t.grade_id = g.id
+          LEFT JOIN books b ON t.book_id = b.id
+          LEFT JOIN units u ON t.unit_id = u.id
+          LEFT JOIN lessons l ON t.lesson_id = l.id
+          LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
+          WHERE t.id = ?
+        `;
+        const hierarchyResult = await db.query(hierarchyQuery, [id]);
+        
+        if (hierarchyResult.length > 0) {
+          const taskData = hierarchyResult[0];
+          
+          // Build hierarchy string
+          const hierarchyParts = [];
+          if (taskData.grade_name) hierarchyParts.push(taskData.grade_name);
+          if (taskData.book_name) hierarchyParts.push(taskData.book_name);
+          if (taskData.unit_name) hierarchyParts.push(taskData.unit_name);
+          if (taskData.lesson_name) hierarchyParts.push(taskData.lesson_name);
+          const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
+          
+          const completionData = {
+            task_id: id,
+            task_name: taskData.task_name,
+            user_name: userName,
+            user_id: req.user.id,
+            user_type: 'team',
+            hierarchy: hierarchy,
+            stage_name: taskData.stage_name || 'No stage',
+            completed_at: new Date().toISOString()
+          };
+          
+          await notificationServer.notifyTaskCompletion(completionData);
+          console.log(`📢 Task completion notification sent for task ${id} by ${userName}`);
+        }
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+        // Don't fail the request if notification fails
+      }
+    }
+
     res.json({
       success: true,
       data: updatedTask,
@@ -1240,6 +1300,92 @@ const deleteTask = async (req, res) => {
       error: {
         code: 'DATABASE_ERROR',
         message: 'Failed to delete task'
+      }
+    });
+  }
+};
+
+// Bulk delete tasks
+const bulkDeleteTasks = async (req, res) => {
+  try {
+    const { taskIds } = req.body;
+
+    // Validate input
+    if (!Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'Task IDs array is required and must not be empty'
+        }
+      });
+    }
+
+    // Validate that all IDs are numbers
+    const invalidIds = taskIds.filter(id => !Number.isInteger(Number(id)));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: `Invalid task IDs: ${invalidIds.join(', ')}`
+        }
+      });
+    }
+
+    // Check if all tasks exist and get their project_ids
+    const placeholders = taskIds.map(() => '?').join(',');
+    const existing = await db.query(`SELECT id, project_id FROM tasks WHERE id IN (${placeholders})`, taskIds);
+    
+    if (existing.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'No tasks found with the provided IDs'
+        }
+      });
+    }
+
+    // Check if some tasks were not found
+    const foundIds = existing.map(task => task.id);
+    const notFoundIds = taskIds.filter(id => !foundIds.includes(Number(id)));
+    
+    if (notFoundIds.length > 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `Tasks not found: ${notFoundIds.join(', ')}`
+        }
+      });
+    }
+
+    // Get unique project IDs for progress recalculation
+    const projectIds = [...new Set(existing.map(task => task.project_id))];
+
+    // Delete tasks (CASCADE will handle related records)
+    await db.query(`DELETE FROM tasks WHERE id IN (${placeholders})`, taskIds);
+
+    // Recalculate progress for all affected projects
+    for (const projectId of projectIds) {
+      await recalculateProjectProgress(projectId);
+    }
+
+    res.json({
+      success: true,
+      message: `${taskIds.length} task(s) deleted successfully`,
+      deletedCount: taskIds.length,
+      affectedProjects: projectIds.length
+    });
+
+  } catch (error) {
+    console.error('Bulk delete tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to delete tasks'
       }
     });
   }
@@ -1886,9 +2032,41 @@ const getNotifications = async (req, res) => {
       LIMIT 50
     `;
     
-    const [extensions, remarks] = await Promise.all([
+    // Get recently completed tasks (last 7 days) by team members
+    const completedTasksQuery = `
+      SELECT DISTINCT
+        t.id as task_id,
+        t.name as task_name,
+        t.status,
+        t.updated_at as completed_at,
+        p.name as project_name,
+        g.name as grade_name,
+        b.name as book_name,
+        u.name as unit_name,
+        l.name as lesson_name,
+        cs.name as stage_name,
+        tm.name as completed_by_name,
+        tm.id as completed_by_id
+      FROM tasks t
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN grades g ON t.grade_id = g.id
+      LEFT JOIN books b ON t.book_id = b.id
+      LEFT JOIN units u ON t.unit_id = u.id
+      LEFT JOIN lessons l ON t.lesson_id = l.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
+      LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignee_type = 'team'
+      LEFT JOIN team_members tm ON ta.assignee_id = tm.id
+      WHERE t.status = 'completed' 
+        AND t.updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND ta.assignee_type = 'team'
+      ORDER BY t.updated_at DESC
+      LIMIT 50
+    `;
+    
+    const [extensions, remarks, completedTasks] = await Promise.all([
       db.query(extensionQuery),
-      db.query(remarksQuery)
+      db.query(remarksQuery),
+      db.query(completedTasksQuery)
     ]);
     
     // Format the data - db.query returns rows directly, not nested arrays
@@ -1921,7 +2099,30 @@ const getNotifications = async (req, res) => {
         is_private: remark.is_private,
         created_at: remark.created_at,
         is_new: true // All recent remarks are considered new
-      }))
+      })),
+      completedTasks: completedTasks.map(task => {
+        // Build hierarchy string
+        const hierarchyParts = [];
+        if (task.grade_name) hierarchyParts.push(task.grade_name);
+        if (task.book_name) hierarchyParts.push(task.book_name);
+        if (task.unit_name) hierarchyParts.push(task.unit_name);
+        if (task.lesson_name) hierarchyParts.push(task.lesson_name);
+        const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
+        
+        return {
+          id: `completed_${task.task_id}_${task.completed_by_id}`,
+          type: 'task_completed',
+          task_id: task.task_id,
+          task_name: task.task_name,
+          project_name: task.project_name,
+          completed_by_name: task.completed_by_name,
+          completed_by_id: task.completed_by_id,
+          completed_at: task.completed_at,
+          hierarchy: hierarchy,
+          stage_name: task.stage_name || 'No stage',
+          is_new: new Date(task.completed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if completed in last 24h
+        };
+      })
     };
     
     res.json({
@@ -1957,7 +2158,7 @@ const getTeamNotifications = async (req, res) => {
     if (tasks.length === 0) {
       return res.json({
         success: true,
-        data: { extensions: [], remarks: [] }
+        data: { extensions: [], remarks: [], completedTasks: [] }
       });
     }
     
@@ -2038,9 +2239,42 @@ const getTeamNotifications = async (req, res) => {
       ORDER BY tr.created_at DESC
     `;
     
-    const [extensions, remarks] = await Promise.all([
+    // Get recently completed tasks by this team member (last 7 days)
+    const completedTasksQuery = `
+      SELECT DISTINCT
+        t.id as task_id,
+        t.name as task_name,
+        t.status,
+        t.updated_at as completed_at,
+        p.name as project_name,
+        g.name as grade_name,
+        b.name as book_name,
+        u.name as unit_name,
+        l.name as lesson_name,
+        cs.name as stage_name,
+        tm.name as completed_by_name,
+        tm.id as completed_by_id
+      FROM tasks t
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN grades g ON t.grade_id = g.id
+      LEFT JOIN books b ON t.book_id = b.id
+      LEFT JOIN units u ON t.unit_id = u.id
+      LEFT JOIN lessons l ON t.lesson_id = l.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
+      LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignee_type = 'team'
+      LEFT JOIN team_members tm ON ta.assignee_id = tm.id
+      WHERE t.status = 'completed' 
+        AND t.updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND ta.assignee_id = ?
+        AND ta.assignee_type = 'team'
+      ORDER BY t.updated_at DESC
+      LIMIT 50
+    `;
+    
+    const [extensions, remarks, completedTasks] = await Promise.all([
       db.query(extensionQuery, taskIds),
-      db.query(remarksQuery, taskIds)
+      db.query(remarksQuery, taskIds),
+      db.query(completedTasksQuery, [teamMemberId])
     ]);
     
     // Format the data for team member notifications
@@ -2077,7 +2311,30 @@ const getTeamNotifications = async (req, res) => {
         is_private: remark.is_private,
         created_at: remark.created_at,
         is_new: new Date(remark.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if created in last 24h
-      }))
+      })),
+      completedTasks: completedTasks.map(task => {
+        // Build hierarchy string
+        const hierarchyParts = [];
+        if (task.grade_name) hierarchyParts.push(task.grade_name);
+        if (task.book_name) hierarchyParts.push(task.book_name);
+        if (task.unit_name) hierarchyParts.push(task.unit_name);
+        if (task.lesson_name) hierarchyParts.push(task.lesson_name);
+        const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
+        
+        return {
+          id: `completed_${task.task_id}_${task.completed_by_id}`,
+          type: 'task_completed',
+          task_id: task.task_id,
+          task_name: task.task_name,
+          project_name: task.project_name,
+          completed_by_name: task.completed_by_name,
+          completed_by_id: task.completed_by_id,
+          completed_at: task.completed_at,
+          hierarchy: hierarchy,
+          stage_name: task.stage_name || 'No stage',
+          is_new: new Date(task.completed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if completed in last 24h
+        };
+      })
     };
     
     res.json({
@@ -2101,6 +2358,7 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
+  bulkDeleteTasks,
   testStageFilter,
   bulkCreateTasks,
   // Extension endpoints

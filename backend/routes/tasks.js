@@ -6,6 +6,7 @@ const {
   createTask,
   updateTask,
   deleteTask,
+  bulkDeleteTasks,
   testStageFilter,
   bulkCreateTasks,
   // Extension endpoints
@@ -322,6 +323,21 @@ router.put('/:id',
   taskUpdateValidation,
   handleValidationErrors,
   updateTask
+);
+
+// Bulk delete tasks (must come before /:id route)
+router.delete('/bulk',
+  requireAuth,
+  [
+    body('taskIds')
+      .isArray({ min: 1 })
+      .withMessage('Task IDs must be a non-empty array'),
+    body('taskIds.*')
+      .isInt({ min: 1 })
+      .withMessage('Each task ID must be a positive integer')
+  ],
+  handleValidationErrors,
+  bulkDeleteTasks
 );
 
 // Delete task

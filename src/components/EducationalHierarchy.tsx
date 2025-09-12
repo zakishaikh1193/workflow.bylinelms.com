@@ -416,6 +416,11 @@ const EducationalHierarchy: React.FC<EducationalHierarchyProps> = ({ projectId }
               onAddLesson={handleAddLesson}
               onEditUnit={handleEditUnit}
               onDeleteUnit={handleDeleteUnit}
+              onEditLesson={(lesson) => {
+                setEditingLesson(lesson);
+                setShowLessonModal(true);
+              }}
+              onDeleteLesson={handleDeleteLesson}
             />
           ))
         )}
@@ -485,6 +490,8 @@ interface GradeItemProps {
   onAddLesson: (unitId: number) => void;
   onEditUnit: (unit: Unit) => void;
   onDeleteUnit: (unitId: number) => void;
+  onEditLesson: (lesson: Lesson) => void;
+  onDeleteLesson: (lessonId: number) => void;
 }
 
 const GradeItem: React.FC<GradeItemProps> = ({
@@ -502,7 +509,9 @@ const GradeItem: React.FC<GradeItemProps> = ({
   onDeleteBook,
   onAddLesson,
   onEditUnit,
-  onDeleteUnit
+  onDeleteUnit,
+  onEditLesson,
+  onDeleteLesson
 }) => {
   return (
     <Card>
@@ -567,6 +576,8 @@ const GradeItem: React.FC<GradeItemProps> = ({
                     onAddLesson={onAddLesson}
                     onEditUnit={onEditUnit}
                     onDeleteUnit={onDeleteUnit}
+                    onEditLesson={onEditLesson}
+                    onDeleteLesson={onDeleteLesson}
                   />
                 ))}
               </div>
@@ -589,9 +600,11 @@ interface BookItemProps {
   onAddLesson: (unitId: number) => void;
   onEditUnit: (unit: Unit) => void;
   onDeleteUnit: (unitId: number) => void;
+  onEditLesson: (lesson: Lesson) => void;
+  onDeleteLesson: (lessonId: number) => void;
 }
 
-const BookItem: React.FC<BookItemProps> = ({ book, units, lessons, onAddUnit, onEditBook, onDeleteBook, onAddLesson, onEditUnit, onDeleteUnit }) => {
+const BookItem: React.FC<BookItemProps> = ({ book, units, lessons, onAddUnit, onEditBook, onDeleteBook, onAddLesson, onEditUnit, onDeleteUnit, onEditLesson, onDeleteLesson }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -648,6 +661,8 @@ const BookItem: React.FC<BookItemProps> = ({ book, units, lessons, onAddUnit, on
                   onAddLesson={onAddLesson}
                   onEditUnit={onEditUnit}
                   onDeleteUnit={onDeleteUnit}
+                  onEditLesson={onEditLesson}
+                  onDeleteLesson={onDeleteLesson}
                 />
               ))
           )}
@@ -664,9 +679,11 @@ interface UnitItemProps {
   onAddLesson: (unitId: number) => void;
   onEditUnit: (unit: Unit) => void;
   onDeleteUnit: (unitId: number) => void;
+  onEditLesson: (lesson: Lesson) => void;
+  onDeleteLesson: (lessonId: number) => void;
 }
 
-const UnitItem: React.FC<UnitItemProps> = ({ unit, lessons, onAddLesson, onEditUnit, onDeleteUnit }) => {
+const UnitItem: React.FC<UnitItemProps> = ({ unit, lessons, onAddLesson, onEditUnit, onDeleteUnit, onEditLesson, onDeleteLesson }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -713,10 +730,28 @@ const UnitItem: React.FC<UnitItemProps> = ({ unit, lessons, onAddLesson, onEditU
             </div>
           ) : (
             lessons.map((lesson) => (
-              <div key={lesson.id} className="ml-6 flex items-center space-x-2">
-                <FileText className="w-3 h-3 text-orange-600" />
-                <span className="text-sm text-gray-900">{lesson.name}</span>
-                                 <Badge variant="secondary">{typeof lesson.weight === 'number' ? lesson.weight.toFixed(1) : '0.0'}%</Badge>
+              <div key={lesson.id} className="ml-6 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-3 h-3 text-orange-600" />
+                  <span className="text-sm text-gray-900">{lesson.name}</span>
+                  <Badge variant="secondary">{typeof lesson.weight === 'number' ? lesson.weight.toFixed(1) : '0.0'}%</Badge>
+                </div>
+                <div className="flex space-x-1">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => onEditLesson(lesson)}
+                  >
+                    <Edit className="w-3 h-3" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => onDeleteLesson(lesson.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
             ))
           )}

@@ -15,6 +15,7 @@ import type { User as UserType } from './types';
 import tokenService from './services/tokenService';
 
 import { MainApp } from './components/MainApp';
+import { ToastProvider } from './components/ui/Toast';
 
 function App() {
   const { user, loading } = useAuth();
@@ -126,13 +127,15 @@ function App() {
     }
     
     return (
-      <TeamMemberPortal 
-        user={teamMemberUser} 
-        onLogout={() => {
-          setTeamMemberUser(null);
-          setShowTeamPortal(false);
-        }} 
-      />
+      <ToastProvider>
+        <TeamMemberPortal 
+          user={teamMemberUser} 
+          onLogout={() => {
+            setTeamMemberUser(null);
+            setShowTeamPortal(false);
+          }} 
+        />
+      </ToastProvider>
     );
   }
 

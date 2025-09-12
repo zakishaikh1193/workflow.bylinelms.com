@@ -216,6 +216,27 @@ class NotificationServer {
     console.log(`📢 Extension review notification sent to requester and task assignees for task ${extensionData.task_id}`);
   }
 
+  // Notify about task completion (to admins)
+  async notifyTaskCompletion(completionData) {
+    const notification = {
+      type: 'task_completed',
+      title: 'Task Completed',
+      message: `${completionData.user_name} has marked "${completionData.task_name}" as completed`,
+      description: `Hierarchy: ${completionData.hierarchy}\nStage: ${completionData.stage_name}`,
+      data: completionData,
+      timestamp: new Date().toISOString(),
+      priority: 'medium'
+    };
+
+    // Broadcast to all admins (they should know about task completions)
+    this.broadcastToAdmins('new-notification', notification);
+    
+    // Also notify other team members assigned to the same task
+    await this.notifyTaskAssignees(completionData.task_id, 'new-notification', notification);
+    
+    console.log(`📢 Task completion notification sent to ${this.adminSockets.size} admins and task assignees for task ${completionData.task_id}`);
+  }
+
   // Get connected users count
   getConnectedUsersCount() {
     return {
