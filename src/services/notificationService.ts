@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
 export interface RealTimeNotification {
-  type: 'extension_request' | 'new_remark' | 'extension_reviewed';
+  type: 'extension_request' | 'new_remark' | 'extension_reviewed' | 'task_under_review' | 'task_completed' | 'task_reviewed';
   title: string;
   message: string;
   data: any;

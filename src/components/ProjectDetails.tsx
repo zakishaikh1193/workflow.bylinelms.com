@@ -475,23 +475,54 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     }
   };
 
+  const [isBulkCreateModalOpen, setIsBulkCreateModalOpen] = useState(false);
+  const [bulkCreatePreview, setBulkCreatePreview] = useState<any>(null);
+  const [selectedStages, setSelectedStages] = useState<number[]>([]);
+  const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+
   const handleBulkCreateTasks = async () => {
     try {
       setLoading(true);
       
-      // Call the bulk create API using the proper service
-      const result = await apiService.post(`/tasks/project/${project.id}/bulk-create`, {});
+      // Get the bulk create preview first
+      const previewResult = await apiService.get(`/tasks/project/${project.id}/bulk-create-preview`);
+
+      if (previewResult.success) {
+        setBulkCreatePreview(previewResult.data);
+        setSelectedStages([]); // Reset selection
+        setIsBulkCreateModalOpen(true);
+      } else {
+        throw new Error(previewResult.error?.message || 'Failed to get bulk create preview');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to get bulk create preview:', error);
+      alert(`❌ Error: ${error.message || 'Failed to get bulk create preview'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmBulkCreate = async () => {
+    if (selectedStages.length === 0) {
+      alert('Please select at least one stage to create tasks for.');
+      return;
+    }
+
+    try {
+      setIsCreatingTasks(true);
+      
+      // Call the bulk create API with selected stages
+      const result = await apiService.post(`/tasks/project/${project.id}/bulk-create`, {
+        selected_stage_ids: selectedStages
+      });
 
       if (result.success) {
         // Show success message
         alert(`🎉 Successfully created ${result.data.created_tasks} tasks!\n\n` +
               `Project: ${result.data.project_name}\n` +
-              `Stages: ${result.data.total_stages}\n` +
-              `Hierarchy Units: ${result.data.total_lowest_units}\n` +
-              `Expected Tasks: ${result.data.expected_tasks}\n` +
+              `Selected Stages: ${selectedStages.length}\n` +
               `Created: ${result.data.created_tasks}\n` +
-              `Skipped: ${result.data.skipped_tasks}\n\n` +
-              `Tasks will be created for each lowest hierarchical unit across all stages.`);
+              `Skipped: ${result.data.skipped_tasks}`);
         
         // Refresh project tasks
         const tasksData = await taskService.getAll({ all: 'true' });
@@ -504,6 +535,11 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         const currentProjectData = await projectService.getById(project.id);
         setCurrentProject(currentProjectData);
         
+        // Close modal
+        setIsBulkCreateModalOpen(false);
+        setBulkCreatePreview(null);
+        setSelectedStages([]);
+        
         console.log('✅ Bulk task creation completed:', result.data);
       } else {
         throw new Error(result.error?.message || 'Failed to bulk create tasks');
@@ -512,7 +548,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       console.error('❌ Failed to bulk create tasks:', error);
       alert(`❌ Error: ${error.message || 'Failed to bulk create tasks'}`);
     } finally {
-      setLoading(false);
+      setIsCreatingTasks(false);
     }
   };
 
@@ -2017,6 +2053,21 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
          projectTeams={projectTeams}
        />
 
+       {/* Bulk Create Tasks Modal */}
+       <BulkCreateTasksModal
+         isOpen={isBulkCreateModalOpen}
+         onClose={() => {
+           setIsBulkCreateModalOpen(false);
+           setBulkCreatePreview(null);
+           setSelectedStages([]);
+         }}
+         onSubmit={handleConfirmBulkCreate}
+         preview={bulkCreatePreview}
+         selectedStages={selectedStages}
+         setSelectedStages={setSelectedStages}
+         isCreating={isCreatingTasks}
+       />
+
        {/* Bulk Delete Confirmation Modal */}
        <Modal
          isOpen={isBulkDeleteModalOpen}
@@ -2256,6 +2307,201 @@ function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMe
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Bulk Create Tasks Modal Component
+interface BulkCreateTasksModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  preview: any;
+  selectedStages: number[];
+  setSelectedStages: (stages: number[]) => void;
+  isCreating: boolean;
+}
+
+function BulkCreateTasksModal({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  preview, 
+  selectedStages, 
+  setSelectedStages, 
+  isCreating 
+}: BulkCreateTasksModalProps) {
+  const handleStageToggle = (stageId: number) => {
+    if (selectedStages.includes(stageId)) {
+      setSelectedStages(selectedStages.filter(id => id !== stageId));
+    } else {
+      setSelectedStages([...selectedStages, stageId]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (preview?.stages) {
+      setSelectedStages(preview.stages.map((stage: any) => stage.stage_id));
+    }
+  };
+
+  const handleSelectNone = () => {
+    setSelectedStages([]);
+  };
+
+  const getTotalTasksToCreate = () => {
+    if (!preview?.stages) return 0;
+    return preview.stages
+      .filter((stage: any) => selectedStages.includes(stage.stage_id))
+      .reduce((sum: number, stage: any) => sum + stage.would_create, 0);
+  };
+
+  const getTotalTasksToSkip = () => {
+    if (!preview?.stages) return 0;
+    return preview.stages
+      .filter((stage: any) => selectedStages.includes(stage.stage_id))
+      .reduce((sum: number, stage: any) => sum + stage.would_skip, 0);
+  };
+
+  if (!preview) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Create Tasks">
+      <div className="space-y-6">
+        {/* Project Info */}
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h3 className="font-semibold text-blue-900 mb-2">Project: {preview.project_name}</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-blue-800">Total Stages:</span>
+              <span className="ml-2 text-blue-700">{preview.total_stages}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-800">Hierarchy Units:</span>
+              <span className="ml-2 text-blue-700">{preview.total_lowest_units}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Stage Selection */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Select Stages</h3>
+            <div className="flex space-x-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+                className="text-xs"
+              >
+                Select All
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectNone}
+                className="text-xs"
+              >
+                Select None
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {preview.stages.map((stage: any) => (
+              <div
+                key={stage.stage_id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                  selectedStages.includes(stage.stage_id)
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => handleStageToggle(stage.stage_id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedStages.includes(stage.stage_id)}
+                      onChange={() => handleStageToggle(stage.stage_id)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <div>
+                      <h4 className="font-medium text-gray-900">{stage.stage_name}</h4>
+                      {stage.stage_description && (
+                        <p className="text-sm text-gray-600">{stage.stage_description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm">
+                      <span className="text-green-600 font-medium">+{stage.would_create}</span>
+                      {stage.would_skip > 0 && (
+                        <span className="text-gray-500 ml-2">({stage.would_skip} exist)</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {stage.would_create + stage.would_skip} total
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary */}
+        {selectedStages.length > 0 && (
+          <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+            <h4 className="font-semibold text-green-900 mb-2">Summary</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-green-800">Selected Stages:</span>
+                <span className="ml-2 text-green-700">{selectedStages.length}</span>
+              </div>
+              <div>
+                <span className="font-medium text-green-800">Tasks to Create:</span>
+                <span className="ml-2 text-green-700 font-bold">{getTotalTasksToCreate()}</span>
+              </div>
+              {getTotalTasksToSkip() > 0 && (
+                <div className="col-span-2">
+                  <span className="font-medium text-green-800">Tasks to Skip:</span>
+                  <span className="ml-2 text-green-700">{getTotalTasksToSkip()} (already exist)</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isCreating}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={onSubmit}
+            disabled={selectedStages.length === 0 || isCreating}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isCreating ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Creating Tasks...
+              </>
+            ) : (
+              `Create ${getTotalTasksToCreate()} Tasks`
+            )}
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }

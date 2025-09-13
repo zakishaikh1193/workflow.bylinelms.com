@@ -498,7 +498,7 @@ const GradeItem: React.FC<GradeItemProps> = ({
   grade,
   books,
   units,
-  lessons,
+   lessons,
   expanded,
   onToggleExpansion,
   onEdit,

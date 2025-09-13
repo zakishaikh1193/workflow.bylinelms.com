@@ -8,7 +8,6 @@ import {
   Target,
   Activity,
   MessageSquare,
-  FileText,
   Award,
   BarChart3
 } from 'lucide-react';
@@ -16,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
-import { RichTextEditor } from './ui/RichTextEditor';
+import { RichTextEditor, RichTextDisplay } from './ui/RichTextEditor';
 import { useToast } from './ui/Toast';
 import { teamTaskService } from '../services/apiService';
 import type { Task } from '../types';
@@ -75,7 +74,7 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const handleMarkComplete = () => {
+  const handleSubmitForReview = () => {
     setIsMarkCompleteModalOpen(true);
   };
 
@@ -87,15 +86,15 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
     setIsRemarkModalOpen(true);
   };
 
-  const submitMarkComplete = async () => {
+  const submitForReview = async () => {
     try {
-      await teamTaskService.updateStatus(task.id, 'completed');
-      showToast(`Task "${task.name}" has been marked as complete!`, 'success');
+      await teamTaskService.updateStatus(task.id, 'under-review');
+      showToast(`Task "${task.name}" has been submitted for review!`, 'success');
       onTaskUpdate();
       onBack();
     } catch (error: any) {
-      console.error('Failed to mark task as complete:', error);
-      showToast('Failed to mark task as complete. Please try again.', 'error');
+      console.error('Failed to submit task for review:', error);
+      showToast('Failed to submit task for review. Please try again.', 'error');
     }
     setIsMarkCompleteModalOpen(false);
   };
@@ -186,11 +185,11 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
                   <span>Add Remark</span>
                 </Button>
                 <Button
-                  onClick={handleMarkComplete}
-                  className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleSubmitForReview}
+                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Mark Complete</span>
+                  <span>Submit for Review</span>
                 </Button>
               </div>
             )}
@@ -389,6 +388,7 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
                 </div>
               </CardContent>
             </Card>
+
           </div>
 
           {/* Sidebar */}
@@ -417,73 +417,155 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
               </CardContent>
             </Card>
 
-            {/* Remarks & Extensions */}
+            {/* Extension Requests */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="w-5 h-5" />
-                  <span>Activity</span>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-5 h-5" />
+                    <span>Extensions ({extensions.length})</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setIsExtensionModalOpen(true)}
+                    className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-2 py-1"
+                  >
+                    <Clock className="w-3 h-3 mr-1" />
+                    Request
+                  </Button>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Remarks</span>
-                    <Badge variant="secondary">{remarks.length}</Badge>
+              <CardContent>
+                {extensions.length === 0 ? (
+                  <div className="text-center py-4">
+                    <Clock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-xs text-gray-600">No extension requests yet</p>
                   </div>
-                  {remarks.length === 0 ? (
-                    <p className="text-sm text-gray-500">No remarks yet</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {remarks.slice(0, 3).map((remark: any) => (
-                        <div key={remark.id} className="p-2 bg-gray-50 rounded text-xs">
-                          <p className="font-medium text-gray-800">{remark.remark_type || 'general'}</p>
-                          <p className="text-gray-600 truncate">
-                            {remark.remark?.replace(/<[^>]*>/g, '').substring(0, 50)}...
-                          </p>
+                ) : (
+                  <div className="space-y-3">
+                    {extensions.map((extension, index) => (
+                      <div key={index} className={`border rounded-lg p-3 ${
+                        extension.status === 'approved' ? 'bg-green-50 border-green-200' :
+                        extension.status === 'rejected' ? 'bg-red-50 border-red-200' :
+                        'bg-orange-50 border-orange-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <Badge variant={
+                            extension.status === 'approved' ? 'success' :
+                            extension.status === 'rejected' ? 'danger' : 'warning'
+                          } size="sm">
+                            {extension.status}
+                          </Badge>
+                          <span className="text-xs text-gray-500">
+                            {new Date(extension.created_at).toLocaleDateString()}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Extensions</span>
-                    <Badge variant="secondary">{extensions.length}</Badge>
+                        
+                        <div className="space-y-1">
+                          <div className="text-xs">
+                            <span className="font-medium text-gray-700">From:</span>
+                            <span className="text-gray-600 ml-1">
+                              {new Date(extension.current_due_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="font-medium text-gray-700">To:</span>
+                            <span className="text-gray-600 ml-1">
+                              {new Date(extension.requested_due_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-gray-700 mb-1">Reason</p>
+                          <p className="text-xs text-gray-600 line-clamp-2">{extension.reason}</p>
+                        </div>
+                        
+                        {extension.status !== 'pending' && extension.review_notes && (
+                          <div className="mt-2 p-2 bg-white rounded border">
+                            <p className="text-xs font-medium text-gray-700 mb-1">
+                              Admin Review
+                            </p>
+                            <p className="text-xs text-gray-600 line-clamp-2">{extension.review_notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  {extensions.length === 0 ? (
-                    <p className="text-sm text-gray-500">No extension requests</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {extensions.slice(0, 3).map((extension: any) => (
-                        <div key={extension.id} className="p-2 bg-gray-50 rounded text-xs">
-                          <p className="font-medium text-gray-800">
-                            {new Date(extension.requested_due_date).toLocaleDateString()}
-                          </p>
-                          <p className="text-gray-600 truncate">{extension.reason?.substring(0, 30)}...</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
               </CardContent>
             </Card>
+
           </div>
+        </div>
+
+        {/* Task Remarks - Full Width */}
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <MessageSquare className="w-5 h-5" />
+                  <span>Task Remarks ({remarks.length})</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setIsRemarkModalOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <MessageSquare className="w-4 h-4 mr-1" />
+                  Add Remark
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {remarks.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No remarks yet. Add your first remark to track progress or share updates.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {remarks.map((remark, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={
+                            remark.remark_type === 'progress' ? 'success' :
+                            remark.remark_type === 'issue' ? 'danger' :
+                            remark.remark_type === 'update' ? 'primary' :
+                            remark.remark_type === 'complete' ? 'success' : 'default'
+                          }>
+                            {remark.remark_type}
+                          </Badge>
+                          <span className="text-sm text-gray-600">
+                            {remark.user_name || 'You'} • {new Date(remark.remark_date || remark.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="prose prose-sm max-w-none">
+                        <RichTextDisplay content={remark.remark} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* Mark Complete Modal */}
+      {/* Submit for Review Modal */}
       <Modal
         isOpen={isMarkCompleteModalOpen}
         onClose={() => setIsMarkCompleteModalOpen(false)}
-        title="Mark Task as Complete"
+        title="Submit Task for Review"
       >
         <div className="space-y-6">
-          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
             <h4 className="font-semibold text-gray-900 text-lg">{task.name}</h4>
             <p className="text-sm text-gray-600 mt-1">
-              Are you sure you want to mark this task as completed?
+              Are you sure you want to submit this task for admin review?
             </p>
           </div>
 
@@ -491,9 +573,9 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
             <div className="flex items-center space-x-3">
               <AlertTriangle className="w-6 h-6 text-yellow-600" />
               <div>
-                <h4 className="font-semibold text-yellow-800">Important</h4>
+                <h4 className="font-semibold text-yellow-800">Review Process</h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Once marked as complete, this task will be moved to your completed tasks list and cannot be undone.
+                  This task will be marked as "Under Review" and an admin will need to approve it before it's marked as complete. You'll be notified once the review is complete.
                 </p>
               </div>
             </div>
@@ -508,11 +590,11 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
               Cancel
             </Button>
             <Button
-              onClick={submitMarkComplete}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+              onClick={submitForReview}
+              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
             >
               <Check className="w-4 h-4 mr-2" />
-              Mark as Complete
+              Submit for Review
             </Button>
           </div>
         </div>

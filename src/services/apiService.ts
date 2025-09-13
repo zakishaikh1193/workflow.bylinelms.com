@@ -448,6 +448,15 @@ export const taskService = {
     return result.data;
   },
 
+  // Review task completion (approve/deny)
+  reviewTask: async (taskId: string | number, action: 'approve' | 'deny', reviewNotes?: string) => {
+    const result = await apiService.post(`/tasks/${taskId}/review`, { 
+      action, 
+      review_notes: reviewNotes 
+    });
+    return result.data;
+  },
+
   // =====================================================
   // TASK EXTENSIONS
   // =====================================================

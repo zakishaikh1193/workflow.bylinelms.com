@@ -17,7 +17,7 @@ import { Badge } from './ui/Badge';
 import { RichTextDisplay } from './ui/RichTextEditor';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { notificationService as apiNotificationService } from '../services/apiService';
+import { notificationService as apiNotificationService, taskService } from '../services/apiService';
 import notificationService from '../services/notificationService';
 
 interface Notification {
@@ -52,15 +52,15 @@ interface TaskRemark extends Notification {
   is_private: boolean;
 }
 
-interface TaskCompletion {
+interface TaskUnderReview {
   id: string;
-  type: 'task_completed';
+  type: 'task_under_review';
   task_id: number;
   task_name: string;
   project_name: string;
-  completed_by_name: string;
-  completed_by_id: number;
-  completed_at: string;
+  submitted_by_name: string;
+  submitted_by_id: number;
+  submitted_at: string;
   hierarchy: string;
   stage_name: string;
   is_new: boolean;
@@ -69,13 +69,13 @@ interface TaskCompletion {
 interface NotificationsData {
   extensions: ExtensionRequest[];
   remarks: TaskRemark[];
-  completedTasks: TaskCompletion[];
+  underReviewTasks: TaskUnderReview[];
 }
 
 export function Notification() {
   const { user } = useAuth();
   const { dispatch } = useApp();
-  const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [], completedTasks: [] });
+  const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [], underReviewTasks: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -105,11 +105,11 @@ export function Notification() {
     notifications.remarks.forEach(r => {
       if (r.user_name) set.add(r.user_name);
     });
-    notifications.completedTasks.forEach(task => {
-      if (task.completed_by_name) set.add(task.completed_by_name);
+    notifications.underReviewTasks.forEach(task => {
+      if (task.submitted_by_name) set.add(task.submitted_by_name);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [notifications.extensions, notifications.remarks, notifications.completedTasks]);
+  }, [notifications.extensions, notifications.remarks, notifications.underReviewTasks]);
 
   // Check if user is admin; team users authenticate via teamToken
   const isTeamSession = typeof window !== 'undefined' && !!window.localStorage.getItem('teamToken');
@@ -186,13 +186,39 @@ export function Notification() {
     dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
   };
 
+  const handleApproveTask = async (taskId: number) => {
+    try {
+      await taskService.reviewTask(taskId, 'approve');
+      // Reload notifications to reflect the change
+      if (isAdmin) {
+        loadNotifications();
+      }
+    } catch (error: any) {
+      console.error('Failed to approve task:', error);
+      // You could add a toast notification here
+    }
+  };
+
+  const handleDenyTask = async (taskId: number) => {
+    try {
+      await taskService.reviewTask(taskId, 'deny');
+      // Reload notifications to reflect the change
+      if (isAdmin) {
+        loadNotifications();
+      }
+    } catch (error: any) {
+      console.error('Failed to deny task:', error);
+      // You could add a toast notification here
+    }
+  };
+
   // Note: previously used a session-based "unviewed" check; now replaced by time-based filter
 
   // Filter notifications based on current filters
   const getFilteredNotifications = () => {
     let filteredExtensions = notifications.extensions;
     let filteredRemarks = notifications.remarks;
-    let filteredCompletedTasks = notifications.completedTasks;
+    let filteredUnderReviewTasks = notifications.underReviewTasks;
 
     // Filter by type (New = last 24 hours)
     if (filterType === 'new') {
@@ -200,7 +226,7 @@ export function Notification() {
       cutoff.setHours(cutoff.getHours() - 24);
       filteredExtensions = filteredExtensions.filter(ext => new Date(ext.created_at) >= cutoff);
       filteredRemarks = filteredRemarks.filter(remark => new Date(remark.created_at) >= cutoff);
-      filteredCompletedTasks = filteredCompletedTasks.filter(task => new Date(task.completed_at) >= cutoff);
+      filteredUnderReviewTasks = filteredUnderReviewTasks.filter(task => new Date(task.submitted_at) >= cutoff);
     }
 
     // Filter by date
@@ -220,8 +246,8 @@ export function Notification() {
         return remarkDate.getTime() === filterDateObj.getTime();
       });
       
-      filteredCompletedTasks = filteredCompletedTasks.filter(task => {
-        const taskDate = new Date(task.completed_at);
+      filteredUnderReviewTasks = filteredUnderReviewTasks.filter(task => {
+        const taskDate = new Date(task.submitted_at);
         taskDate.setHours(0, 0, 0, 0);
         return taskDate.getTime() === filterDateObj.getTime();
       });
@@ -235,20 +261,20 @@ export function Notification() {
       filteredRemarks = filteredRemarks.filter(remark => 
         remark.user_name?.toLowerCase().includes(filterUser.toLowerCase())
       );
-      filteredCompletedTasks = filteredCompletedTasks.filter(task => 
-        task.completed_by_name?.toLowerCase().includes(filterUser.toLowerCase())
+      filteredUnderReviewTasks = filteredUnderReviewTasks.filter(task => 
+        task.submitted_by_name?.toLowerCase().includes(filterUser.toLowerCase())
       );
     }
 
-    return { extensions: filteredExtensions, remarks: filteredRemarks, completedTasks: filteredCompletedTasks };
+    return { extensions: filteredExtensions, remarks: filteredRemarks, underReviewTasks: filteredUnderReviewTasks };
   };
 
   const filteredNotifications = getFilteredNotifications();
   
   // Calculate total notifications for display
   const totalNotifications = filteredNotifications.extensions.length + 
-                            filteredNotifications.remarks.length + 
-                            filteredNotifications.completedTasks.length;
+    filteredNotifications.remarks.length + 
+    filteredNotifications.underReviewTasks.length;
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -256,8 +282,8 @@ export function Notification() {
         return <Clock className="w-5 h-5 text-orange-500" />;
       case 'remark':
         return <MessageSquare className="w-5 h-5 text-blue-500" />;
-      case 'task_completed':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'task_under_review':
+        return <Clock className="w-5 h-5 text-blue-500" />;
       default:
         return <Bell className="w-5 h-5 text-gray-500" />;
     }
@@ -273,8 +299,8 @@ export function Notification() {
           return 'border-green-200 bg-green-50';
         }
         return 'border-blue-200 bg-blue-50';
-      case 'task_completed':
-        return 'border-green-200 bg-green-50';
+      case 'task_under_review':
+        return 'border-blue-200 bg-blue-50';
       default:
         return 'border-gray-200 bg-gray-50';
     }
@@ -656,18 +682,18 @@ export function Notification() {
         </Card>
       )}
 
-      {/* Task Completions */}
-      {filteredNotifications.completedTasks.length > 0 && (
+      {/* Tasks Under Review */}
+      {filteredNotifications.underReviewTasks.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              <span>Task Completions ({filteredNotifications.completedTasks.length})</span>
+              <Clock className="w-5 h-5 text-blue-500" />
+              <span>Tasks Under Review ({filteredNotifications.underReviewTasks.length})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {filteredNotifications.completedTasks.map((task) => (
+              {filteredNotifications.underReviewTasks.map((task) => (
                 <div 
                   key={task.id} 
                   className={`p-4 border rounded-lg ${getNotificationColor(task.type)}`}
@@ -677,14 +703,14 @@ export function Notification() {
                       <div className="flex items-center space-x-2 mb-2">
                         {getNotificationIcon(task.type)}
                         <span className="font-medium text-gray-900">
-                          Task Completed: "{task.task_name}"
+                          Task Submitted for Review: "{task.task_name}"
                         </span>
-                        <Badge variant="success">Completed</Badge>
+                        <Badge variant="secondary">Under Review</Badge>
                       </div>
                       
                       <div className="mb-3">
                         <div className="text-sm text-gray-700">
-                          <span className="font-medium">Completed by:</span> {task.completed_by_name}
+                          <span className="font-medium">Submitted by:</span> {task.submitted_by_name}
                         </div>
                         <div className="text-sm text-gray-700 mt-1">
                           <span className="font-medium">Hierarchy:</span> {task.hierarchy}
@@ -698,7 +724,7 @@ export function Notification() {
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600">
                             <User className="w-3 h-3 inline mr-1" />
-                            Completed by: <span className="font-medium">{task.completed_by_name}</span>
+                            Submitted by: <span className="font-medium">{task.submitted_by_name}</span>
                           </p>
                           <p className="text-sm text-gray-600">
                             <FileText className="w-3 h-3 inline mr-1" />
@@ -708,16 +734,34 @@ export function Notification() {
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600">
                             <Calendar className="w-3 h-3 inline mr-1" />
-                            Completed: {new Date(task.completed_at).toLocaleDateString()}
+                            Submitted: {new Date(task.submitted_at).toLocaleDateString()}
                           </p>
                           <p className="text-sm text-gray-600">
                             <Clock className="w-3 h-3 inline mr-1" />
-                            Time: {formatTimeAgo(task.completed_at)}
+                            Time: {formatTimeAgo(task.submitted_at)}
                           </p>
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-between">
+                        <div className="flex space-x-2">
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleApproveTask(task.task_id)}
+                            className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                            <span>Approve</span>
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleDenyTask(task.task_id)}
+                            className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>Deny</span>
+                          </Button>
+                        </div>
                         <Button 
                           size="sm" 
                           onClick={() => handleViewTask(task.task_id)}
@@ -743,7 +787,7 @@ export function Notification() {
             <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No New Notifications</h3>
             <p className="text-gray-600">
-              You're all caught up! No new extension requests, remarks, or task completions to review.
+              You're all caught up! No new extension requests, remarks, or tasks under review.
             </p>
           </CardContent>
         </Card>

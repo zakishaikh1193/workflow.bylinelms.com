@@ -41,7 +41,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
   const [isRemarkModalOpen, setIsRemarkModalOpen] = useState(false);
-  const [isMarkCompleteModalOpen, setIsMarkCompleteModalOpen] = useState(false);
+  const [isSubmitReviewModalOpen, setIsSubmitReviewModalOpen] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const [extensionReason, setExtensionReason] = useState('');
   const [extensionDate, setExtensionDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -217,9 +217,9 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   };
 
 
-  const handleMarkComplete = (task: Task) => {
+  const handleSubmitForReview = (task: Task) => {
     setSelectedTask(task);
-    setIsMarkCompleteModalOpen(true);
+    setIsSubmitReviewModalOpen(true);
   };
 
   const handleViewTaskDetail = (task: Task) => {
@@ -311,7 +311,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     setRemarkType('general');
   };
 
-  const submitMarkComplete = async () => {
+  const submitForReview = async () => {
     if (selectedTask) {
       try {
         // Check if team token is expired before making API calls
@@ -321,19 +321,19 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           return;
         }
 
-        // Update task status to completed
-        await teamTaskService.updateStatus(selectedTask.id, 'completed');
+        // Update task status to under-review (awaiting admin approval)
+        await teamTaskService.updateStatus(selectedTask.id, 'under-review');
 
         // Show success message
-        showToast(`Task "${selectedTask.name}" has been marked as complete!`, 'success');
+        showToast(`Task "${selectedTask.name}" has been submitted for review!`, 'success');
 
         // Refresh data
         await loadUserData();
       } catch (error: any) {
-        console.error('Failed to mark task as complete:', error);
+        console.error('Failed to submit task for review:', error);
         
         // Show error message
-        showToast('Failed to mark task as complete. Please try again.', 'error');
+        showToast('Failed to submit task for review. Please try again.', 'error');
         
         // Check if it's an authentication error
         if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('Token expired')) {
@@ -343,7 +343,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
       }
     }
 
-    setIsMarkCompleteModalOpen(false);
+    setIsSubmitReviewModalOpen(false);
     setSelectedTask(null);
   };
 
@@ -541,45 +541,6 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           </Card>
         </div>
 
-        {/* Performance Flags Overview */}
-        {performanceFlags.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Flag className="w-5 h-5 text-gray-600" />
-                <span>Performance Flags ({performanceFlags.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="text-2xl font-bold text-green-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'green').length}
-                  </div>
-                  <div className="text-sm text-green-600 font-medium">🟢 Green Flags</div>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'yellow').length}
-                  </div>
-                  <div className="text-sm text-yellow-600 font-medium">🟡 Yellow Flags</div>
-                </div>
-                <div className="text-center p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'orange').length}
-                  </div>
-                  <div className="text-sm text-orange-600 font-medium">🟠 Orange Flags</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="text-2xl font-bold text-red-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'red').length}
-                  </div>
-                  <div className="text-sm text-red-600 font-medium">🔴 Red Flags</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Task Lists */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -651,12 +612,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleMarkComplete(task);
+                              handleSubmitForReview(task);
                             }}
-                            className="bg-gray-900 hover:bg-black text-white"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <Check className="w-3 h-3 mr-1" />
-                            Complete
+                            Submit for Review
                           </Button>
                         </div>
                       </div>
@@ -744,12 +705,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMarkComplete(task);
+                                handleSubmitForReview(task);
                               }}
-                              className="bg-gray-900 hover:bg-black text-white"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
                               <Check className="w-3 h-3 mr-1" />
-                              Complete
+                              Submit for Review
                             </Button>
                           </div>
                         </div>
@@ -939,18 +900,18 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
         </div>
       </Modal>
 
-      {/* Mark Complete Confirmation Modal */}
+      {/* Submit for Review Confirmation Modal */}
       <Modal
-        isOpen={isMarkCompleteModalOpen}
-        onClose={() => setIsMarkCompleteModalOpen(false)}
-        title="Mark Task as Complete"
+        isOpen={isSubmitReviewModalOpen}
+        onClose={() => setIsSubmitReviewModalOpen(false)}
+        title="Submit Task for Review"
       >
         <div className="space-y-6">
           {selectedTask && (
-            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
               <h4 className="font-semibold text-gray-900 text-lg">{selectedTask.name}</h4>
               <p className="text-sm text-gray-600 mt-1">
-                Are you sure you want to mark this task as completed?
+                Are you sure you want to submit this task for admin review?
               </p>
             </div>
           )}
@@ -959,10 +920,9 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             <div className="flex items-center space-x-3">
               <AlertTriangle className="w-6 h-6 text-yellow-600" />
               <div>
-                <h4 className="font-semibold text-yellow-800">Important</h4>
+                <h4 className="font-semibold text-yellow-800">Review Process</h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Once marked as complete, this task will be moved to your completed tasks list and cannot be undone.
-                </p>
+                  This task will be marked as "Under Review" and an admin will need to approve it before it's marked as complete. </p>
               </div>
             </div>
           </div>
@@ -970,17 +930,17 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           <div className="flex justify-end space-x-4">
             <Button
               variant="outline"
-              onClick={() => setIsMarkCompleteModalOpen(false)}
+              onClick={() => setIsSubmitReviewModalOpen(false)}
               className="px-6 py-3 font-semibold"
             >
               Cancel
             </Button>
             <Button
-              onClick={submitMarkComplete}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+              onClick={submitForReview}
+              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
             >
               <Check className="w-4 h-4 mr-2" />
-              Mark as Complete
+              Submit for Review
             </Button>
           </div>
         </div>
@@ -996,6 +956,47 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           }} />
         </div>
       )}
+
+              
+        {/* Performance Flags Overview */}
+        {performanceFlags.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Flag className="w-5 h-5 text-gray-600" />
+                <span>Performance Flags ({performanceFlags.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="text-2xl font-bold text-green-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'green').length}
+                  </div>
+                  <div className="text-sm text-green-600 font-medium">Green Flags</div>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'yellow').length}
+                  </div>
+                  <div className="text-sm text-yellow-600 font-medium">Yellow Flags</div>
+                </div>
+                <div className="text-center p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'orange').length}
+                  </div>
+                  <div className="text-sm text-orange-600 font-medium">Orange Flags</div>
+                </div>
+                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="text-2xl font-bold text-red-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'red').length}
+                  </div>
+                  <div className="text-sm text-red-600 font-medium">Red Flags</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }
