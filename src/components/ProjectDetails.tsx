@@ -71,6 +71,10 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
   const [editingTask, setEditingTask] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
+  // Task selection state for bulk operations
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  
   // Pagination state for tasks
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -255,6 +259,74 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     setCurrentPage(1);
   }, [debouncedSearch, selectedStatus, selectedPriority, selectedAssignee, selectedStage]);
 
+  // Clear selections when filters change
+  useEffect(() => {
+    setSelectedTasks(new Set());
+  }, [debouncedSearch, selectedStatus, selectedPriority, selectedAssignee, selectedStage, currentPage]);
+
+  // Task selection functions
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTasks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllTasks = () => {
+    const allTaskIds = projectTasks.map(task => task.id.toString());
+    setSelectedTasks(new Set(allTaskIds));
+  };
+
+  const clearAllSelections = () => {
+    setSelectedTasks(new Set());
+  };
+
+  const isAllSelected = () => {
+    return projectTasks.length > 0 && projectTasks.every(task => selectedTasks.has(task.id.toString()));
+  };
+
+  const isPartiallySelected = () => {
+    return selectedTasks.size > 0 && selectedTasks.size < projectTasks.length;
+  };
+
+  // Bulk delete function
+  const handleBulkDelete = async () => {
+    if (selectedTasks.size === 0) return;
+
+    try {
+      // Convert Set to Array and ensure they are numbers
+      const taskIds = Array.from(selectedTasks).map(id => parseInt(id));
+
+      // Call bulk delete API
+      await taskService.bulkDelete(taskIds);
+
+      // Clear selections
+      setSelectedTasks(new Set());
+      setIsBulkDeleteModalOpen(false);
+
+      // Refresh project tasks
+      const tasksData = await taskService.getAll({ all: 'true' });
+      const tasksArray = tasksData.data || tasksData;
+      const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+      
+      // Update all project tasks - filtering will be handled by the useEffect
+      setAllProjectTasks(projectTasksArray);
+      
+      // Also refresh the current project to update progress
+      const currentProjectData = await projectService.getById(project.id);
+      setCurrentProject(currentProjectData);
+
+      console.log(`✅ ${taskIds.length} task(s) deleted successfully`);
+    } catch (err: any) {
+      console.error('❌ Bulk delete error:', err);
+    }
+  };
+
   const handleAddMember = async (memberId: number, role: string = 'member') => {
     try {
       await projectService.addMember(project.id, { 
@@ -403,23 +475,54 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
     }
   };
 
+  const [isBulkCreateModalOpen, setIsBulkCreateModalOpen] = useState(false);
+  const [bulkCreatePreview, setBulkCreatePreview] = useState<any>(null);
+  const [selectedStages, setSelectedStages] = useState<number[]>([]);
+  const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+
   const handleBulkCreateTasks = async () => {
     try {
       setLoading(true);
       
-      // Call the bulk create API using the proper service
-      const result = await apiService.post(`/tasks/project/${project.id}/bulk-create`, {});
+      // Get the bulk create preview first
+      const previewResult = await apiService.get(`/tasks/project/${project.id}/bulk-create-preview`);
+
+      if (previewResult.success) {
+        setBulkCreatePreview(previewResult.data);
+        setSelectedStages([]); // Reset selection
+        setIsBulkCreateModalOpen(true);
+      } else {
+        throw new Error(previewResult.error?.message || 'Failed to get bulk create preview');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to get bulk create preview:', error);
+      alert(`❌ Error: ${error.message || 'Failed to get bulk create preview'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmBulkCreate = async () => {
+    if (selectedStages.length === 0) {
+      alert('Please select at least one stage to create tasks for.');
+      return;
+    }
+
+    try {
+      setIsCreatingTasks(true);
+      
+      // Call the bulk create API with selected stages
+      const result = await apiService.post(`/tasks/project/${project.id}/bulk-create`, {
+        selected_stage_ids: selectedStages
+      });
 
       if (result.success) {
         // Show success message
         alert(`🎉 Successfully created ${result.data.created_tasks} tasks!\n\n` +
               `Project: ${result.data.project_name}\n` +
-              `Stages: ${result.data.total_stages}\n` +
-              `Hierarchy Units: ${result.data.total_lowest_units}\n` +
-              `Expected Tasks: ${result.data.expected_tasks}\n` +
+              `Selected Stages: ${selectedStages.length}\n` +
               `Created: ${result.data.created_tasks}\n` +
-              `Skipped: ${result.data.skipped_tasks}\n\n` +
-              `Tasks will be created for each lowest hierarchical unit across all stages.`);
+              `Skipped: ${result.data.skipped_tasks}`);
         
         // Refresh project tasks
         const tasksData = await taskService.getAll({ all: 'true' });
@@ -432,6 +535,11 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
         const currentProjectData = await projectService.getById(project.id);
         setCurrentProject(currentProjectData);
         
+        // Close modal
+        setIsBulkCreateModalOpen(false);
+        setBulkCreatePreview(null);
+        setSelectedStages([]);
+        
         console.log('✅ Bulk task creation completed:', result.data);
       } else {
         throw new Error(result.error?.message || 'Failed to bulk create tasks');
@@ -440,7 +548,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       console.error('❌ Failed to bulk create tasks:', error);
       alert(`❌ Error: ${error.message || 'Failed to bulk create tasks'}`);
     } finally {
-      setLoading(false);
+      setIsCreatingTasks(false);
     }
   };
 
@@ -1148,6 +1256,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       }
     };
 
+
     const getStatusVariant = (status: TaskStatus) => {
       switch (status) {
         case 'not-started': return 'default';
@@ -1284,6 +1393,64 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
           </div>
         </div>
 
+        {/* Bulk Selection Controls */}
+        {projectTasks.length > 0 && (
+          <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected()}
+                    ref={(input) => {
+                      if (input) input.indeterminate = isPartiallySelected();
+                    }}
+                    onChange={() => {
+                      if (isAllSelected()) {
+                        clearAllSelections();
+                      } else {
+                        selectAllTasks();
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    {isAllSelected() ? 'Deselect All' : 'Select All'}
+                  </span>
+                </div>
+                
+                {selectedTasks.size > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">
+                      {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} selected
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearAllSelections}
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {selectedTasks.size > 0 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setIsBulkDeleteModalOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected ({selectedTasks.size})
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Show message when selected stage has no tasks */}
         {selectedStage !== 'all' && projectTasks.length === 0 && (
           <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1310,6 +1477,23 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected()}
+                          ref={(input) => {
+                            if (input) input.indeterminate = isPartiallySelected();
+                          }}
+                          onChange={() => {
+                            if (isAllSelected()) {
+                              clearAllSelections();
+                            } else {
+                              selectAllTasks();
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Task Name
                       </th>
@@ -1341,6 +1525,14 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                       
                       return (
                         <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedTasks.has(task.id.toString())}
+                              onChange={() => toggleTaskSelection(task.id.toString())}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
                               <div className="text-sm font-medium text-gray-900 flex items-center">
@@ -1860,6 +2052,83 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
          availableTeams={availableTeams}
          projectTeams={projectTeams}
        />
+
+       {/* Bulk Create Tasks Modal */}
+       <BulkCreateTasksModal
+         isOpen={isBulkCreateModalOpen}
+         onClose={() => {
+           setIsBulkCreateModalOpen(false);
+           setBulkCreatePreview(null);
+           setSelectedStages([]);
+         }}
+         onSubmit={handleConfirmBulkCreate}
+         preview={bulkCreatePreview}
+         selectedStages={selectedStages}
+         setSelectedStages={setSelectedStages}
+         isCreating={isCreatingTasks}
+       />
+
+       {/* Bulk Delete Confirmation Modal */}
+       <Modal
+         isOpen={isBulkDeleteModalOpen}
+         onClose={() => setIsBulkDeleteModalOpen(false)}
+         title="Confirm Bulk Delete"
+         size="md"
+       >
+         <div className="space-y-4">
+           <div className="flex items-center space-x-3">
+             <div className="flex-shrink-0">
+               <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                 <Trash2 className="w-6 h-6 text-red-600" />
+               </div>
+             </div>
+             <div>
+               <h3 className="text-lg font-medium text-gray-900">
+                 Delete {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''}?
+               </h3>
+               <p className="text-sm text-gray-500">
+                 This action cannot be undone. The selected tasks will be permanently deleted.
+               </p>
+             </div>
+           </div>
+
+           {selectedTasks.size > 0 && (
+             <div className="bg-gray-50 p-3 rounded-lg">
+               <h4 className="text-sm font-medium text-gray-700 mb-2">Tasks to be deleted:</h4>
+               <div className="max-h-32 overflow-y-auto space-y-1">
+                 {Array.from(selectedTasks).map(taskId => {
+                   const task = projectTasks.find(t => t.id.toString() === taskId);
+                   return task ? (
+                     <div key={taskId} className="text-sm text-gray-600 flex items-center">
+                       <span className="w-2 h-2 bg-red-400 rounded-full mr-2"></span>
+                       {task.name}
+                     </div>
+                   ) : null;
+                 })}
+               </div>
+             </div>
+           )}
+
+           <div className="flex justify-end space-x-3 pt-4">
+             <Button
+               type="button"
+               variant="outline"
+               onClick={() => setIsBulkDeleteModalOpen(false)}
+             >
+               Cancel
+             </Button>
+             <Button
+               type="button"
+               variant="danger"
+               onClick={handleBulkDelete}
+               className="bg-red-600 hover:bg-red-700 text-white"
+             >
+               <Trash2 className="w-4 h-4 mr-2" />
+               Delete {selectedTasks.size} Task{selectedTasks.size !== 1 ? 's' : ''}
+             </Button>
+           </div>
+         </div>
+       </Modal>
      </div>
    );
  }
@@ -2038,6 +2307,201 @@ function AddMemberModal({ isOpen, onClose, onSubmit, availableMembers, projectMe
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Bulk Create Tasks Modal Component
+interface BulkCreateTasksModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  preview: any;
+  selectedStages: number[];
+  setSelectedStages: (stages: number[]) => void;
+  isCreating: boolean;
+}
+
+function BulkCreateTasksModal({ 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  preview, 
+  selectedStages, 
+  setSelectedStages, 
+  isCreating 
+}: BulkCreateTasksModalProps) {
+  const handleStageToggle = (stageId: number) => {
+    if (selectedStages.includes(stageId)) {
+      setSelectedStages(selectedStages.filter(id => id !== stageId));
+    } else {
+      setSelectedStages([...selectedStages, stageId]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (preview?.stages) {
+      setSelectedStages(preview.stages.map((stage: any) => stage.stage_id));
+    }
+  };
+
+  const handleSelectNone = () => {
+    setSelectedStages([]);
+  };
+
+  const getTotalTasksToCreate = () => {
+    if (!preview?.stages) return 0;
+    return preview.stages
+      .filter((stage: any) => selectedStages.includes(stage.stage_id))
+      .reduce((sum: number, stage: any) => sum + stage.would_create, 0);
+  };
+
+  const getTotalTasksToSkip = () => {
+    if (!preview?.stages) return 0;
+    return preview.stages
+      .filter((stage: any) => selectedStages.includes(stage.stage_id))
+      .reduce((sum: number, stage: any) => sum + stage.would_skip, 0);
+  };
+
+  if (!preview) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Create Tasks">
+      <div className="space-y-6">
+        {/* Project Info */}
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h3 className="font-semibold text-blue-900 mb-2">Project: {preview.project_name}</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-blue-800">Total Stages:</span>
+              <span className="ml-2 text-blue-700">{preview.total_stages}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-800">Hierarchy Units:</span>
+              <span className="ml-2 text-blue-700">{preview.total_lowest_units}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Stage Selection */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Select Stages</h3>
+            <div className="flex space-x-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+                className="text-xs"
+              >
+                Select All
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectNone}
+                className="text-xs"
+              >
+                Select None
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {preview.stages.map((stage: any) => (
+              <div
+                key={stage.stage_id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                  selectedStages.includes(stage.stage_id)
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => handleStageToggle(stage.stage_id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedStages.includes(stage.stage_id)}
+                      onChange={() => handleStageToggle(stage.stage_id)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <div>
+                      <h4 className="font-medium text-gray-900">{stage.stage_name}</h4>
+                      {stage.stage_description && (
+                        <p className="text-sm text-gray-600">{stage.stage_description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm">
+                      <span className="text-green-600 font-medium">+{stage.would_create}</span>
+                      {stage.would_skip > 0 && (
+                        <span className="text-gray-500 ml-2">({stage.would_skip} exist)</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {stage.would_create + stage.would_skip} total
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary */}
+        {selectedStages.length > 0 && (
+          <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+            <h4 className="font-semibold text-green-900 mb-2">Summary</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-green-800">Selected Stages:</span>
+                <span className="ml-2 text-green-700">{selectedStages.length}</span>
+              </div>
+              <div>
+                <span className="font-medium text-green-800">Tasks to Create:</span>
+                <span className="ml-2 text-green-700 font-bold">{getTotalTasksToCreate()}</span>
+              </div>
+              {getTotalTasksToSkip() > 0 && (
+                <div className="col-span-2">
+                  <span className="font-medium text-green-800">Tasks to Skip:</span>
+                  <span className="ml-2 text-green-700">{getTotalTasksToSkip()} (already exist)</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isCreating}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={onSubmit}
+            disabled={selectedStages.length === 0 || isCreating}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isCreating ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Creating Tasks...
+              </>
+            ) : (
+              `Create ${getTotalTasksToCreate()} Tasks`
+            )}
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }

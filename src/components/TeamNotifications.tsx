@@ -10,12 +10,14 @@ import {
   XCircle,
   Eye,
   RefreshCw,
-  ArrowLeft
+  ArrowLeft,
+  CheckCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { RichTextDisplay } from './ui/RichTextEditor';
+import { useApp } from '../contexts/AppContext';
 import { notificationService as apiNotificationService } from '../services/apiService';
 import notificationService from '../services/notificationService';
 
@@ -53,9 +55,24 @@ interface TaskRemark {
   is_new: boolean;
 }
 
+interface TaskCompletion {
+  id: string;
+  type: 'task_completed';
+  task_id: number;
+  task_name: string;
+  project_name: string;
+  completed_by_name: string;
+  completed_by_id: number;
+  completed_at: string;
+  hierarchy: string;
+  stage_name: string;
+  is_new: boolean;
+}
+
 interface NotificationsData {
   extensions: ExtensionRequest[];
   remarks: TaskRemark[];
+  completedTasks: TaskCompletion[];
 }
 
 interface TeamNotificationsProps {
@@ -63,7 +80,8 @@ interface TeamNotificationsProps {
 }
 
 export function TeamNotifications({ onBack }: TeamNotificationsProps) {
-  const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [] });
+  const { dispatch } = useApp();
+  const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [], completedTasks: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -112,16 +130,20 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     }
   };
 
-  const handleViewTask = () => {
-    // For now, just go back to the portal
-    // In a full implementation, you might want to navigate to task details
-    onBack();
+  const handleViewTask = (taskId: number) => {
+    console.log('Marking task as viewed:', taskId);
+    
+    // Set the previous view to notifications before navigating to task details
+    dispatch({ type: 'SET_PREVIOUS_VIEW', payload: 'notifications' });
+    // Navigate directly to the specific task details
+    dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
   };
 
   // Filter notifications
   const getFilteredNotifications = () => {
     let filteredExtensions = notifications.extensions;
     let filteredRemarks = notifications.remarks;
+    let filteredCompletedTasks = notifications.completedTasks;
 
     // Filter by type (New = last 24 hours)
     if (filterType === 'new') {
@@ -129,6 +151,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
       cutoff.setHours(cutoff.getHours() - 24);
       filteredExtensions = filteredExtensions.filter(ext => new Date(ext.created_at) >= cutoff);
       filteredRemarks = filteredRemarks.filter(remark => new Date(remark.created_at) >= cutoff);
+      filteredCompletedTasks = filteredCompletedTasks.filter(task => new Date(task.completed_at) >= cutoff);
     }
 
     // Filter by date
@@ -147,11 +170,15 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
         remarkDate.setHours(0, 0, 0, 0);
         return remarkDate.getTime() === filterDateObj.getTime();
       });
+      
+      filteredCompletedTasks = filteredCompletedTasks.filter(task => {
+        const taskDate = new Date(task.completed_at);
+        taskDate.setHours(0, 0, 0, 0);
+        return taskDate.getTime() === filterDateObj.getTime();
+      });
     }
 
-
-
-    return { extensions: filteredExtensions, remarks: filteredRemarks };
+    return { extensions: filteredExtensions, remarks: filteredRemarks, completedTasks: filteredCompletedTasks };
   };
 
   const filteredNotifications = getFilteredNotifications();
@@ -162,6 +189,8 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
         return <Clock className="w-5 h-5 text-orange-500" />;
       case 'remark':
         return <MessageSquare className="w-5 h-5 text-blue-500" />;
+      case 'task_completed':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
       default:
         return <Bell className="w-5 h-5 text-gray-500" />;
     }
@@ -177,6 +206,8 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
           return 'border-green-200 bg-green-50';
         }
         return 'border-blue-200 bg-blue-50';
+      case 'task_completed':
+        return 'border-green-200 bg-green-50';
       default:
         return 'border-gray-200 bg-gray-50';
     }
@@ -267,7 +298,9 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     );
   }
 
-  const totalNotifications = filteredNotifications.extensions.length + filteredNotifications.remarks.length;
+  const totalNotifications = filteredNotifications.extensions.length + 
+                            filteredNotifications.remarks.length + 
+                            filteredNotifications.completedTasks.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -463,7 +496,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                           <span>Requested: {formatTimeAgo(extension.created_at)}</span>
                           <Button 
                             size="sm" 
-                            onClick={handleViewTask}
+                            onClick={() => handleViewTask(extension.task_id)}
                             className="flex items-center space-x-1"
                           >
                             <Eye className="w-3 h-3" />
@@ -550,7 +583,87 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                         <div className="flex items-center justify-end">
                           <Button 
                             size="sm" 
-                            onClick={handleViewTask}
+                            onClick={() => handleViewTask(remark.task_id)}
+                            className="flex items-center space-x-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>View Task</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Task Completions */}
+        {filteredNotifications.completedTasks.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span>Task Completions ({filteredNotifications.completedTasks.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {filteredNotifications.completedTasks.map((task) => (
+                  <div 
+                    key={task.id} 
+                    className={`p-4 border rounded-lg ${getNotificationColor(task.type)}`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {getNotificationIcon(task.type)}
+                          <span className="font-medium text-gray-900">
+                            Task Completed: "{task.task_name}"
+                          </span>
+                          <Badge variant="success">Completed</Badge>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <div className="text-sm text-gray-700">
+                            <span className="font-medium">Completed by:</span> {task.completed_by_name}
+                          </div>
+                          <div className="text-sm text-gray-700 mt-1">
+                            <span className="font-medium">Hierarchy:</span> {task.hierarchy}
+                          </div>
+                          <div className="text-sm text-gray-700 mt-1">
+                            <span className="font-medium">Stage:</span> {task.stage_name}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-600">
+                              <User className="w-3 h-3 inline mr-1" />
+                              Completed by: <span className="font-medium">{task.completed_by_name}</span>
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              <FileText className="w-3 h-3 inline mr-1" />
+                              Project: <span className="font-medium">{task.project_name}</span>
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-600">
+                              <Calendar className="w-3 h-3 inline mr-1" />
+                              Completed: {new Date(task.completed_at).toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              <Clock className="w-3 h-3 inline mr-1" />
+                              Time: {formatTimeAgo(task.completed_at)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-end">
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleViewTask(task.task_id)}
                             className="flex items-center space-x-1"
                           >
                             <Eye className="w-3 h-3" />
@@ -573,7 +686,7 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
               <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Notifications</h3>
               <p className="text-gray-600">
-                You're all caught up! No new extension requests or remarks to review.
+                You're all caught up! No new extension requests, remarks, or task completions to review.
               </p>
             </CardContent>
           </Card>

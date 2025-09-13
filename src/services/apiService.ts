@@ -1,6 +1,6 @@
 // Modern API service for the new Node.js backend
-const API_URL = 'https://workflow.bylinelms.com/api';
-// const API_URL = 'http://localhost:3001/api';
+// const API_URL = 'https://workflow.bylinelms.com/api';
+const API_URL = 'http://localhost:3001/api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -410,6 +410,16 @@ export const taskService = {
     return result.data;
   },
 
+  // Bulk delete tasks
+  bulkDelete: async (taskIds: (string | number)[]) => {
+    const response = await simpleFetch(`${API_URL}/tasks/bulk`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ taskIds })
+    });
+    return handleResponse(response);
+  },
+
   // Get tasks by project
   getByProject: async (projectId: string | number) => {
     const result = await apiService.get(`/tasks?project_id=${projectId}`);
@@ -435,6 +445,15 @@ export const taskService = {
   // Update task progress
   updateProgress: async (id: string | number, progress: number) => {
     const result = await apiService.put(`/tasks/${id}`, { progress });
+    return result.data;
+  },
+
+  // Review task completion (approve/deny)
+  reviewTask: async (taskId: string | number, action: 'approve' | 'deny', reviewNotes?: string) => {
+    const result = await apiService.post(`/tasks/${taskId}/review`, { 
+      action, 
+      review_notes: reviewNotes 
+    });
     return result.data;
   },
 

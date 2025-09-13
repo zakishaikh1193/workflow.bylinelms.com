@@ -415,8 +415,8 @@ const testStageFilter = async (req, res) => {
   }
 };
 
-// Bulk create tasks for all hierarchy units and stages
-const bulkCreateTasks = async (req, res) => {
+// Get bulk create preview - stages and task counts
+const getBulkCreatePreview = async (req, res) => {
   try {
     const { project_id } = req.params;
     
@@ -430,7 +430,7 @@ const bulkCreateTasks = async (req, res) => {
       });
     }
 
-    console.log(`🚀 Starting bulk task creation for project ${project_id}`);
+    console.log(`🔍 Getting bulk create preview for project ${project_id}`);
 
     // Step 1: Get project details and category
     const projectQuery = 'SELECT * FROM projects WHERE id = ?';
@@ -480,6 +480,266 @@ const bulkCreateTasks = async (req, res) => {
       });
     }
 
+    // Step 3: Get all educational hierarchy for this project
+    const gradesQuery = 'SELECT * FROM grades WHERE project_id = ? ORDER BY order_index ASC';
+    const grades = await db.query(gradesQuery, [project_id]);
+    
+    // Get books for this project's grades
+    const gradeIds = grades.map(grade => grade.id);
+    const booksQuery = gradeIds.length > 0 
+      ? `SELECT b.*, g.name as grade_name, g.project_id FROM books b 
+         JOIN grades g ON b.grade_id = g.id 
+         WHERE g.project_id = ? ORDER BY b.order_index ASC`
+      : 'SELECT * FROM books WHERE 1=0'; // Empty result if no grades
+    const books = await db.query(booksQuery, [project_id]);
+    
+    // Get units for this project's books
+    const bookIds = books.map(book => book.id);
+    const unitsQuery = bookIds.length > 0
+      ? `SELECT u.*, b.name as book_name, g.name as grade_name, g.project_id 
+         FROM units u 
+         JOIN books b ON u.book_id = b.id 
+         JOIN grades g ON b.grade_id = g.id 
+         WHERE g.project_id = ? ORDER BY u.order_index ASC`
+      : 'SELECT * FROM units WHERE 1=0'; // Empty result if no books
+    const units = await db.query(unitsQuery, [project_id]);
+    
+    // Get lessons for this project's units
+    const unitIds = units.map(unit => unit.id);
+    const lessonsQuery = unitIds.length > 0
+      ? `SELECT l.*, u.name as unit_name, b.name as book_name, g.name as grade_name, g.project_id 
+         FROM lessons l 
+         JOIN units u ON l.unit_id = u.id 
+         JOIN books b ON u.book_id = b.id 
+         JOIN grades g ON b.grade_id = g.id 
+         WHERE g.project_id = ? ORDER BY l.order_index ASC`
+      : 'SELECT * FROM lessons WHERE 1=0'; // Empty result if no units
+    const lessons = await db.query(lessonsQuery, [project_id]);
+
+    // Step 4: Build hierarchy and find lowest units
+    const hierarchy = [];
+    
+    // Add grades
+    grades.forEach(grade => {
+      hierarchy.push({
+        id: grade.id,
+        type: 'grade',
+        name: grade.name,
+        parent_id: null,
+        grade_id: grade.id,
+        book_id: null,
+        unit_id: null,
+        lesson_id: null,
+        component_path: grade.name
+      });
+    });
+
+    // Add books
+    books.forEach(book => {
+      hierarchy.push({
+        id: book.id,
+        type: 'book',
+        name: book.name,
+        parent_id: book.grade_id,
+        grade_id: book.grade_id,
+        book_id: book.id,
+        unit_id: null,
+        lesson_id: null,
+        component_path: `${book.grade_name} > ${book.name}`
+      });
+    });
+
+    // Add units
+    units.forEach(unit => {
+      hierarchy.push({
+        id: unit.id,
+        type: 'unit',
+        name: unit.name,
+        parent_id: unit.book_id,
+        grade_id: unit.grade_id,
+        book_id: unit.book_id,
+        unit_id: unit.id,
+        lesson_id: null,
+        component_path: `${unit.grade_name} > ${unit.book_name} > ${unit.name}`
+      });
+    });
+
+    // Add lessons
+    lessons.forEach(lesson => {
+      hierarchy.push({
+        id: lesson.id,
+        type: 'lesson',
+        name: lesson.name,
+        parent_id: lesson.unit_id,
+        grade_id: lesson.grade_id,
+        book_id: lesson.book_id,
+        unit_id: lesson.unit_id,
+        lesson_id: lesson.id,
+        component_path: `${lesson.grade_name} > ${lesson.book_name} > ${lesson.unit_name} > ${lesson.name}`
+      });
+    });
+
+    // Find lowest units (those that don't have children)
+    const lowestUnits = hierarchy.filter(item => {
+      const hasChildren = hierarchy.some(child => child.parent_id === item.id);
+      return !hasChildren;
+    });
+
+    console.log(`📊 Found ${lowestUnits.length} lowest units for project ${project_id}`);
+
+    // Step 5: Check existing tasks to calculate what would be created vs skipped
+    const existingTasksQuery = `
+      SELECT 
+        CONCAT(COALESCE(grade_id, 'null'), '-', COALESCE(book_id, 'null'), '-', COALESCE(unit_id, 'null'), '-', COALESCE(lesson_id, 'null'), '-', category_stage_id) as task_key,
+        category_stage_id,
+        name
+      FROM tasks 
+      WHERE project_id = ?
+    `;
+    
+    const existingTasks = await db.query(existingTasksQuery, [project_id]);
+    const existingTaskKeys = new Set(existingTasks.map(task => task.task_key));
+
+    // Calculate task counts for each stage
+    const stageStats = stages.map(stage => {
+      let wouldCreate = 0;
+      let wouldSkip = 0;
+      const existingForStage = [];
+
+      lowestUnits.forEach(unit => {
+        const taskKey = `${unit.grade_id || 'null'}-${unit.book_id || 'null'}-${unit.unit_id || 'null'}-${unit.lesson_id || 'null'}-${stage.id}`;
+        
+        if (existingTaskKeys.has(taskKey)) {
+          wouldSkip++;
+          const existingTask = existingTasks.find(task => task.task_key === taskKey);
+          existingForStage.push({
+            ...unit,
+            task_name: existingTask.name,
+            reason: 'Task already exists'
+          });
+        } else {
+          wouldCreate++;
+        }
+      });
+
+      return {
+        stage_id: stage.id,
+        stage_name: stage.name,
+        stage_description: stage.description,
+        template_order: stage.template_order,
+        would_create: wouldCreate,
+        would_skip: wouldSkip,
+        existing_tasks: existingForStage
+      };
+    });
+
+    const totalWouldCreate = stageStats.reduce((sum, stage) => sum + stage.would_create, 0);
+    const totalWouldSkip = stageStats.reduce((sum, stage) => sum + stage.would_skip, 0);
+
+    res.json({
+      success: true,
+      data: {
+        project_id: parseInt(project_id),
+        project_name: project.name,
+        total_stages: stages.length,
+        total_lowest_units: lowestUnits.length,
+        total_would_create: totalWouldCreate,
+        total_would_skip: totalWouldSkip,
+        stages: stageStats,
+        lowest_units: lowestUnits
+      }
+    });
+
+  } catch (error) {
+    console.error('Get bulk create preview error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to get bulk create preview',
+        details: error.message
+      }
+    });
+  }
+};
+
+// Bulk create tasks for selected stages
+const bulkCreateTasks = async (req, res) => {
+  try {
+    const { project_id } = req.params;
+    const { selected_stage_ids } = req.body;
+    
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Project ID is required'
+        }
+      });
+    }
+
+    if (!selected_stage_ids || !Array.isArray(selected_stage_ids) || selected_stage_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'At least one stage must be selected'
+        }
+      });
+    }
+
+    console.log(`🚀 Starting bulk task creation for project ${project_id} with stages: ${selected_stage_ids.join(', ')}`);
+
+    // Step 1: Get project details and category
+    const projectQuery = 'SELECT * FROM projects WHERE id = ?';
+    const projects = await db.query(projectQuery, [project_id]);
+    
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Project not found'
+        }
+      });
+    }
+
+    const project = projects[0];
+    const categoryId = project.category_id;
+
+    if (!categoryId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Project must have a category assigned'
+        }
+      });
+    }
+
+    // Step 2: Get selected stages for this project's category
+    const placeholders = selected_stage_ids.map(() => '?').join(',');
+    const stagesQuery = `
+      SELECT cs.*, st.order_index as template_order
+      FROM category_stages cs
+      INNER JOIN stage_templates st ON cs.id = st.stage_id
+      WHERE st.category_id = ? AND cs.id IN (${placeholders})
+      ORDER BY st.order_index ASC
+    `;
+    
+    const stages = await db.query(stagesQuery, [categoryId, ...selected_stage_ids]);
+    
+    if (stages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No stages found for this project category'
+        }
+      });
+    }
+
     console.log(`📋 Found ${stages.length} stages for category ${categoryId}`);
 
     // Step 3: Get all educational hierarchy for this project
@@ -489,23 +749,32 @@ const bulkCreateTasks = async (req, res) => {
     // Get books for all grades in this project
     const gradeIds = grades.map(g => g.id);
     const booksQuery = gradeIds.length > 0 ? 
-      `SELECT * FROM books WHERE grade_id IN (${gradeIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      `SELECT b.*, g.name as grade_name, g.project_id FROM books b 
+       JOIN grades g ON b.grade_id = g.id 
+       WHERE g.project_id = ? ORDER BY b.order_index ASC` :
       'SELECT * FROM books WHERE 1=0';
-    const books = await db.query(booksQuery, gradeIds);
+    const books = await db.query(booksQuery, [project_id]);
     
     // Get units for all books in this project
     const bookIds = books.map(b => b.id);
     const unitsQuery = bookIds.length > 0 ?
-      `SELECT * FROM units WHERE book_id IN (${bookIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      `SELECT u.*, b.name as book_name, g.name as grade_name, g.project_id FROM units u 
+       JOIN books b ON u.book_id = b.id 
+       JOIN grades g ON b.grade_id = g.id 
+       WHERE g.project_id = ? ORDER BY u.order_index ASC` :
       'SELECT * FROM units WHERE 1=0';
-    const units = await db.query(unitsQuery, bookIds);
+    const units = await db.query(unitsQuery, [project_id]);
     
     // Get lessons for all units in this project
     const unitIds = units.map(u => u.id);
     const lessonsQuery = unitIds.length > 0 ?
-      `SELECT * FROM lessons WHERE unit_id IN (${unitIds.map(() => '?').join(',')}) ORDER BY order_index ASC` :
+      `SELECT l.*, u.name as unit_name, b.name as book_name, g.name as grade_name, g.project_id FROM lessons l 
+       JOIN units u ON l.unit_id = u.id 
+       JOIN books b ON u.book_id = b.id 
+       JOIN grades g ON b.grade_id = g.id 
+       WHERE g.project_id = ? ORDER BY l.order_index ASC` :
       'SELECT * FROM lessons WHERE 1=0';
-    const lessons = await db.query(lessonsQuery, unitIds);
+    const lessons = await db.query(lessonsQuery, [project_id]);
 
     console.log(`📚 Found ${grades.length} grades, ${books.length} books, ${units.length} units, ${lessons.length} lessons`);
 
@@ -1185,6 +1454,72 @@ const updateTask = async (req, res) => {
     // Recalculate project progress
     await recalculateProjectProgress(updatedTask.project_id);
 
+    // Send notification if task was marked as under-review or completed by a team member
+    if ((status === 'under-review' || status === 'completed') && req.user?.type === 'team') {
+      try {
+        const notificationServer = global.notificationServer;
+        
+        // Get user name
+        const userQuery = 'SELECT name FROM team_members WHERE id = ?';
+        const users = await db.query(userQuery, [req.user.id]);
+        const userName = users.length > 0 ? users[0].name : 'Unknown User';
+        
+        // Get task hierarchy information
+        const hierarchyQuery = `
+          SELECT 
+            t.name as task_name,
+            g.name as grade_name,
+            b.name as book_name,
+            u.name as unit_name,
+            l.name as lesson_name,
+            cs.name as stage_name
+          FROM tasks t
+          LEFT JOIN grades g ON t.grade_id = g.id
+          LEFT JOIN books b ON t.book_id = b.id
+          LEFT JOIN units u ON t.unit_id = u.id
+          LEFT JOIN lessons l ON t.lesson_id = l.id
+          LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
+          WHERE t.id = ?
+        `;
+        const hierarchyResult = await db.query(hierarchyQuery, [id]);
+        
+        if (hierarchyResult.length > 0) {
+          const taskData = hierarchyResult[0];
+          
+          // Build hierarchy string
+          const hierarchyParts = [];
+          if (taskData.grade_name) hierarchyParts.push(taskData.grade_name);
+          if (taskData.book_name) hierarchyParts.push(taskData.book_name);
+          if (taskData.unit_name) hierarchyParts.push(taskData.unit_name);
+          if (taskData.lesson_name) hierarchyParts.push(taskData.lesson_name);
+          const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
+          
+          const notificationData = {
+            task_id: id,
+            task_name: taskData.task_name,
+            user_name: userName,
+            user_id: req.user.id,
+            user_type: 'team',
+            hierarchy: hierarchy,
+            stage_name: taskData.stage_name || 'No stage',
+            submitted_at: new Date().toISOString(),
+            status: status
+          };
+          
+          if (status === 'under-review') {
+            await notificationServer.notifyTaskSubmission(notificationData);
+            console.log(`📢 Task submission notification sent for task ${id} by ${userName}`);
+          } else if (status === 'completed') {
+            await notificationServer.notifyTaskCompletion(notificationData);
+            console.log(`📢 Task completion notification sent for task ${id} by ${userName}`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send task completion notification:', error);
+        // Don't fail the request if notification fails
+      }
+    }
+
     res.json({
       success: true,
       data: updatedTask,
@@ -1240,6 +1575,92 @@ const deleteTask = async (req, res) => {
       error: {
         code: 'DATABASE_ERROR',
         message: 'Failed to delete task'
+      }
+    });
+  }
+};
+
+// Bulk delete tasks
+const bulkDeleteTasks = async (req, res) => {
+  try {
+    const { taskIds } = req.body;
+
+    // Validate input
+    if (!Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'Task IDs array is required and must not be empty'
+        }
+      });
+    }
+
+    // Validate that all IDs are numbers
+    const invalidIds = taskIds.filter(id => !Number.isInteger(Number(id)));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: `Invalid task IDs: ${invalidIds.join(', ')}`
+        }
+      });
+    }
+
+    // Check if all tasks exist and get their project_ids
+    const placeholders = taskIds.map(() => '?').join(',');
+    const existing = await db.query(`SELECT id, project_id FROM tasks WHERE id IN (${placeholders})`, taskIds);
+    
+    if (existing.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'No tasks found with the provided IDs'
+        }
+      });
+    }
+
+    // Check if some tasks were not found
+    const foundIds = existing.map(task => task.id);
+    const notFoundIds = taskIds.filter(id => !foundIds.includes(Number(id)));
+    
+    if (notFoundIds.length > 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `Tasks not found: ${notFoundIds.join(', ')}`
+        }
+      });
+    }
+
+    // Get unique project IDs for progress recalculation
+    const projectIds = [...new Set(existing.map(task => task.project_id))];
+
+    // Delete tasks (CASCADE will handle related records)
+    await db.query(`DELETE FROM tasks WHERE id IN (${placeholders})`, taskIds);
+
+    // Recalculate progress for all affected projects
+    for (const projectId of projectIds) {
+      await recalculateProjectProgress(projectId);
+    }
+
+    res.json({
+      success: true,
+      message: `${taskIds.length} task(s) deleted successfully`,
+      deletedCount: taskIds.length,
+      affectedProjects: projectIds.length
+    });
+
+  } catch (error) {
+    console.error('Bulk delete tasks error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to delete tasks'
       }
     });
   }
@@ -1886,9 +2307,41 @@ const getNotifications = async (req, res) => {
       LIMIT 50
     `;
     
-    const [extensions, remarks] = await Promise.all([
+    // Get tasks under review (submitted for approval) by team members
+    const underReviewTasksQuery = `
+      SELECT DISTINCT
+        t.id as task_id,
+        t.name as task_name,
+        t.status,
+        t.updated_at as submitted_at,
+        p.name as project_name,
+        g.name as grade_name,
+        b.name as book_name,
+        u.name as unit_name,
+        l.name as lesson_name,
+        cs.name as stage_name,
+        tm.name as submitted_by_name,
+        tm.id as submitted_by_id
+      FROM tasks t
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN grades g ON t.grade_id = g.id
+      LEFT JOIN books b ON t.book_id = b.id
+      LEFT JOIN units u ON t.unit_id = u.id
+      LEFT JOIN lessons l ON t.lesson_id = l.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
+      LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignee_type = 'team'
+      LEFT JOIN team_members tm ON ta.assignee_id = tm.id
+      WHERE t.status = 'under-review' 
+        AND t.updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND ta.assignee_type = 'team'
+      ORDER BY t.updated_at DESC
+      LIMIT 50
+    `;
+    
+    const [extensions, remarks, underReviewTasks] = await Promise.all([
       db.query(extensionQuery),
-      db.query(remarksQuery)
+      db.query(remarksQuery),
+      db.query(underReviewTasksQuery)
     ]);
     
     // Format the data - db.query returns rows directly, not nested arrays
@@ -1921,7 +2374,30 @@ const getNotifications = async (req, res) => {
         is_private: remark.is_private,
         created_at: remark.created_at,
         is_new: true // All recent remarks are considered new
-      }))
+      })),
+      underReviewTasks: underReviewTasks.map(task => {
+        // Build hierarchy string
+        const hierarchyParts = [];
+        if (task.grade_name) hierarchyParts.push(task.grade_name);
+        if (task.book_name) hierarchyParts.push(task.book_name);
+        if (task.unit_name) hierarchyParts.push(task.unit_name);
+        if (task.lesson_name) hierarchyParts.push(task.lesson_name);
+        const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
+        
+        return {
+          id: `under_review_${task.task_id}_${task.submitted_by_id}`,
+          type: 'task_under_review',
+          task_id: task.task_id,
+          task_name: task.task_name,
+          project_name: task.project_name,
+          submitted_by_name: task.submitted_by_name,
+          submitted_by_id: task.submitted_by_id,
+          submitted_at: task.submitted_at,
+          hierarchy: hierarchy,
+          stage_name: task.stage_name || 'No stage',
+          is_new: new Date(task.submitted_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if submitted in last 24h
+        };
+      })
     };
     
     res.json({
@@ -1957,7 +2433,7 @@ const getTeamNotifications = async (req, res) => {
     if (tasks.length === 0) {
       return res.json({
         success: true,
-        data: { extensions: [], remarks: [] }
+        data: { extensions: [], remarks: [], completedTasks: [] }
       });
     }
     
@@ -2038,9 +2514,42 @@ const getTeamNotifications = async (req, res) => {
       ORDER BY tr.created_at DESC
     `;
     
-    const [extensions, remarks] = await Promise.all([
+    // Get recently completed tasks by this team member (last 7 days)
+    const completedTasksQuery = `
+      SELECT DISTINCT
+        t.id as task_id,
+        t.name as task_name,
+        t.status,
+        t.updated_at as completed_at,
+        p.name as project_name,
+        g.name as grade_name,
+        b.name as book_name,
+        u.name as unit_name,
+        l.name as lesson_name,
+        cs.name as stage_name,
+        tm.name as completed_by_name,
+        tm.id as completed_by_id
+      FROM tasks t
+      JOIN projects p ON t.project_id = p.id
+      LEFT JOIN grades g ON t.grade_id = g.id
+      LEFT JOIN books b ON t.book_id = b.id
+      LEFT JOIN units u ON t.unit_id = u.id
+      LEFT JOIN lessons l ON t.lesson_id = l.id
+      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
+      LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignee_type = 'team'
+      LEFT JOIN team_members tm ON ta.assignee_id = tm.id
+      WHERE t.status = 'completed' 
+        AND t.updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND ta.assignee_id = ?
+        AND ta.assignee_type = 'team'
+      ORDER BY t.updated_at DESC
+      LIMIT 50
+    `;
+    
+    const [extensions, remarks, completedTasks] = await Promise.all([
       db.query(extensionQuery, taskIds),
-      db.query(remarksQuery, taskIds)
+      db.query(remarksQuery, taskIds),
+      db.query(completedTasksQuery, [teamMemberId])
     ]);
     
     // Format the data for team member notifications
@@ -2077,7 +2586,30 @@ const getTeamNotifications = async (req, res) => {
         is_private: remark.is_private,
         created_at: remark.created_at,
         is_new: new Date(remark.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if created in last 24h
-      }))
+      })),
+      completedTasks: completedTasks.map(task => {
+        // Build hierarchy string
+        const hierarchyParts = [];
+        if (task.grade_name) hierarchyParts.push(task.grade_name);
+        if (task.book_name) hierarchyParts.push(task.book_name);
+        if (task.unit_name) hierarchyParts.push(task.unit_name);
+        if (task.lesson_name) hierarchyParts.push(task.lesson_name);
+        const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
+        
+        return {
+          id: `completed_${task.task_id}_${task.completed_by_id}`,
+          type: 'task_completed',
+          task_id: task.task_id,
+          task_name: task.task_name,
+          project_name: task.project_name,
+          completed_by_name: task.completed_by_name,
+          completed_by_id: task.completed_by_id,
+          completed_at: task.completed_at,
+          hierarchy: hierarchy,
+          stage_name: task.stage_name || 'No stage',
+          is_new: new Date(task.completed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if completed in last 24h
+        };
+      })
     };
     
     res.json({
@@ -2095,13 +2627,132 @@ const getTeamNotifications = async (req, res) => {
   }
 };
 
+// Approve or deny task completion (admin only)
+const reviewTaskCompletion = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { action, review_notes } = req.body; // action: 'approve' or 'deny'
+    const reviewerId = req.user?.id;
+
+    if (!req.user) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Only admins can review task completions'
+        }
+      });
+    }
+
+    // Validate action
+    if (!['approve', 'deny'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Action must be either "approve" or "deny"'
+        }
+      });
+    }
+
+    // Check if task exists and is under review
+    const taskQuery = 'SELECT * FROM tasks WHERE id = ? AND status = "under-review"';
+    const tasks = await db.query(taskQuery, [taskId]);
+    
+    if (tasks.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Task not found or not under review'
+        }
+      });
+    }
+
+    const task = tasks[0];
+    const newStatus = action === 'approve' ? 'completed' : 'in-progress';
+
+    // Update task status
+    const updateQuery = 'UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+    await db.query(updateQuery, [newStatus, taskId]);
+
+    console.log(`✅ Task ${taskId} ${action}d by admin ${reviewerId}. New status: ${newStatus}`);
+
+    // Send notification to team member
+    try {
+      if (global.notificationServer) {
+        // Get task assignee info
+        const assigneeQuery = `
+          SELECT tm.id, tm.name, tm.email
+          FROM task_assignees ta
+          JOIN team_members tm ON ta.assignee_id = tm.id
+          WHERE ta.task_id = ? AND ta.assignee_type = 'team'
+          LIMIT 1
+        `;
+        const assignees = await db.query(assigneeQuery, [taskId]);
+        
+        if (assignees.length > 0) {
+          const assignee = assignees[0];
+          const reviewerQuery = 'SELECT name FROM admin_users WHERE id = ?';
+          const reviewers = await db.query(reviewerQuery, [reviewerId]);
+          const reviewerName = reviewers.length > 0 ? reviewers[0].name : 'Admin';
+          
+          // Get task name
+          const taskNameQuery = 'SELECT name FROM tasks WHERE id = ?';
+          const taskResult = await db.query(taskNameQuery, [taskId]);
+          const taskName = taskResult.length > 0 ? taskResult[0].name : 'Unknown Task';
+          
+          const notificationData = {
+            task_id: taskId,
+            task_name: taskName,
+            action: action,
+            reviewer_name: reviewerName,
+            review_notes: review_notes || '',
+            assignee_id: assignee.id,
+            assignee_name: assignee.name
+          };
+          
+          console.log('🔍 Debug: Sending task review notification with data:', notificationData);
+          await global.notificationServer.notifyTaskReview(notificationData);
+          console.log(`📢 Task review notification sent to team member ${assignee.name} (ID: ${assignee.id})`);
+        }
+      }
+    } catch (notificationError) {
+      console.error('Failed to send task review notification:', notificationError);
+      // Don't fail the main request if notification fails
+    }
+
+    res.json({
+      success: true,
+      message: `Task ${action}d successfully`,
+      data: {
+        task_id: taskId,
+        new_status: newStatus,
+        action: action
+      }
+    });
+
+  } catch (error) {
+    console.error('Review task completion error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to review task completion'
+      }
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
   createTask,
   updateTask,
   deleteTask,
+  bulkDeleteTasks,
   testStageFilter,
+  getBulkCreatePreview,
   bulkCreateTasks,
   // Extension endpoints
   requestTaskExtension,
@@ -2112,5 +2763,6 @@ module.exports = {
   getTaskRemarks,
   deleteTaskRemark,
   getNotifications,
-  getTeamNotifications
+  getTeamNotifications,
+  reviewTaskCompletion
 };

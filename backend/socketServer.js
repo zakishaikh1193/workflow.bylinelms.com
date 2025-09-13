@@ -216,6 +216,71 @@ class NotificationServer {
     console.log(`📢 Extension review notification sent to requester and task assignees for task ${extensionData.task_id}`);
   }
 
+  // Notify about task submission for review (to admins)
+  async notifyTaskSubmission(submissionData) {
+    const notification = {
+      type: 'task_under_review',
+      title: 'Task Submitted for Review',
+      message: `${submissionData.user_name} submitted "${submissionData.task_name}" for review`,
+      description: `Hierarchy: ${submissionData.hierarchy}\nStage: ${submissionData.stage_name}`,
+      data: submissionData,
+      timestamp: new Date().toISOString(),
+      priority: 'high'
+    };
+
+    // Broadcast to all admins (they should know about task submissions)
+    this.broadcastToAdmins('new-notification', notification);
+    
+    // Also notify other team members assigned to the same task
+    await this.notifyTaskAssignees(submissionData.task_id, 'new-notification', notification);
+    
+    console.log(`📢 Task submission notification sent to ${this.adminSockets.size} admins and task assignees for task ${submissionData.task_id}`);
+  }
+
+  // Notify about task completion (to admins)
+  async notifyTaskCompletion(completionData) {
+    const notification = {
+      type: 'task_completed',
+      title: 'Task Completed',
+      message: `${completionData.user_name} has marked "${completionData.task_name}" as completed`,
+      description: `Hierarchy: ${completionData.hierarchy}\nStage: ${completionData.stage_name}`,
+      data: completionData,
+      timestamp: new Date().toISOString(),
+      priority: 'medium'
+    };
+
+    // Broadcast to all admins (they should know about task completions)
+    this.broadcastToAdmins('new-notification', notification);
+    
+    // Also notify other team members assigned to the same task
+    await this.notifyTaskAssignees(completionData.task_id, 'new-notification', notification);
+    
+    console.log(`📢 Task completion notification sent to ${this.adminSockets.size} admins and task assignees for task ${completionData.task_id}`);
+  }
+
+  // Notify about task review (approve/deny)
+  async notifyTaskReview(reviewData) {
+    const notification = {
+      type: 'task_reviewed',
+      title: `Task ${reviewData.action === 'approve' ? 'Approved ✅' : 'Denied ❌'}`,
+      message: reviewData.action === 'approve' 
+        ? `Admin has approved your task "${reviewData.task_name}" and it is now marked as complete!`
+        : `Admin has denied your task "${reviewData.task_name}". Please make the necessary changes and resubmit.`,
+      description: reviewData.action === 'approve' 
+        ? `Congratulations! Your task has been approved by ${reviewData.reviewer_name} and marked as completed.` 
+        : `Your task has been denied by ${reviewData.reviewer_name}. Please review the feedback and make necessary changes before resubmitting.`,
+      data: reviewData,
+      timestamp: new Date().toISOString(),
+      priority: reviewData.action === 'approve' ? 'high' : 'medium'
+    };
+
+    // Send to specific team member using the sendToUser method
+    console.log(`🔍 Debug: Attempting to send task review notification to team member ${reviewData.assignee_name} (ID: ${reviewData.assignee_id})`);
+    console.log(`🔍 Debug: Current team sockets:`, Array.from(this.teamSockets.keys()));
+    this.sendToUser(reviewData.assignee_id.toString(), 'team', 'new-notification', notification);
+    console.log(`📢 Task review notification sent to team member ${reviewData.assignee_name} (ID: ${reviewData.assignee_id})`);
+  }
+
   // Get connected users count
   getConnectedUsersCount() {
     return {

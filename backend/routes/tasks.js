@@ -6,7 +6,9 @@ const {
   createTask,
   updateTask,
   deleteTask,
+  bulkDeleteTasks,
   testStageFilter,
+  getBulkCreatePreview,
   bulkCreateTasks,
   // Extension endpoints
   requestTaskExtension,
@@ -17,7 +19,8 @@ const {
   getTaskRemarks,
   deleteTaskRemark,
   getNotifications,
-  getTeamNotifications
+  getTeamNotifications,
+  reviewTaskCompletion
 } = require('../controllers/taskController');
 const { requireAuth, requireTeamAuth } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
@@ -273,13 +276,31 @@ const queryValidation = [
 // Test stage filter endpoint
 router.get('/test/stage-filter', testStageFilter);
 
+// Get bulk create preview
+router.get('/project/:project_id/bulk-create-preview',
+  requireAuth,
+  [
+    param('project_id')
+      .isInt({ min: 1 })
+      .withMessage('Project ID must be a positive integer')
+  ],
+  handleValidationErrors,
+  getBulkCreatePreview
+);
+
 // Bulk create tasks for project hierarchy
 router.post('/project/:project_id/bulk-create',
   requireAuth,
   [
     param('project_id')
       .isInt({ min: 1 })
-      .withMessage('Project ID must be a positive integer')
+      .withMessage('Project ID must be a positive integer'),
+    body('selected_stage_ids')
+      .isArray({ min: 1 })
+      .withMessage('At least one stage must be selected'),
+    body('selected_stage_ids.*')
+      .isInt({ min: 1 })
+      .withMessage('Each stage ID must be a positive integer')
   ],
   handleValidationErrors,
   bulkCreateTasks
@@ -298,6 +319,18 @@ router.get('/notifications', requireAuth, getNotifications);
 
 // Get notifications for team members
 router.get('/team/notifications', requireTeamAuth, getTeamNotifications);
+
+// Review task completion (approve/deny)
+router.post('/:taskId/review', 
+  requireAuth,
+  [
+    param('taskId').isInt({ min: 1 }).withMessage('Task ID must be a positive integer'),
+    body('action').isIn(['approve', 'deny']).withMessage('Action must be either "approve" or "deny"'),
+    body('review_notes').optional().isString().withMessage('Review notes must be a string')
+  ],
+  handleValidationErrors,
+  reviewTaskCompletion
+);
 
 // Get task by ID
 router.get('/:id',
@@ -322,6 +355,21 @@ router.put('/:id',
   taskUpdateValidation,
   handleValidationErrors,
   updateTask
+);
+
+// Bulk delete tasks (must come before /:id route)
+router.delete('/bulk',
+  requireAuth,
+  [
+    body('taskIds')
+      .isArray({ min: 1 })
+      .withMessage('Task IDs must be a non-empty array'),
+    body('taskIds.*')
+      .isInt({ min: 1 })
+      .withMessage('Each task ID must be a positive integer')
+  ],
+  handleValidationErrors,
+  bulkDeleteTasks
 );
 
 // Delete task

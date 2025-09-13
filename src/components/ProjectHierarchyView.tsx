@@ -658,14 +658,14 @@ export function ProjectHierarchyView({ projectId, onBack }: ProjectHierarchyView
                             // Verify this is the correct task by checking component_path
                             if (foundTask.component_path === item.id) {
                               console.log('🎯 Task component_path matches hierarchy item!');
-                              handleTaskClick(foundTask);
+                              // handleTaskClick(foundTask);
                             } else {
                               console.warn('⚠️ Task component_path mismatch:', {
                                 expected: item.id,
                                 actual: foundTask.component_path
                               });
                               // Still show the task but log the warning
-                              handleTaskClick(foundTask);
+                              // handleTaskClick(foundTask);
                             }
                           } else {
                             console.warn(`❌ No task found for ${item.id} - ${stage.name}`);

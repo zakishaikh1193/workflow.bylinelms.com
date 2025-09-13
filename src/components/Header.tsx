@@ -64,11 +64,13 @@ export function Header() {
 
       const extensions = response?.data?.extensions || [];
       const remarks = response?.data?.remarks || [];
+      const completedTasks = response?.data?.completedTasks || [];
 
       const recentExtensions = extensions.filter((e: any) => new Date(e.created_at) >= cutoff);
       const recentRemarks = remarks.filter((r: any) => new Date(r.created_at) >= cutoff);
+      const recentCompletedTasks = completedTasks.filter((t: any) => new Date(t.completed_at) >= cutoff);
 
-      const totalCount = recentExtensions.length + recentRemarks.length;
+      const totalCount = recentExtensions.length + recentRemarks.length + recentCompletedTasks.length;
       setNotificationCount(totalCount);
     } catch (error) {
       console.error('Failed to load notification count:', error);

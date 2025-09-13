@@ -60,6 +60,10 @@ export function TaskManager() {
   const [totalTasks, setTotalTasks] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [allTasks, setAllTasks] = useState<any[]>([]); // For statistics
+  
+  // Task selection state for bulk operations
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Fetch tasks and related data from backend
   useEffect(() => {
@@ -332,6 +336,11 @@ export function TaskManager() {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedStatus, selectedPriority, selectedProject, selectedStage, selectedDueDate, selectedAssignee, debouncedSearch]);
+
+  // Clear selections when filters change
+  useEffect(() => {
+    setSelectedTasks(new Set());
+  }, [selectedStatus, selectedPriority, selectedProject, selectedStage, selectedDueDate, selectedAssignee, debouncedSearch, currentPage]);
 
   const isOverdue = (task: Task) => {
     const endDate = task.end_date || task.endDate;
@@ -787,6 +796,82 @@ export function TaskManager() {
     }
   };
 
+  // Task selection functions
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTasks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllTasks = () => {
+    const allTaskIds = filteredTasks.map(task => task.id.toString());
+    setSelectedTasks(new Set(allTaskIds));
+  };
+
+  const clearAllSelections = () => {
+    setSelectedTasks(new Set());
+  };
+
+  const isAllSelected = () => {
+    return filteredTasks.length > 0 && filteredTasks.every(task => selectedTasks.has(task.id.toString()));
+  };
+
+  const isPartiallySelected = () => {
+    return selectedTasks.size > 0 && selectedTasks.size < filteredTasks.length;
+  };
+
+  // Bulk delete function
+  const handleBulkDelete = async () => {
+    if (selectedTasks.size === 0) return;
+
+    try {
+      setError(null);
+
+      // Convert Set to Array and ensure they are numbers
+      const taskIds = Array.from(selectedTasks).map(id => parseInt(id));
+
+      // Call bulk delete API
+      await taskService.bulkDelete(taskIds);
+
+      // Clear selections
+      setSelectedTasks(new Set());
+      setIsBulkDeleteModalOpen(false);
+
+      // Refresh tasks list with current filters
+      const filters: any = {
+        sort: sortField,
+        order: sortOrder,
+        page: currentPage,
+        limit: pageSize
+      };
+
+      if (selectedStatus !== 'all') filters.status = selectedStatus;
+      if (selectedPriority !== 'all') filters.priority = selectedPriority;
+      if (selectedStage !== 'all') filters.stage_id = selectedStage; else if (selectedProject !== 'all') filters.project_id = selectedProject;
+      if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
+      if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
+      if (debouncedSearch) filters.search = debouncedSearch;
+
+      const tasksResponse = await taskService.getAll(filters);
+      if (tasksResponse && tasksResponse.data) {
+        setTasks(tasksResponse.data);
+        setTotalTasks(tasksResponse.pagination?.total || 0);
+        setTotalPages(tasksResponse.pagination?.pages || 1);
+      }
+
+      console.log(`✅ ${taskIds.length} task(s) deleted successfully`);
+    } catch (err: any) {
+      console.error('❌ Bulk delete error:', err);
+      setError(err.message || 'Failed to delete tasks');
+    }
+  };
+
   // Calculate task statistics
   const taskStats = (() => {
     if (allTasks.length > 0) {
@@ -1180,6 +1265,64 @@ export function TaskManager() {
         
       </div>
 
+      {/* Bulk Selection Controls */}
+      {filteredTasks.length > 0 && (
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected()}
+                  ref={(input) => {
+                    if (input) input.indeterminate = isPartiallySelected();
+                  }}
+                  onChange={() => {
+                    if (isAllSelected()) {
+                      clearAllSelections();
+                    } else {
+                      selectAllTasks();
+                    }
+                  }}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  {isAllSelected() ? 'Deselect All' : 'Select All'}
+                </span>
+              </div>
+              
+              {selectedTasks.size > 0 && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearAllSelections}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    Clear Selection
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {selectedTasks.size > 0 && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setIsBulkDeleteModalOpen(true)}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Selected ({selectedTasks.size})
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
             {/* Tasks List */}
       <Card>
         <CardContent className="p-0">
@@ -1187,7 +1330,23 @@ export function TaskManager() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected()}
+                      ref={(input) => {
+                        if (input) input.indeterminate = isPartiallySelected();
+                      }}
+                      onChange={() => {
+                        if (isAllSelected()) {
+                          clearAllSelections();
+                        } else {
+                          selectAllTasks();
+                        }
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('name')}
@@ -1300,7 +1459,14 @@ export function TaskManager() {
                   
                   return (
                     <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
-
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedTasks.has(task.id.toString())}
+                          onChange={() => toggleTaskSelection(task.id.toString())}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900 flex items-center">
@@ -1546,6 +1712,68 @@ export function TaskManager() {
         lessons={lessons}
         editingTask={editingTask}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Modal
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        title="Confirm Bulk Delete"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">
+                Delete {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''}?
+              </h3>
+              <p className="text-sm text-gray-500">
+                This action cannot be undone. The selected tasks will be permanently deleted.
+              </p>
+            </div>
+          </div>
+
+          {selectedTasks.size > 0 && (
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Tasks to be deleted:</h4>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {Array.from(selectedTasks).map(taskId => {
+                  const task = filteredTasks.find(t => t.id.toString() === taskId);
+                  return task ? (
+                    <div key={taskId} className="text-sm text-gray-600 flex items-center">
+                      <span className="w-2 h-2 bg-red-400 rounded-full mr-2"></span>
+                      {task.name}
+                    </div>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsBulkDeleteModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleBulkDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete {selectedTasks.size} Task{selectedTasks.size !== 1 ? 's' : ''}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
