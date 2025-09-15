@@ -13,6 +13,9 @@ router.get('/', allocationController.getAllocations);
 // Get workload summary for a specific date
 router.get('/workload-summary', allocationController.getWorkloadSummary);
 
+// Get daily allocations based on task assignments
+router.get('/daily', allocationController.getDailyAllocations);
+
 // Get single allocation by ID
 router.get('/:id', allocationController.getAllocation);
 

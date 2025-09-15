@@ -40,7 +40,15 @@ export function MainApp() {
         case 'tasks':
           return <TaskManager />;
         case 'allocations':
-          return <DailyAllocations />;
+          return (
+            <DailyAllocations 
+              onNavigateToTask={(taskId) => {
+                dispatch({ type: 'SET_PREVIOUS_VIEW', payload: state.selectedView });
+                dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
+                dispatch({ type: 'SET_SELECTED_VIEW', payload: 'task-details' });
+              }}
+            />
+          );
         case 'analytics':
           return <Analytics />;
         case 'core-analytics':

@@ -213,11 +213,29 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
 
   const handleUpdateTask = async (updatedTaskData: Partial<Task>) => {
     try {
-      // Ensure actual_hours is included in the update
+      // Convert camelCase field names to snake_case for backend compatibility
       const taskUpdateData = {
-        ...updatedTaskData,
-        actual_hours: updatedTaskData.actual_hours !== undefined ? updatedTaskData.actual_hours : task?.actual_hours
+        name: updatedTaskData.name,
+        description: updatedTaskData.description,
+        project_id: updatedTaskData.projectId ? parseInt(updatedTaskData.projectId.toString()) : task?.project_id,
+        category_stage_id: updatedTaskData.stageId ? parseInt(updatedTaskData.stageId.toString()) : task?.category_stage_id,
+        status: updatedTaskData.status,
+        priority: updatedTaskData.priority,
+        start_date: updatedTaskData.startDate,
+        end_date: updatedTaskData.endDate,
+        progress: updatedTaskData.progress,
+        estimated_hours: updatedTaskData.estimatedHours ? parseInt(updatedTaskData.estimatedHours.toString()) : task?.estimated_hours,
+        actual_hours: updatedTaskData.actualHours !== undefined ? parseInt(updatedTaskData.actualHours.toString()) : task?.actual_hours,
+        assignees: updatedTaskData.assignees || task?.assignees || [],
+        skills: updatedTaskData.skills || task?.skills || [],
+        grade_id: updatedTaskData.gradeId ? parseInt(updatedTaskData.gradeId.toString()) : task?.grade_id,
+        book_id: updatedTaskData.bookId ? parseInt(updatedTaskData.bookId.toString()) : task?.book_id,
+        unit_id: updatedTaskData.unitId ? parseInt(updatedTaskData.unitId.toString()) : task?.unit_id,
+        lesson_id: updatedTaskData.lessonId ? parseInt(updatedTaskData.lessonId.toString()) : task?.lesson_id,
+        component_path: updatedTaskData.componentPath || task?.componentPath
       };
+      
+      console.log('🔄 TaskDetails updating task with formatted data:', taskUpdateData);
       
       const updatedTask = await taskService.update(taskId, taskUpdateData);
       setTask(updatedTask);

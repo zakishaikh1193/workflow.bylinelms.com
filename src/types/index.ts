@@ -209,6 +209,10 @@ export interface TeamAllocation {
   task_name?: string;
   user_name?: string;
   user_email?: string;
+  user_skills?: string[];
+  date?: string;
+  task_status?: string;
+  task_priority?: string;
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed' | 'cancelled';

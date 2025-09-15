@@ -928,7 +928,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               type="text"
               value={serverLocation}
               onChange={(e) => setServerLocation(e.target.value)}
-              placeholder="e.g., /var/www/html/project, C:\project\src"
+              placeholder="e.g. Y:\Standard ICT\"
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
               required
             />
@@ -944,7 +944,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               type="text"
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
-              placeholder="e.g., index.html, main.js, styles.css"
+              placeholder="e.g. ICT_G1_U1_L1"
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
               required
             />

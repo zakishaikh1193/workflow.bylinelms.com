@@ -575,6 +575,14 @@ export const allocationService = {
     return result.data;
   },
 
+  // Get daily allocations based on task assignments
+  getDaily: async (filters?: { start_date?: string; end_date?: string; group_by?: 'team' | 'project' }) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/allocations/daily?${queryParams}` : '/allocations/daily';
+    const result = await apiService.get(endpoint);
+    return result.data;
+  },
+
   // Get allocation by ID
   getById: async (id: string | number) => {
     const result = await apiService.get(`/allocations/${id}`);
