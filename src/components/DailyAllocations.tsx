@@ -10,13 +10,14 @@ import {
   AlertTriangle,
   FolderOpen,
   Users,
-  Eye
+  Eye,
+  XCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
-import { allocationService } from '../services/apiService';
+import { allocationService, projectService, teamService, taskService, stageService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
 interface DailyAllocation {
   id: string;
@@ -909,14 +910,15 @@ export function DailyAllocations({ onNavigateToTask }: DailyAllocationsProps = {
         )
       )}
 
-      {/* Add Allocation Modal - Simplified for now */}
-      <Modal isOpen={isAllocationModalOpen} onClose={() => setIsAllocationModalOpen(false)} title="Add Team Allocation" size="lg">
-        <div className="p-6 text-center">
-          <p className="text-gray-600 mb-4">Allocation management will be implemented in a future update.</p>
-          <Button onClick={() => setIsAllocationModalOpen(false)}>
-            Close
-          </Button>
-        </div>
+      {/* Add Allocation Modal - Comprehensive Task Allocation */}
+      <Modal isOpen={isAllocationModalOpen} onClose={() => setIsAllocationModalOpen(false)} title="Allocate Tasks to Team Members" size="xl">
+        <TaskAllocationModal 
+          onClose={() => setIsAllocationModalOpen(false)}
+          onAllocationComplete={() => {
+            setIsAllocationModalOpen(false);
+            fetchDailyAllocations(); // Refresh the allocations
+          }}
+        />
       </Modal>
 
       {/* Daily Allocation Modal */}
@@ -1004,6 +1006,707 @@ export function DailyAllocations({ onNavigateToTask }: DailyAllocationsProps = {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+// Comprehensive Task Allocation Modal Component
+interface TaskAllocationModalProps {
+  onClose: () => void;
+  onAllocationComplete: () => void;
+}
+
+function TaskAllocationModal({ onClose, onAllocationComplete }: TaskAllocationModalProps) {
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [selectedBook, setSelectedBook] = useState<string>('');
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const [selectedLesson, setSelectedLesson] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
+  const [selectedTeamMember, setSelectedTeamMember] = useState<number | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [allocationDate, setAllocationDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
+  // Load initial data
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Load stages and grades when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      loadStagesForProject(selectedProject);
+      loadGradesForProject(selectedProject);
+      // Reset all selections when project changes
+      setSelectedStage('');
+      setSelectedGrade('');
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    } else {
+      setStages([]);
+      setGrades([]);
+      setBooks([]);
+      setUnits([]);
+      setLessons([]);
+      setTasks([]);
+      setSelectedStage('');
+      setSelectedGrade('');
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    }
+  }, [selectedProject]);
+
+  // Load books when grade changes
+  useEffect(() => {
+    if (selectedGrade) {
+      loadBooksForGrade(selectedGrade);
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    } else {
+      setBooks([]);
+      setUnits([]);
+      setLessons([]);
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    }
+  }, [selectedGrade]);
+
+  // Load units when book changes
+  useEffect(() => {
+    if (selectedBook) {
+      loadUnitsForBook(selectedBook);
+      setSelectedUnit('');
+      setSelectedLesson('');
+    } else {
+      setUnits([]);
+      setLessons([]);
+      setSelectedUnit('');
+      setSelectedLesson('');
+    }
+  }, [selectedBook]);
+
+  // Load lessons when unit changes
+  useEffect(() => {
+    if (selectedUnit) {
+      loadLessonsForUnit(selectedUnit);
+      setSelectedLesson('');
+    } else {
+      setLessons([]);
+      setSelectedLesson('');
+    }
+  }, [selectedUnit]);
+
+  // Load tasks when any filter changes
+  useEffect(() => {
+    if (selectedProject) {
+      loadTasksForProject(selectedProject);
+    } else {
+      setTasks([]);
+    }
+  }, [selectedProject, selectedStage, selectedGrade, selectedBook, selectedUnit, selectedLesson]);
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      const [projectsData, teamMembersData] = await Promise.all([
+        projectService.getAll(),
+        teamService.getMembers()
+      ]);
+      
+      setProjects(projectsData.data || projectsData);
+      setTeamMembers(teamMembersData.data || teamMembersData);
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStagesForProject = async (projectId: string) => {
+    try {
+      const stagesData = await stageService.getAll(projectId);
+      setStages(stagesData.data || stagesData);
+    } catch (error) {
+      console.error('Failed to load stages:', error);
+      setStages([]);
+    }
+  };
+
+  const loadGradesForProject = async (projectId: string) => {
+    try {
+      const gradesData = await gradeService.getByProject(projectId);
+      setGrades(gradesData.data || gradesData);
+    } catch (error) {
+      console.error('Failed to load grades:', error);
+      setGrades([]);
+    }
+  };
+
+  const loadBooksForGrade = async (gradeId: string) => {
+    try {
+      const booksData = await bookService.getByGrade(gradeId);
+      setBooks(booksData.data || booksData);
+    } catch (error) {
+      console.error('Failed to load books:', error);
+      setBooks([]);
+    }
+  };
+
+  const loadUnitsForBook = async (bookId: string) => {
+    try {
+      const unitsData = await unitService.getByBook(bookId);
+      setUnits(unitsData.data || unitsData);
+    } catch (error) {
+      console.error('Failed to load units:', error);
+      setUnits([]);
+    }
+  };
+
+  const loadLessonsForUnit = async (unitId: string) => {
+    try {
+      const lessonsData = await lessonService.getByUnit(unitId);
+      setLessons(lessonsData.data || lessonsData);
+    } catch (error) {
+      console.error('Failed to load lessons:', error);
+      setLessons([]);
+    }
+  };
+
+  const loadTasksForProject = async (projectId: string) => {
+    try {
+      setLoading(true);
+      const queryParams: any = { 
+        project_id: projectId,
+        all: 'true' // Get all tasks for the project
+      };
+      
+      // Add stage filter if selected
+      if (selectedStage) {
+        queryParams.stage_id = selectedStage;
+      }
+      
+      // Add educational hierarchy filters if selected
+      if (selectedGrade) {
+        queryParams.grade_id = selectedGrade;
+      }
+      if (selectedBook) {
+        queryParams.book_id = selectedBook;
+      }
+      if (selectedUnit) {
+        queryParams.unit_id = selectedUnit;
+      }
+      if (selectedLesson) {
+        queryParams.lesson_id = selectedLesson;
+      }
+      
+      const tasksData = await taskService.getAll(queryParams);
+      setTasks(tasksData.data || tasksData);
+    } catch (error) {
+      console.error('Failed to load tasks:', error);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = task.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         task.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+    const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
+
+  const filteredUsers = teamMembers.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(userSearchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  const handleTaskSelect = (taskId: number) => {
+    setSelectedTasks(prev => 
+      prev.includes(taskId) 
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    );
+  };
+
+
+  const handleAllocate = async () => {
+    if (selectedTasks.length === 0 || !selectedTeamMember) {
+      alert('Please select at least one task and one team member');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Create allocations for each selected task to the selected team member
+      const allocationPromises = selectedTasks.map(taskId => {
+        const task = tasks.find(t => t.id === taskId);
+        return allocationService.create({
+          user_id: selectedTeamMember,
+          user_type: 'team',
+          task_id: taskId,
+          project_id: selectedProject,
+          start_date: task?.start_date || allocationDate,
+          end_date: allocationDate, // Allocation date is the end_date
+          hours_per_day: 8 // Default 8 hours per day
+        });
+      });
+
+      await Promise.all(allocationPromises);
+      
+      const selectedUser = teamMembers.find(user => user.id === selectedTeamMember);
+      alert(`Successfully allocated, assigned, and updated end dates for ${selectedTasks.length} tasks to ${selectedUser?.name || 'selected team member'}`);
+      onAllocationComplete();
+    } catch (error) {
+      console.error('Failed to create allocations:', error);
+      alert('Failed to create allocations. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'in-progress': return 'bg-blue-100 text-blue-800';
+      case 'under-review': return 'bg-yellow-100 text-yellow-800';
+      case 'blocked': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Project Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select Project *
+        </label>
+        <select
+          value={selectedProject}
+          onChange={(e) => setSelectedProject(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Choose a project...</option>
+          {projects.map(project => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Stage Selection */}
+      {selectedProject && stages.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Stage (Optional)
+          </label>
+          <select
+            value={selectedStage}
+            onChange={(e) => setSelectedStage(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All stages</option>
+            {stages.map(stage => (
+              <option key={stage.id} value={stage.id}>
+                {stage.name}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-gray-500">
+              Filter tasks by stage to narrow down your search
+            </p>
+            {selectedStage && (
+              <button
+                onClick={() => setSelectedStage('')}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear stage filter
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Educational Hierarchy Filters */}
+      {selectedProject && grades.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-700">Educational Hierarchy Filters</h3>
+          
+          {/* Grade Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Grade (Optional)
+            </label>
+            <select
+              value={selectedGrade}
+              onChange={(e) => setSelectedGrade(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All grades</option>
+              {grades.map(grade => (
+                <option key={grade.id} value={grade.id}>
+                  {grade.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Book Selection */}
+          {selectedGrade && books.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Book (Optional)
+              </label>
+              <select
+                value={selectedBook}
+                onChange={(e) => setSelectedBook(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All books</option>
+                {books.map(book => (
+                  <option key={book.id} value={book.id}>
+                    {book.name} ({book.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Unit Selection */}
+          {selectedBook && units.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Unit (Optional)
+              </label>
+              <select
+                value={selectedUnit}
+                onChange={(e) => setSelectedUnit(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All units</option>
+                {units.map(unit => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Lesson Selection */}
+          {selectedUnit && lessons.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Lesson (Optional)
+              </label>
+              <select
+                value={selectedLesson}
+                onChange={(e) => setSelectedLesson(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All lessons</option>
+                {lessons.map(lesson => (
+                  <option key={lesson.id} value={lesson.id}>
+                    {lesson.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Clear All Filters Button */}
+          {(selectedGrade || selectedBook || selectedUnit || selectedLesson) && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedGrade('');
+                  setSelectedBook('');
+                  setSelectedUnit('');
+                  setSelectedLesson('');
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear all educational filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedProject && (
+        <>
+          {/* Search and Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Tasks
+              </label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name or description..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status Filter
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Statuses</option>
+                <option value="not-started">Not Started</option>
+                <option value="in-progress">In Progress</option>
+                <option value="under-review">Under Review</option>
+                <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Priority Filter
+              </label>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Priorities</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tasks List */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">
+              Available Tasks ({filteredTasks.length})
+              {(selectedStage || selectedGrade || selectedBook || selectedUnit || selectedLesson) && (
+                <span className="text-sm font-normal text-gray-600 ml-2">
+                  (filtered by: {[
+                    selectedStage && 'stage',
+                    selectedGrade && 'grade',
+                    selectedBook && 'book',
+                    selectedUnit && 'unit',
+                    selectedLesson && 'lesson'
+                  ].filter(Boolean).join(', ')})
+                </span>
+              )}
+            </h3>
+            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+              {loading ? (
+                <div className="p-4 text-center text-gray-500">Loading tasks...</div>
+              ) : filteredTasks.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">No tasks found</div>
+              ) : (
+                <div className="space-y-2 p-2">
+                  {filteredTasks.map(task => (
+                    <div
+                      key={task.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedTasks.includes(task.id)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleTaskSelect(task.id)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className="font-medium text-gray-900">{task.name}</h4>
+                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(task.status)}`}>
+                              {task.status}
+                            </span>
+                            <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(task.priority)}`}>
+                              {task.priority}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            {task.description || 'No description'}
+                          </p>
+                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                            <span>Est: {task.estimated_hours}h</span>
+                            <span>Progress: {task.progress}%</span>
+                            <span>Due: {task.end_date ? new Date(task.end_date).toLocaleDateString() : 'No due date'}</span>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          {selectedTasks.includes(task.id) && (
+                            <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs">✓</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Team Member Selection */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">
+              Select Team Member
+            </h3>
+            
+            {/* Search Input */}
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder="Search team members by name or email..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Selected User Display */}
+            {selectedTeamMember && (
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {teamMembers.find(m => m.id === selectedTeamMember)?.name?.charAt(0) || '?'}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {teamMembers.find(m => m.id === selectedTeamMember)?.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {teamMembers.find(m => m.id === selectedTeamMember)?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedTeamMember(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* User Dropdown */}
+            {!selectedTeamMember && (
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    {userSearchTerm ? 'No team members found matching your search' : 'No team members available'}
+                  </div>
+                ) : (
+                  filteredUsers.map(member => (
+                    <div
+                      key={member.id}
+                      className="p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => setSelectedTeamMember(member.id)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                          {member.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{member.name}</p>
+                          <p className="text-sm text-gray-600">{member.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Allocation Date (End Date) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Allocation End Date *
+            </label>
+            <input
+              type="date"
+              value={allocationDate}
+              onChange={(e) => setAllocationDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              This will be the new end date for the tasks. The task's end date will be updated to this date, and the start date will remain the task's original start date.
+            </p>
+          </div>
+
+          {/* Summary */}
+          {selectedTasks.length > 0 && selectedTeamMember && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Allocation Summary</h4>
+              <p className="text-sm text-blue-800">
+                You are about to allocate and assign <strong>{selectedTasks.length} tasks</strong> to{' '}
+                <strong>{teamMembers.find(m => m.id === selectedTeamMember)?.name}</strong> with end date{' '}
+                <strong>{new Date(allocationDate).toLocaleDateString()}</strong>.
+              </p>
+              <p className="text-sm text-blue-800 mt-1">
+                This will create <strong>{selectedTasks.length} allocations</strong>, assign the tasks to the selected team member, and update each task's end date to <strong>{new Date(allocationDate).toLocaleDateString()}</strong>.
+              </p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAllocate}
+              disabled={selectedTasks.length === 0 || !selectedTeamMember || loading}
+            >
+              {loading ? 'Creating Allocations...' : 'Create Allocations'}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

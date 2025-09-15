@@ -250,6 +250,42 @@ const createAllocation = async (req, res) => {
     const result = await db.insert(insertQuery, insertParams);
     const allocationId = result.insertId;
 
+    // Also add the user as a task assignee and update task end_date if task_id is provided
+    if (task_id) {
+      try {
+        // Check if assignee already exists for this task
+        const existingAssignee = await db.query(
+          'SELECT id FROM task_assignees WHERE task_id = ? AND assignee_id = ? AND assignee_type = ?',
+          [task_id, user_id, finalUserType]
+        );
+
+        if (existingAssignee.length === 0) {
+          // Add as task assignee
+          const assigneeQuery = `
+            INSERT INTO task_assignees (task_id, assignee_id, assignee_type)
+            VALUES (?, ?, ?)
+          `;
+          await db.insert(assigneeQuery, [task_id, user_id, finalUserType]);
+          console.log('✅ Task assignee created for task:', task_id, 'user:', user_id);
+        } else {
+          console.log('ℹ️ Task assignee already exists for task:', task_id, 'user:', user_id);
+        }
+
+        // Update the task's end_date to match the allocation end_date
+        const updateTaskQuery = `
+          UPDATE tasks 
+          SET end_date = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `;
+        await db.query(updateTaskQuery, [formattedEndDate, task_id]);
+        console.log('✅ Task end_date updated to:', formattedEndDate, 'for task:', task_id);
+        
+      } catch (assigneeError) {
+        console.error('⚠️ Failed to create task assignee or update task (allocation still created):', assigneeError);
+        // Don't fail the allocation creation if assignee creation or task update fails
+      }
+    }
+
     // Get the created allocation with all related data
     const createdAllocation = await getAllocationById(allocationId);
 
@@ -258,7 +294,7 @@ const createAllocation = async (req, res) => {
     res.status(201).json({
       success: true,
       data: createdAllocation,
-      message: 'Allocation created successfully'
+      message: task_id ? 'Allocation created, task assigned, and end date updated successfully' : 'Allocation created successfully'
     });
 
   } catch (error) {
