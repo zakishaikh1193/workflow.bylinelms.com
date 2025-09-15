@@ -11,7 +11,9 @@ import {
   Eye,
   RefreshCw,
   ArrowLeft,
-  CheckCircle
+  CheckCircle,
+  Copy,
+  FolderOpen
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -53,6 +55,8 @@ interface TaskRemark {
   is_private: boolean;
   created_at: string;
   is_new: boolean;
+  server_location?: string;
+  file_name?: string;
 }
 
 interface TaskCompletion {
@@ -137,6 +141,15 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
     dispatch({ type: 'SET_PREVIOUS_VIEW', payload: 'notifications' });
     // Navigate directly to the specific task details
     dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
+  };
+
+  const copyServerLocation = async (serverLocation: string) => {
+    try {
+      await navigator.clipboard.writeText(serverLocation);
+      console.log('Server location copied to clipboard:', serverLocation);
+    } catch (error) {
+      console.error('Failed to copy server location:', error);
+    }
   };
 
   // Filter notifications
@@ -548,6 +561,41 @@ export function TeamNotifications({ onBack }: TeamNotificationsProps) {
                           </Badge>
                         </div>
                         
+                        {/* Server Location and File Name */}
+                        {(remark.server_location || remark.file_name) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            {remark.server_location && (
+                              <div className="flex items-center space-x-2">
+                                <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">Server Location</p>
+                                  <div className="flex items-center space-x-2">
+                                    <p className="text-sm font-medium text-gray-900 truncate">{remark.server_location}</p>
+                     <Button
+                       size="sm"
+                       variant="ghost"
+                       onClick={() => copyServerLocation(remark.server_location!)}
+                       className="p-2 h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100 border border-blue-200 rounded-md"
+                       title="Copy server location"
+                     >
+                       <Copy className="w-8 h-8" />
+                     </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {remark.file_name && (
+                              <div className="flex items-center space-x-2">
+                                <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                <div>
+                                  <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">File Name</p>
+                                  <p className="text-sm font-medium text-gray-900">{remark.file_name}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="mb-3">
                           <div className="text-sm text-gray-700">
                             <span className="font-medium">Remark:</span>

@@ -1256,6 +1256,50 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
       }
     };
 
+    const handleApproveTask = async (task: any) => {
+      try {
+        await taskService.reviewTask(task.id, 'approve');
+        
+        // Refresh project tasks
+        const tasksData = await taskService.getAll({ all: 'true' });
+        const tasksArray = tasksData.data || tasksData;
+        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+        
+        // Update all project tasks - filtering will be handled by the useEffect
+        setAllProjectTasks(projectTasksArray);
+        
+        // Also refresh the current project to update progress
+        const currentProjectData = await projectService.getById(project.id);
+        setCurrentProject(currentProjectData);
+        
+        console.log('✅ Task approved successfully:', task.name);
+      } catch (err: any) {
+        console.error('❌ Approve task error:', err);
+      }
+    };
+
+    const handleDenyTask = async (task: any) => {
+      try {
+        await taskService.reviewTask(task.id, 'deny');
+        
+        // Refresh project tasks
+        const tasksData = await taskService.getAll({ all: 'true' });
+        const tasksArray = tasksData.data || tasksData;
+        const projectTasksArray = tasksArray.filter((task: any) => task.project_id === Number(project.id));
+        
+        // Update all project tasks - filtering will be handled by the useEffect
+        setAllProjectTasks(projectTasksArray);
+        
+        // Also refresh the current project to update progress
+        const currentProjectData = await projectService.getById(project.id);
+        setCurrentProject(currentProjectData);
+        
+        console.log('✅ Task denied successfully:', task.name);
+      } catch (err: any) {
+        console.error('❌ Deny task error:', err);
+      }
+    };
+
 
     const getStatusVariant = (status: TaskStatus) => {
       switch (status) {
@@ -1524,7 +1568,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                       const stage = stages.find(s => s.id === task.category_stage_id || task.stage_id);
                       
                       return (
-                        <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
+                        <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''} ${task.status === 'under-review' ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <input
                               type="checkbox"
@@ -1538,6 +1582,7 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                               <div className="text-sm font-medium text-gray-900 flex items-center">
                                 {task.name}
                                 {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
+                                {task.status === 'under-review' && <Clock className="w-4 h-4 text-yellow-500 ml-2" />}
                               </div>
                               <div className="text-sm text-gray-500">
                                 {task.component_path && <div className="text-xs text-purple-600 mt-1 bg-purple-100 p-1 rounded-md inline-block">📚 {task.component_path}</div>}
@@ -1617,6 +1662,37 @@ export function ProjectDetails({ project, onBack, onUpdate, categories }: Projec
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
+                              
+                              {/* Show Approve/Deny buttons only for tasks under review */}
+                              {task.status === 'under-review' && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApproveTask(task);
+                                    }}
+                                    title="Approve Task"
+                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  >
+                                    <CheckSquare className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDenyTask(task);
+                                    }}
+                                    title="Deny Task"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <AlertTriangle className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                              
                               <Button 
                                 variant="ghost" 
                                 size="sm"

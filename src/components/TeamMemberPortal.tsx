@@ -10,8 +10,8 @@ import {
   RefreshCw,
   Home,
   Bell,
-  Check,
-  Flag
+  Flag,
+  MessageSquare
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -41,13 +41,14 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
   const [isRemarkModalOpen, setIsRemarkModalOpen] = useState(false);
-  const [isSubmitReviewModalOpen, setIsSubmitReviewModalOpen] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const [extensionReason, setExtensionReason] = useState('');
-  const [extensionDate, setExtensionDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [extensionDate, setExtensionDate] = useState('');
   const [remarkContent, setRemarkContent] = useState('');
   const [remarkDate, setRemarkDate] = useState(new Date().toISOString().split('T')[0]);
   const [remarkType, setRemarkType] = useState('general');
+  const [serverLocation, setServerLocation] = useState('');
+  const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [performanceFlags, setPerformanceFlags] = useState<any[]>([]);
@@ -55,6 +56,11 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [, setRecentNotifications] = useState<RealTimeNotification[]>([]);
+  
+  // Task list expansion state
+  const [showAllActiveTasks, setShowAllActiveTasks] = useState(false);
+  const [showAllOverdueTasks, setShowAllOverdueTasks] = useState(false);
+  const [showAllCompletedTasks, setShowAllCompletedTasks] = useState(false);
 
   // Load user's data
   useEffect(() => {
@@ -217,9 +223,9 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   };
 
 
-  const handleSubmitForReview = (task: Task) => {
+  const handleAddRemark = (task: Task) => {
     setSelectedTask(task);
-    setIsSubmitReviewModalOpen(true);
+    setIsRemarkModalOpen(true);
   };
 
   const handleViewTaskDetail = (task: Task) => {
@@ -232,6 +238,17 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
   const submitExtensionRequest = async () => {
     if (selectedTask) {
+      // Client-side validation
+      if (!extensionDate.trim()) {
+        showToast('❌ Please select a new due date for the extension.', 'error');
+        return;
+      }
+      
+      if (!extensionReason.trim()) {
+        showToast('❌ Please provide a reason for the extension.', 'error');
+        return;
+      }
+
       try {
         // Check if team token is expired before making API calls
         if (tokenService.isTeamTokenExpired()) {
@@ -265,7 +282,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     setIsExtensionModalOpen(false);
     setSelectedTask(null);
     setExtensionReason('');
-    setExtensionDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); // Reset to 7 days from now
+    setExtensionDate(''); // Reset to empty
   };
 
   const submitRemark = async () => {
@@ -281,16 +298,39 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           return;
         }
 
+        // Client-side validation for mandatory fields
+        if (!serverLocation.trim()) {
+          showToast('❌ Server Location is required. Please provide the exact path where you saved the file.', 'error');
+          return;
+        }
+
+        if (!fileName.trim()) {
+          showToast('❌ File Name is required. Please provide the exact name of the file you worked on.', 'error');
+          return;
+        }
+
         // Add remark using the new API
         await teamTaskService.addRemark(selectedTask.id, {
           remark: remarkContent,
           remark_date: remarkDate,
-          remark_type: remarkType
+          remark_type: remarkType,
+          server_location: serverLocation,
+          file_name: fileName
         });
+
+        // If remark type is "completed", also update task status to "under-review"
+        if (remarkType === 'complete') {
+          await teamTaskService.updateStatus(selectedTask.id, 'under-review');
+          showToast(`Task "${selectedTask.name}" has been submitted for review with completion remark!`, 'success');
+        } else if (remarkType === 'skipped') {
+          await teamTaskService.updateStatus(selectedTask.id, 'skipped');
+          showToast(`Task "${selectedTask.name}" has been marked as skipped!`, 'success');
+        } else {
+          showToast('Remark added successfully!', 'success');
+        }
 
         // Refresh data
         await loadUserData();
-        showToast('Remark added successfully!', 'success');
       } catch (error: any) {
         console.error('Failed to add remark:', error);
         
@@ -299,7 +339,19 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
           console.log('🚨 Authentication error, logging out team member...');
           onLogout();
         } else {
-          showToast('Failed to add remark. Please try again.', 'error');
+          // Handle specific validation errors from backend
+          if (error.response?.data?.error?.message) {
+            const errorMessage = error.response.data.error.message;
+            if (errorMessage.includes('Server location is required')) {
+              showToast('❌ Server Location is required. Please provide the exact path where you saved the file.', 'error');
+            } else if (errorMessage.includes('File name is required')) {
+              showToast('❌ File Name is required. Please provide the exact name of the file you worked on.', 'error');
+            } else {
+              showToast(`❌ ${errorMessage}`, 'error');
+            }
+          } else {
+            showToast('Failed to add remark. Please try again.', 'error');
+          }
         }
       }
     }
@@ -309,43 +361,10 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
     setRemarkContent('');
     setRemarkDate(new Date().toISOString().split('T')[0]);
     setRemarkType('general');
+    setServerLocation('');
+    setFileName('');
   };
 
-  const submitForReview = async () => {
-    if (selectedTask) {
-      try {
-        // Check if team token is expired before making API calls
-        if (tokenService.isTeamTokenExpired()) {
-          console.log('🚨 Team member token expired, logging out...');
-          onLogout();
-          return;
-        }
-
-        // Update task status to under-review (awaiting admin approval)
-        await teamTaskService.updateStatus(selectedTask.id, 'under-review');
-
-        // Show success message
-        showToast(`Task "${selectedTask.name}" has been submitted for review!`, 'success');
-
-        // Refresh data
-        await loadUserData();
-      } catch (error: any) {
-        console.error('Failed to submit task for review:', error);
-        
-        // Show error message
-        showToast('Failed to submit task for review. Please try again.', 'error');
-        
-        // Check if it's an authentication error
-        if (error.message?.includes('401') || error.message?.includes('Unauthorized') || error.message?.includes('Token expired')) {
-          console.log('🚨 Authentication error, logging out team member...');
-          onLogout();
-        }
-      }
-    }
-
-    setIsSubmitReviewModalOpen(false);
-    setSelectedTask(null);
-  };
 
   const isTaskOverdue = (task: Task) => {
     if (!task.end_date || task.status === 'completed') return false;
@@ -388,7 +407,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   );
   
   const completedTasks = userTasks.filter(task => task.status === 'completed');
-  const overdueTasks = userTasks.filter(task => isTaskOverdue(task));
+  const overdueTasks = userTasks.filter(task => isTaskOverdue(task) && task.progress > 0);
   
   // Calculate completion rate
   const completionRate = userTasks.length > 0 
@@ -560,7 +579,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {activeTasks.slice(0, 5).map((task) => {
+                  {(showAllActiveTasks ? activeTasks : activeTasks.slice(0, 5)).map((task) => {
                     const isOverdue = isTaskOverdue(task);
                     const daysUntilDue = getDaysUntilDue(task);
                     
@@ -612,12 +631,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleSubmitForReview(task);
+                              handleAddRemark(task);
                             }}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
-                            <Check className="w-3 h-3 mr-1" />
-                            Submit for Review
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            Add Remark
                           </Button>
                         </div>
                       </div>
@@ -626,8 +645,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                   
                   {activeTasks.length > 5 && (
                     <div className="text-center pt-4">
-                      <Button variant="outline" size="sm">
-                        View All Active Tasks ({activeTasks.length})
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowAllActiveTasks(!showAllActiveTasks)}
+                      >
+                        {showAllActiveTasks ? 'Show Less' : `View All Active Tasks (${activeTasks.length})`}
                       </Button>
                     </div>
                   )}
@@ -652,7 +675,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {overdueTasks.slice(0, 5).map((task) => {
+                  {(showAllOverdueTasks ? overdueTasks : overdueTasks.slice(0, 5)).map((task) => {
                     const daysOverdue = Math.abs(getDaysUntilDue(task) || 0);
                     
                     return (
@@ -705,12 +728,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleSubmitForReview(task);
+                                handleAddRemark(task);
                               }}
                               className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
-                              <Check className="w-3 h-3 mr-1" />
-                              Submit for Review
+                              <MessageSquare className="w-3 h-3 mr-1" />
+                              Add Remark
                             </Button>
                           </div>
                         </div>
@@ -720,8 +743,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
                   
                   {overdueTasks.length > 5 && (
                     <div className="text-center pt-4">
-                      <Button variant="outline" size="sm">
-                        View All Overdue Tasks ({overdueTasks.length})
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowAllOverdueTasks(!showAllOverdueTasks)}
+                      >
+                        {showAllOverdueTasks ? 'Show Less' : `View All Overdue Tasks (${overdueTasks.length})`}
                       </Button>
                     </div>
                   )}
@@ -742,7 +769,7 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedTasks.slice(0, 6).map((task) => (
+                {(showAllCompletedTasks ? completedTasks : completedTasks.slice(0, 6)).map((task) => (
                   <div
                     key={task.id}
                     className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
@@ -764,8 +791,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               
               {completedTasks.length > 6 && (
                 <div className="text-center pt-4">
-                  <Button variant="outline" size="sm">
-                    View All Completed Tasks ({completedTasks.length})
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowAllCompletedTasks(!showAllCompletedTasks)}
+                  >
+                    {showAllCompletedTasks ? 'Show Less' : `View All Completed Tasks (${completedTasks.length})`}
                   </Button>
                 </div>
               )}
@@ -792,13 +823,14 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              New Due Date
+              New Due Date <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
               value={extensionDate}
               onChange={(e) => setExtensionDate(e.target.value)}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
             />
           </div>
 
@@ -826,8 +858,8 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             </Button>
             <Button
               onClick={submitExtensionRequest}
-              disabled={!extensionReason.trim()}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              disabled={!extensionReason.trim() || !extensionDate.trim()}
+              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Submit Request
             </Button>
@@ -861,12 +893,62 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             >
               <option value="general">General</option>
-              <option value="progress">Progress Update</option>
-              <option value="issue">Issue/Problem</option>
-              <option value="update">Update</option>
-              <option value="complete">Complete</option>
+              <option value="complete">Completed</option>
+              <option value="skipped">Skipped</option>
               <option value="other">Other</option>
             </select>
+            {remarkType === 'complete' && (
+              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> Selecting "Complete" will submit this task for admin review. The task status will change to "Under Review" and an admin will need to approve it.
+                  </p>
+                </div>
+              </div>
+            )}
+            {remarkType === 'skipped' && (
+              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                  <p className="text-sm text-red-800">
+                    <strong>Warning:</strong> Selecting "Skipped" will mark this task as skipped and set its progress to 0%.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Server Location - Required for team members */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              Server Location <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={serverLocation}
+              onChange={(e) => setServerLocation(e.target.value)}
+              placeholder="e.g., /var/www/html/project, C:\project\src"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">The exact path of the server where you have saved the file</p>
+          </div>
+
+          {/* File Name - Required for team members */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              File Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              placeholder="e.g., index.html, main.js, styles.css"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">The exact name of the file you worked on</p>
           </div>
 
           <div>
@@ -891,8 +973,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             </Button>
             <Button
               onClick={submitRemark}
-              disabled={remarkContent.replace(/<[^>]*>/g, '').trim().length === 0}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+              disabled={
+                remarkContent.replace(/<[^>]*>/g, '').trim().length === 0 ||
+                !serverLocation.trim() ||
+                !fileName.trim()
+              }
+              className="px-6 py-3 font-semibold bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Remark
             </Button>
@@ -900,51 +986,6 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
         </div>
       </Modal>
 
-      {/* Submit for Review Confirmation Modal */}
-      <Modal
-        isOpen={isSubmitReviewModalOpen}
-        onClose={() => setIsSubmitReviewModalOpen(false)}
-        title="Submit Task for Review"
-      >
-        <div className="space-y-6">
-          {selectedTask && (
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
-              <h4 className="font-semibold text-gray-900 text-lg">{selectedTask.name}</h4>
-              <p className="text-sm text-gray-600 mt-1">
-                Are you sure you want to submit this task for admin review?
-              </p>
-            </div>
-          )}
-
-          <div className="p-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="w-6 h-6 text-yellow-600" />
-              <div>
-                <h4 className="font-semibold text-yellow-800">Review Process</h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  This task will be marked as "Under Review" and an admin will need to approve it before it's marked as complete. </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsSubmitReviewModalOpen(false)}
-              className="px-6 py-3 font-semibold"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={submitForReview}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Submit for Review
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Notifications View */}
       {showNotifications && (

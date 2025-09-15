@@ -16,7 +16,9 @@ import {
   CheckCircle,
   XCircle,
   Plus,
-  Trash2
+  Trash2,
+  Copy,
+  FolderOpen
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -63,6 +65,8 @@ interface TaskRemark {
   is_private: boolean;
   user_name: string;
   created_at: string;
+  server_location?: string;
+  file_name?: string;
 }
 
 export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
@@ -259,7 +263,19 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
     setSelectedExtension(extension);
     setExtensionAction(action);
     setExtensionNotes('');
-    setApprovedDate(action === 'approved' ? extension.requested_due_date : '');
+    // Set the approved date to the user's requested date by default
+    if (action === 'approved' && extension.requested_due_date) {
+      // Ensure the date is in YYYY-MM-DD format for HTML date input
+      const date = new Date(extension.requested_due_date);
+      const formattedDate = date.toISOString().split('T')[0];
+      console.log('📅 Setting approved date:', {
+        original: extension.requested_due_date,
+        formatted: formattedDate
+      });
+      setApprovedDate(formattedDate);
+    } else {
+      setApprovedDate('');
+    }
     setIsExtensionModalOpen(true);
   };
 
@@ -282,6 +298,16 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
     } catch (err: any) {
       console.error('Failed to delete remark:', err);
       setError(err.message || 'Failed to delete remark');
+    }
+  };
+
+  const copyServerLocation = async (serverLocation: string) => {
+    try {
+      await navigator.clipboard.writeText(serverLocation);
+      // You can add a toast notification here if you have a toast system
+      console.log('Server location copied to clipboard:', serverLocation);
+    } catch (error) {
+      console.error('Failed to copy server location:', error);
     }
   };
 
@@ -630,6 +656,42 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
                           </Button>
                         )}
                       </div>
+                      
+                      {/* Server Location and File Name */}
+                      {(remark.server_location || remark.file_name) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          {remark.server_location && (
+                            <div className="flex items-center space-x-2">
+                              <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">Server Location</p>
+                                <div className="flex items-center space-x-2">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{remark.server_location}</p>
+                     <Button
+                       size="sm"
+                       variant="ghost"
+                       onClick={() => copyServerLocation(remark.server_location!)}
+                       className="p-2 h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100 border border-blue-200 rounded-md"
+                       title="Copy server location"
+                     >
+                       <Copy className="w-8 h-8" />
+                     </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {remark.file_name && (
+                            <div className="flex items-center space-x-2">
+                              <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <div>
+                                <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">File Name</p>
+                                <p className="text-sm font-medium text-gray-900">{remark.file_name}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className="text-gray-700 mb-2">
                         <RichTextDisplay content={remark.remark} />
                       </div>
@@ -859,14 +921,18 @@ export function TaskDetails({ taskId, onBack }: TaskDetailsProps) {
           {extensionAction === 'approved' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Approved Until Date
+                Approve Until Date
               </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Default: User requested until {selectedExtension?.requested_due_date ? new Date(selectedExtension.requested_due_date).toLocaleDateString() : 'N/A'}
+              </p>
               <input
                 type="date"
                 value={approvedDate}
                 onChange={(e) => setApprovedDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 min={selectedExtension?.current_due_date}
+                placeholder="Select date"
               />
             </div>
           )}

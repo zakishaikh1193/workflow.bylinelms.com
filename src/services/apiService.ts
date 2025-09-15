@@ -484,7 +484,7 @@ export const taskService = {
   // =====================================================
 
   // Add task remark
-  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean; server_location?: string; file_name?: string }) => {
     const result = await apiService.post(`/tasks/${taskId}/remarks`, data);
     return result.data;
   },
@@ -547,7 +547,7 @@ export const teamTaskService = {
   // =====================================================
 
   // Add task remark (team member access)
-  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean; server_location?: string; file_name?: string }) => {
     const result = await teamApiService.post(`/tasks/${taskId}/remarks`, data);
     return result.data;
   },

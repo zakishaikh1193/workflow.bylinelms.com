@@ -20,7 +20,7 @@ const navigation = [
   { name: 'Allocations', icon: Calendar, key: 'allocations' },
   { name: 'Analytics', icon: BarChart3, key: 'analytics' },
   { name: 'Core Analytics', icon: TrendingUp, key: 'core-analytics' },
-  { name: 'Notifications', icon: Bell, key: 'notifications' },
+  { name: 'Manage Activities', icon: Bell, key: 'notifications' },
   { name: 'Settings', icon: Settings, key: 'settings' },
 ];
 
@@ -30,7 +30,7 @@ export function Sidebar() {
   return (
     <div className="w-64 bg-white shadow-sm border-r border-gray-200 h-full">
       <div className="p-6">
-        <h1 className="text-xl font-bold text-gray-900">ProjectFlow</h1>
+        <h1 className="text-xl font-bold text-gray-900">Byline Workflow</h1>
         <p className="text-sm text-gray-500 mt-1">Project Management</p>
       </div>
       

@@ -66,8 +66,8 @@ const taskValidation = [
   
   body('status')
     .optional()
-    .isIn(['not-started', 'in-progress', 'under-review', 'completed', 'blocked'])
-    .withMessage('Status must be one of: not-started, in-progress, under-review, completed, blocked'),
+    .isIn(['not-started', 'in-progress', 'under-review', 'completed', 'blocked', 'skipped'])
+    .withMessage('Status must be one of: not-started, in-progress, under-review, completed, blocked, skipped'),
   
   body('priority')
     .optional()
@@ -141,8 +141,8 @@ const taskUpdateValidation = [
   
   body('status')
     .optional()
-    .isIn(['not-started', 'in-progress', 'under-review', 'completed', 'blocked'])
-    .withMessage('Status must be one of: not-started, in-progress, under-review, completed, blocked'),
+    .isIn(['not-started', 'in-progress', 'under-review', 'completed', 'blocked', 'skipped'])
+    .withMessage('Status must be one of: not-started, in-progress, under-review, completed, blocked, skipped'),
   
   body('priority')
     .optional()
@@ -241,8 +241,8 @@ const queryValidation = [
   
   query('status')
     .optional()
-    .isIn(['not-started', 'in-progress', 'under-review', 'completed', 'blocked'])
-    .withMessage('Status must be one of: not-started, in-progress, under-review, completed, blocked'),
+    .isIn(['not-started', 'in-progress', 'under-review', 'completed', 'blocked', 'skipped'])
+    .withMessage('Status must be one of: not-started, in-progress, under-review, completed, blocked, skipped'),
   
   query('priority')
     .optional()
@@ -452,8 +452,8 @@ router.post('/:id/remarks',
       .withMessage('Remark date must be a valid date'),
     body('remark_type')
       .optional()
-      .isIn(['general', 'progress', 'issue', 'update', 'other', 'complete'])
-      .withMessage('Remark type must be one of: general, progress, issue, update, other, complete'),
+      .isIn(['general', 'complete', 'skipped', 'other'])
+      .withMessage('Remark type must be one of: general, complete, skipped, other'),
     body('is_private')
       .optional()
       .isBoolean()
