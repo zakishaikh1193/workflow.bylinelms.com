@@ -1,6 +1,6 @@
 // Modern API service for the new Node.js backend
-// const API_URL = 'https://workflow.bylinelms.com/api';
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://workflow.bylinelms.com/api';
+// const API_URL = 'http://localhost:3001/api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -159,6 +159,11 @@ export const teamService = {
     const result = await teamApiService.get('/team/my-profile');
     return result.data;
   },
+
+  getMyPerformanceFlags: async () => {
+    const result = await teamApiService.get('/team/my-performance-flags');
+    return result.data;
+  },
   getById: async (id: string) => {
     const result = await apiService.get(`/team/${id}`);
     return result.data;
@@ -181,6 +186,25 @@ export const teamService = {
     const result = await apiService.get('/team/members');
     return result.data;
   },
+  getTeams: async () => {
+    const result = await apiService.get('/team/teams');
+    return result.data;
+  },
+  getMembersWithPerformanceRanking: async (teamId?: number) => {
+    const url = teamId 
+      ? `/team/members/performance-ranking?teamId=${teamId}&t=${Date.now()}`
+      : `/team/members/performance-ranking?t=${Date.now()}`;
+    const result = await apiService.get(url);
+    return result.data;
+  },
+  getMemberFlags: async (memberId: number) => {
+    const result = await apiService.get(`/team/members/${memberId}/flags`);
+    return result.data;
+  },
+  removeFlag: async (flagId: number) => {
+    const result = await apiService.delete(`/team/flags/${flagId}`);
+    return result.data;
+  },
   getMemberById: async (id: string) => {
     const result = await apiService.get(`/team/members/${id}`);
     return result.data;
@@ -199,10 +223,6 @@ export const teamService = {
   },
   
   // Team management endpoints (new)
-  getTeams: async () => {
-    const result = await apiService.get('/team/teams');
-    return result.data;
-  },
   getTeamById: async (id: string) => {
     const result = await apiService.get(`/team/teams/${id}`);
     return result.data;
@@ -484,7 +504,7 @@ export const taskService = {
   // =====================================================
 
   // Add task remark
-  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean; server_location?: string; file_name?: string }) => {
     const result = await apiService.post(`/tasks/${taskId}/remarks`, data);
     return result.data;
   },
@@ -547,7 +567,7 @@ export const teamTaskService = {
   // =====================================================
 
   // Add task remark (team member access)
-  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean }) => {
+  addRemark: async (taskId: string | number, data: { remark: string; remark_date?: string; remark_type?: string; is_private?: boolean; server_location?: string; file_name?: string }) => {
     const result = await teamApiService.post(`/tasks/${taskId}/remarks`, data);
     return result.data;
   },
@@ -571,6 +591,14 @@ export const allocationService = {
   getAll: async (filters?: any) => {
     const queryParams = new URLSearchParams(filters).toString();
     const endpoint = queryParams ? `/allocations?${queryParams}` : '/allocations';
+    const result = await apiService.get(endpoint);
+    return result.data;
+  },
+
+  // Get daily allocations based on task assignments
+  getDaily: async (filters?: { start_date?: string; end_date?: string; group_by?: 'team' | 'project' }) => {
+    const queryParams = new URLSearchParams(filters).toString();
+    const endpoint = queryParams ? `/allocations/daily?${queryParams}` : '/allocations/daily';
     const result = await apiService.get(endpoint);
     return result.data;
   },

@@ -1,157 +1,185 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-  Calendar, 
   Clock, 
   User, 
   BarChart3,
   ChevronLeft,
   ChevronRight,
   Plus,
-  Edit2,
   AlertTriangle,
   FolderOpen,
-  Users
+  Users,
+  Eye,
+  XCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
-import { useApp } from '../contexts/AppContext';
-import { allocationService, teamService, projectService, taskService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
-import type { TeamAllocation, Task, User as UserType } from '../types';
+import { allocationService, projectService, teamService, taskService, stageService, gradeService, bookService, unitService, lessonService } from '../services/apiService';
 
-export function DailyAllocations() {
+interface DailyAllocation {
+  id: string;
+  user_id: number;
+  user_type: string;
+  user_name: string;
+  user_email: string;
+  user_skills: string[];
+  project_id: number;
+  project_name: string;
+  project_category: string;
+  task_id: number;
+  task_name: string;
+  task_status: string;
+  task_priority: string;
+  hours_per_day: number;
+  date: string;
+  start_date: string;
+  end_date: string;
+  estimated_hours: number;
+}
+
+interface GroupedData {
+  [userId: string]: {
+    user_id: number;
+    user_name: string;
+    user_email: string;
+    user_skills: string[];
+    daily_allocations: {
+      [date: string]: {
+        date: string;
+        total_hours: number;
+        tasks: Array<{
+          task_id: number;
+          task_name: string;
+          project_name: string;
+          hours_per_day: number;
+          status: string;
+          priority: string;
+        }>;
+      };
+    };
+  };
+}
+
+interface SummaryStats {
+  total_allocations: number;
+  total_users: number;
+  total_dates: number;
+  user_stats: Array<{
+    user_id: number;
+    user_name: string;
+    total_hours: number;
+    total_tasks: number;
+    dates_worked: number;
+  }>;
+  date_stats: Array<{
+    date: string;
+    total_hours: number;
+    total_tasks: number;
+    unique_users: number;
+  }>;
+}
+
+interface BackendResponse {
+  success: boolean;
+  data: {
+    allocations: DailyAllocation[];
+    grouped: GroupedData;
+    summary: SummaryStats;
+    date_range: {
+      start: string;
+      end: string;
+    };
+  };
+}
+
+interface DailyAllocationsProps {
+  onNavigateToTask?: (taskId: number) => void;
+}
+
+export function DailyAllocations({ onNavigateToTask }: DailyAllocationsProps = {}) {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(new Date('2025-08-11')); // Set to a date that has allocations
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [groupBy, setGroupBy] = useState<'team' | 'project'>('team');
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
-  const [editingAllocation, setEditingAllocation] = useState<TeamAllocation | null>(null);
-  const [allocations, setAllocations] = useState<TeamAllocation[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [grades, setGrades] = useState<any[]>([]);
-  const [books, setBooks] = useState<any[]>([]);
-  const [units, setUnits] = useState<any[]>([]);
-  const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backendData, setBackendData] = useState<BackendResponse['data'] | null>(null);
+  
+  // Filter states
+  const [selectedTeam, setSelectedTeam] = useState<string>('all');
+  const [selectedMember, setSelectedMember] = useState<string>('all');
+  
+  // Daily allocation modal states
+  const [isDailyAllocationModalOpen, setIsDailyAllocationModalOpen] = useState(false);
+  const [selectedDailyAllocation, setSelectedDailyAllocation] = useState<{
+    user: any;
+    date: string;
+    tasks: any[];
+    totalHours: number;
+  } | null>(null);
 
-  // Fetch allocations from API
-  const fetchAllocations = async (filters?: any) => {
+  // Fetch daily allocations from backend
+  const fetchDailyAllocations = async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await allocationService.getAll(filters);
-      setAllocations(result);
+      
+      // Calculate date range based on current view
+      let startDate, endDate;
+      if (viewMode === 'week') {
+        const weekDates = getWeekDates(selectedDate);
+        startDate = weekDates[0].toISOString().split('T')[0];
+        endDate = weekDates[6].toISOString().split('T')[0];
+      } else if (viewMode === 'day') {
+        const dateStr = selectedDate.toISOString().split('T')[0];
+        startDate = dateStr;
+        endDate = dateStr;
+      } else {
+        // Month view - get first and last day of month
+        const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+        const lastDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+        startDate = firstDay.toISOString().split('T')[0];
+        endDate = lastDay.toISOString().split('T')[0];
+      }
+      
+      console.log('🔍 Fetching daily allocations for date range:', { startDate, endDate, groupBy });
+      
+      const result = await allocationService.getDaily({
+        start_date: startDate,
+        end_date: endDate,
+        group_by: groupBy
+      });
+      
+      console.log('📊 Daily allocations result:', result);
+      console.log('🔍 Result structure:', { 
+        hasData: !!result.data, 
+        hasAllocations: !!result.allocations, 
+        hasGrouped: !!result.grouped,
+        resultKeys: Object.keys(result)
+      });
+      
+      // Handle both possible response structures
+      const responseData = result.data || result;
+      setBackendData(responseData);
+      
     } catch (err) {
-      console.error('Failed to fetch allocations:', err);
-      setError('Failed to load allocations');
+      console.error('Failed to fetch daily allocations:', err);
+      setError('Failed to load daily allocations');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch all data on component mount
+  // Fetch data on component mount and when dependencies change
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const [allocationsData, usersData, projectsData, tasksData, gradesData, booksData, unitsData, lessonsData] = await Promise.all([
-          allocationService.getAll(),
-          teamService.getMembers(),
-          projectService.getAll(),
-          taskService.getAll({ all: 'true' }),
-          gradeService.getAll(),
-          bookService.getAll(),
-          unitService.getAll(),
-          lessonService.getAll()
-        ]);
-        
-
-        
-        setAllocations(allocationsData.data || allocationsData);
-        setUsers(usersData.data || usersData);
-        setProjects(projectsData.data || projectsData);
-        setTasks(tasksData.data || tasksData);
-      } catch (err) {
-        console.error('Failed to fetch data:', err);
-        setError('Failed to load data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    // Only fetch data if user is authenticated
     if (user) {
-      fetchData();
+      fetchDailyAllocations();
     }
-  }, [user]);
-
-  // Auto-create allocations from existing tasks if no allocations exist
-  const createAllocationsFromTasks = async () => {
-    if (allocations.length === 0 && tasks.length > 0) {
-      try {
-        setLoading(true);
-        
-        // Create allocations for each task with assignees
-        for (const task of tasks) {
-          if (task.assignees && task.assignees.length > 0) {
-            const startDate = task.start_date || task.startDate;
-            const endDate = task.end_date || task.endDate;
-            const estimatedHours = task.estimated_hours || task.estimatedHours || 8;
-            
-            if (startDate && endDate) {
-              const daysDiff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
-              const hoursPerDay = Math.min(estimatedHours / Math.max(daysDiff, 1), 8);
-              
-              for (const userId of task.assignees) {
-                // Don't specify user_type - let the backend determine it
-                const allocationData = {
-                  user_id: userId,
-                  project_id: task.project_id || task.projectId || '',
-                  task_id: task.id,
-                  hours_per_day: Math.round(hoursPerDay * 100) / 100,
-                  start_date: new Date(startDate).toISOString().split('T')[0],
-                  end_date: new Date(endDate).toISOString().split('T')[0],
-                };
-                
-                await allocationService.create(allocationData);
-              }
-            }
-          }
-        }
-        
-        // Refresh allocations after creating them
-        await fetchAllocations();
-      } catch (err) {
-        console.error('Failed to create allocations from tasks:', err);
-        setError('Failed to create initial allocations');
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  // Auto-create allocations when component mounts and no allocations exist
-  useEffect(() => {
-    if (allocations.length === 0 && !loading && tasks.length > 0) {
-      createAllocationsFromTasks();
-    }
-  }, [allocations.length, loading, tasks.length]);
-
-  // Fetch allocations for a specific date range
-  const fetchAllocationsForDateRange = async (startDate: Date, endDate: Date) => {
-    const filters = {
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0]
-    };
-    await fetchAllocations(filters);
-  };
+  }, [user, viewMode, selectedDate, groupBy]);
 
   const getWeekDates = (date: Date) => {
     const week = [];
@@ -164,67 +192,6 @@ export function DailyAllocations() {
       week.push(day);
     }
     return week;
-  };
-
-  const getAllocationsForDate = (date: Date, userId?: string, projectId?: string) => {
-    
-    const filteredAllocations = (allocations || []).filter(allocation => {
-      // Convert dates to YYYY-MM-DD format for comparison
-      const allocDateStr = date.toISOString().split('T')[0];
-      const startDateStr = allocation.start_date.split('T')[0];
-      const endDateStr = allocation.end_date.split('T')[0];
-      
-      const isInDateRange = allocDateStr >= startDateStr && allocDateStr <= endDateStr;
-      const isForUser = !userId || allocation.user_id?.toString() === userId;
-      const isForProject = !projectId || allocation.project_id?.toString() === projectId;
-
-      // Debug: Only log date filtering issues for specific user
-      if (userId && allocation.user_id?.toString() === userId && !isInDateRange) {
-        console.log(`❌ Date mismatch: Looking for ${allocDateStr}, allocation ${allocation.id} range is ${startDateStr} to ${endDateStr}`);
-      }
-
-      return isInDateRange && isForUser && isForProject;
-    });
-    
-    return filteredAllocations;
-  };
-
-  const getTotalHoursForUserOnDate = (userId: string, date: Date) => {
-    const userAllocations = getAllocationsForDate(date, userId);
-    return userAllocations.reduce((total: number, allocation: TeamAllocation) => {
-      const hours = typeof allocation.hours_per_day === 'string' 
-        ? parseFloat(allocation.hours_per_day) 
-        : allocation.hours_per_day || 0;
-      return total + hours;
-    }, 0);
-  };
-
-  const getTotalHoursForProjectOnDate = (projectId: string, date: Date) => {
-    const projectAllocations = getAllocationsForDate(date, undefined, projectId);
-    return projectAllocations.reduce((total: number, allocation: TeamAllocation) => {
-      const hours = typeof allocation.hours_per_day === 'string' 
-        ? parseFloat(allocation.hours_per_day) 
-        : allocation.hours_per_day || 0;
-      return total + hours;
-    }, 0);
-  };
-
-  const getUserWorkloadStatus = (userId: string, date: Date) => {
-    const totalHours = getTotalHoursForUserOnDate(userId, date);
-    if (totalHours === 0) return 'available';
-    if (totalHours > 8) return 'overloaded';
-    if (totalHours >= 6) return 'busy';
-    return 'normal';
-  };
-
-  const getWorkloadColor = (status: string) => {
-    switch (status) {
-      case 'available': return 'bg-green-100 text-green-800';
-      case 'normal': return 'bg-blue-100 text-blue-800';
-      case 'busy': return 'bg-yellow-100 text-yellow-800';
-      case 'overloaded': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
   };
 
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -257,33 +224,112 @@ export function DailyAllocations() {
     }
   };
 
-  const handleCreateAllocation = async (allocationData: Partial<TeamAllocation>) => {
-    try {
-      const newAllocation = {
-        user_id: allocationData.userId || '',
-        project_id: allocationData.projectId || '',
-        task_id: allocationData.taskId || undefined,
-        hours_per_day: allocationData.hoursPerDay || 8,
-        start_date: allocationData.startDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
-        end_date: allocationData.endDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
-      };
-      
-      await allocationService.create(newAllocation);
-      
-      // Refresh allocations
-      await fetchAllocations();
-      
-      setIsAllocationModalOpen(false);
-    } catch (err) {
-      console.error('Failed to create allocation:', err);
-      setError('Failed to create allocation');
+  const getUserWorkloadStatus = (totalHours: number) => {
+    if (totalHours === 0) return 'available';
+    if (totalHours > 8) return 'overloaded';
+    if (totalHours >= 6) return 'busy';
+    return 'normal';
+  };
+
+  const getWorkloadColor = (status: string) => {
+    switch (status) {
+      case 'available': return 'bg-green-100 text-green-800';
+      case 'normal': return 'bg-blue-100 text-blue-800';
+      case 'busy': return 'bg-yellow-100 text-yellow-800';
+      case 'overloaded': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Get unique teams from backend data
+  const getUniqueTeams = () => {
+    if (!backendData?.allocations) return [];
+    
+    const teams = new Set<string>();
+    backendData.allocations.forEach(allocation => {
+      if (allocation.user_skills && allocation.user_skills.length > 0) {
+        allocation.user_skills.forEach(skill => teams.add(skill));
+      }
+    });
+    
+    return Array.from(teams).sort();
+  };
+
+  // Get unique members from backend data, optionally filtered by team
+  const getUniqueMembers = () => {
+    if (!backendData?.grouped) return [];
+    
+    const members = Object.values(backendData.grouped).filter(member => 
+      member && member.user_id && member.user_name
+    );
+    
+    if (selectedTeam === 'all') {
+      return members;
+    }
+    
+    // Filter by selected team
+    return members.filter(member => 
+      member.user_skills && member.user_skills.includes(selectedTeam)
+    );
+  };
+
+  // Filter grouped data based on selected filters
+  const getFilteredGroupedData = () => {
+    if (!backendData?.grouped) return {};
+    
+    let filteredData = { ...backendData.grouped };
+    
+    // Filter by team
+    if (selectedTeam !== 'all') {
+      filteredData = Object.fromEntries(
+        Object.entries(filteredData).filter(([_, member]) => 
+          member && member.user_skills && member.user_skills.includes(selectedTeam)
+        )
+      );
+    }
+    
+    // Filter by specific member
+    if (selectedMember !== 'all') {
+      filteredData = Object.fromEntries(
+        Object.entries(filteredData).filter(([userId, member]) => 
+          userId === selectedMember && member && member.user_id
+        )
+      );
+    }
+    
+    return filteredData;
+  };
+
+  // Open daily allocation modal
+  const openDailyAllocationModal = (user: any, date: string, dayData: any) => {
+    setSelectedDailyAllocation({
+      user,
+      date,
+      tasks: dayData?.tasks || [],
+      totalHours: dayData?.total_hours || 0
+    });
+    setIsDailyAllocationModalOpen(true);
+  };
+
+  // Navigate to task details
+  const navigateToTaskDetails = (taskId: number) => {
+    setIsDailyAllocationModalOpen(false);
+    if (onNavigateToTask) {
+      onNavigateToTask(taskId);
+    } else {
+      console.log('Navigate to task details for task ID:', taskId);
     }
   };
 
   const renderTeamWeekView = () => {
-    const weekDates = getWeekDates(selectedDate);
+    if (!backendData || !backendData.grouped) {
+      return <div className="text-center text-gray-500 p-8">Loading allocation data...</div>;
+    }
 
-    
+    const weekDates = getWeekDates(selectedDate);
+    const filteredGroupedData = getFilteredGroupedData();
+    const users = Object.values(filteredGroupedData);
+
     return (
       <div className="space-y-4">
         {/* Week Header */}
@@ -302,59 +348,40 @@ export function DailyAllocations() {
         </div>
 
         {/* Team Member Rows */}
-        {users.map(user => (
-          <Card key={user.id} className="overflow-hidden">
+        {users.filter(user => user && user.user_id && user.user_name).map(user => (
+          <Card key={user.user_id || 'unknown'} className="overflow-hidden">
             <CardContent className="p-0">
               <div className="grid grid-cols-8 gap-2">
                 {/* User Info */}
                 <div className="p-4 bg-gray-50 flex items-center space-x-3">
                   <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-                    {user.name.charAt(0)}
+                    {user.user_name?.charAt(0) || '?'}
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">{user.name}</div>
-                                                <div className="text-sm text-gray-600">{user.skills?.[0] || 'No skills'}</div>
+                    <div className="font-medium text-gray-900">{user.user_name || 'Unknown User'}</div>
+                    <div className="text-sm text-gray-600">{user.user_skills?.[0] || 'No skills'}</div>
                   </div>
                 </div>
 
-                                  {/* Daily Allocations */}
-                  {weekDates.map(date => {       
-                    const allocations = getAllocationsForDate(date, user.id);
-                    const totalHours = getTotalHoursForUserOnDate(user.id, date);
-                  const status = getUserWorkloadStatus(user.id, date);
+                {/* Daily Allocations */}
+                {weekDates.map(date => {
+                  const dateStr = date.toISOString().split('T')[0];
+                  const dayData = user.daily_allocations[dateStr];
+                  const totalHours = dayData?.total_hours || 0;
+                  const tasks = dayData?.tasks || [];
+                  const status = getUserWorkloadStatus(totalHours);
                   
                   return (
                     <div key={date.toISOString()} className="p-2 border-l border-gray-200">
-                      <div className={`rounded-lg p-2 text-center ${getWorkloadColor(status)}`}>
-                        <div className="font-semibold">{totalHours}h</div>
-                        <div className="text-xs mt-1">{allocations.length} tasks</div>
+                      <div 
+                        className={`rounded-lg p-2 text-center cursor-pointer hover:opacity-80 transition-opacity ${getWorkloadColor(status)}`}
+                        onClick={() => openDailyAllocationModal(user, dateStr, dayData)}
+                        title={`Click to view ${tasks.length} tasks for ${user.user_name} on ${date.toLocaleDateString()}`}
+                      >
+                        <div className="font-semibold">{totalHours.toFixed(1)}h</div>
+                        <div className="text-xs mt-1">{tasks.length} tasks</div>
                       </div>
                       
-                      {allocations.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {allocations.slice(0, 2).map((allocation: TeamAllocation) => {
-                            const task = tasks.find(t => t.id === allocation.task_id);
-                            const project = projects.find(p => p.id === allocation.project_id);
-                            const user = users.find(u => u.id === allocation.user_id);
-                            
-                            return (
-                              <div 
-                                key={allocation.task_id || allocation.id}
-                                className="text-xs bg-white rounded p-1 border"
-                                title={`${project?.name}: ${task?.name} (${user?.skills?.[0]})`}
-                              >
-                                <div className="font-medium truncate">{task?.name}</div>
-                                <div className="text-gray-600">{allocation.hours_per_day}h • {user?.skills?.[0]}</div>
-                              </div>
-                            );
-                          })}
-                          {allocations.length > 2 && (
-                            <div className="text-xs text-gray-500 text-center">
-                              +{allocations.length - 2} more
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -367,8 +394,39 @@ export function DailyAllocations() {
   };
 
   const renderProjectWeekView = () => {
+    if (!backendData || !backendData.allocations) {
+      return <div className="text-center text-gray-500 p-8">Loading allocation data...</div>;
+    }
+
     const weekDates = getWeekDates(selectedDate);
     
+    // Group allocations by project
+    const projectGroups: { [projectId: string]: {
+      project_id: number;
+      project_name: string;
+      project_category: string;
+      daily_allocations: { [date: string]: DailyAllocation[] };
+    }} = {};
+
+    backendData.allocations.forEach(allocation => {
+      const projectId = allocation.project_id.toString();
+      if (!projectGroups[projectId]) {
+        projectGroups[projectId] = {
+          project_id: allocation.project_id,
+          project_name: allocation.project_name,
+          project_category: allocation.project_category,
+          daily_allocations: {}
+        };
+      }
+      
+      if (!projectGroups[projectId].daily_allocations[allocation.date]) {
+        projectGroups[projectId].daily_allocations[allocation.date] = [];
+      }
+      projectGroups[projectId].daily_allocations[allocation.date].push(allocation);
+    });
+
+    const projects = Object.values(projectGroups);
+
     return (
       <div className="space-y-4">
         {/* Week Header */}
@@ -388,7 +446,7 @@ export function DailyAllocations() {
 
         {/* Project Rows */}
         {projects.map(project => (
-          <Card key={project.id} className="overflow-hidden">
+          <Card key={project.project_id} className="overflow-hidden">
             <CardContent className="p-0">
               <div className="grid grid-cols-8 gap-2">
                 {/* Project Info */}
@@ -397,48 +455,25 @@ export function DailyAllocations() {
                     <FolderOpen className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">{project.name}</div>
-                    <div className="text-sm text-gray-600">{project.category}</div>
+                    <div className="font-medium text-gray-900">{project.project_name}</div>
+                    <div className="text-sm text-gray-600">{project.project_category}</div>
                   </div>
                 </div>
 
                 {/* Daily Project Allocations */}
                 {weekDates.map(date => {
-                  const allocations = getAllocationsForDate(date, undefined, project.id);
-                  const totalHours = getTotalHoursForProjectOnDate(project.id, date);
-                  const uniqueUsers = new Set(allocations.map((a: TeamAllocation) => a.user_id)).size;
+                  const dateStr = date.toISOString().split('T')[0];
+                  const dayAllocations = project.daily_allocations[dateStr] || [];
+                  const totalHours = dayAllocations.reduce((sum, alloc) => sum + alloc.hours_per_day, 0);
+                  const uniqueUsers = new Set(dayAllocations.map(a => a.user_id)).size;
                   
                   return (
                     <div key={date.toISOString()} className="p-2 border-l border-gray-200">
                       <div className="rounded-lg p-2 text-center bg-blue-100 text-blue-800">
-                        <div className="font-semibold">{totalHours}h</div>
+                        <div className="font-semibold">{totalHours.toFixed(1)}h</div>
                         <div className="text-xs mt-1">{uniqueUsers} people</div>
                       </div>
                       
-                      {allocations.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {allocations.slice(0, 2).map((allocation: TeamAllocation) => {
-                            const user = users.find(u => u.id === allocation.user_id);
-                            const task = tasks.find(t => t.id === allocation.task_id);
-                            
-                            return (
-                              <div 
-                                key={`${allocation.user_id}-${allocation.task_id}`}
-                                className="text-xs bg-white rounded p-1 border"
-                                title={`${user?.name}: ${task?.name}`}
-                              >
-                                <div className="font-medium truncate">{user?.name}</div>
-                                <div className="text-gray-600">{allocation.hours_per_day}h</div>
-                              </div>
-                            );
-                          })}
-                          {allocations.length > 2 && (
-                            <div className="text-xs text-gray-500 text-center">
-                              +{allocations.length - 2} more
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -451,25 +486,33 @@ export function DailyAllocations() {
   };
 
   const renderDayView = () => {
+    if (!backendData) {
+      return <div className="text-center text-gray-500 p-8">Loading allocation data...</div>;
+    }
+
     if (groupBy === 'team') {
+      const users = Object.values(backendData.grouped || {});
+      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+
       return (
         <div className="space-y-6">
-          {users.map(user => {
-            const allocations = getAllocationsForDate(selectedDate, user.id);
-            const totalHours = getTotalHoursForUserOnDate(user.id, selectedDate);
-            const status = getUserWorkloadStatus(user.id, selectedDate);
+          {users.filter(user => user && user.user_id && user.user_name).map(user => {
+            const dayData = user.daily_allocations[selectedDateStr];
+            const totalHours = dayData?.total_hours || 0;
+            const tasks = dayData?.tasks || [];
+            const status = getUserWorkloadStatus(totalHours);
             
             return (
-              <Card key={user.id}>
+              <Card key={user.user_id || 'unknown'}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium text-lg">
-                        {user.name.charAt(0)}
+                        {user.user_name?.charAt(0) || '?'}
                       </div>
                       <div>
-                        <CardTitle>{user.name}</CardTitle>
-                        <p className="text-sm text-gray-600">{user.skills.join(', ')}</p>
+                        <CardTitle>{user.user_name || 'Unknown User'}</CardTitle>
+                        <p className="text-sm text-gray-600">{user.user_skills?.join(', ') || 'No skills'}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -478,48 +521,54 @@ export function DailyAllocations() {
                         status === 'overloaded' ? 'danger' :
                         status === 'busy' ? 'warning' : 'primary'
                       }>
-                        {totalHours}h allocated
+                        {totalHours.toFixed(1)}h allocated
                       </Badge>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {allocations.length === 0 ? (
+                  {tasks.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <User className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                       <p>No tasks allocated for this day</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {allocations.map(allocation => {
-                        const task = tasks.find(t => t.id === allocation.taskId);
-                        const project = projects.find(p => p.id === allocation.projectId);
-                        
-                        return (
-                          <div key={allocation.taskId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900">{task?.name}</div>
-                              <div className="text-sm text-gray-600">{project?.name}</div>
-                              <div className="flex items-center mt-1 space-x-4">
-                                <Badge variant="secondary" size="sm">
-                                  {task?.priority}
-                                </Badge>
-                                <Badge variant={
-                                  task?.status === 'completed' ? 'success' :
-                                  task?.status === 'in-progress' ? 'primary' :
-                                  task?.status === 'blocked' ? 'danger' : 'default'
-                                } size="sm">
-                                  {task?.status}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-semibold text-lg">{allocation.hoursPerDay}h</div>
-                              <div className="text-sm text-gray-600">allocated</div>
+                      {tasks.map(task => (
+                        <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{task.task_name}</div>
+                            <div className="text-sm text-gray-600">{task.project_name}</div>
+                            <div className="flex items-center mt-1 space-x-4">
+                              <Badge variant="secondary" size="sm">
+                                {task.priority}
+                              </Badge>
+                              <Badge variant={
+                                task.status === 'completed' ? 'success' :
+                                task.status === 'in-progress' ? 'primary' :
+                                task.status === 'blocked' ? 'danger' : 'default'
+                              } size="sm">
+                                {task.status}
+                              </Badge>
                             </div>
                           </div>
-                        );
-                      })}
+                          <div className="text-right flex flex-col items-end space-y-2">
+                            <div>
+                              <div className="font-semibold text-lg">{task.hours_per_day}h</div>
+                              <div className="text-sm text-gray-600">allocated</div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigateToTaskDetails(task.task_id)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>
@@ -530,15 +579,34 @@ export function DailyAllocations() {
       );
     } else {
       // Project-based day view
+      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+      const dayAllocations = backendData.allocations.filter(alloc => alloc.date === selectedDateStr);
+      
+      // Group by project
+      const projectGroups: { [projectId: string]: DailyAllocation[] } = {};
+      dayAllocations.forEach(alloc => {
+        const projectId = alloc.project_id.toString();
+        if (!projectGroups[projectId]) {
+          projectGroups[projectId] = [];
+        }
+        projectGroups[projectId].push(alloc);
+      });
+
+      const projects = Object.entries(projectGroups).map(([projectId, allocations]) => ({
+        project_id: parseInt(projectId),
+        project_name: allocations[0].project_name,
+        project_category: allocations[0].project_category,
+        allocations
+      }));
+
       return (
         <div className="space-y-6">
           {projects.map(project => {
-            const allocations = getAllocationsForDate(selectedDate, undefined, project.id);
-            const totalHours = getTotalHoursForProjectOnDate(project.id, selectedDate);
-            const uniqueUsers = new Set(allocations.map(a => a.userId)).size;
+            const totalHours = project.allocations.reduce((sum, alloc) => sum + alloc.hours_per_day, 0);
+            const uniqueUsers = new Set(project.allocations.map(a => a.user_id)).size;
             
             return (
-              <Card key={project.id}>
+              <Card key={project.project_id}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -546,54 +614,49 @@ export function DailyAllocations() {
                         <FolderOpen className="w-6 h-6" />
                       </div>
                       <div>
-                        <CardTitle>{project.name}</CardTitle>
-                        <p className="text-sm text-gray-600">{project.category}</p>
+                        <CardTitle>{project.project_name}</CardTitle>
+                        <p className="text-sm text-gray-600">{project.project_category}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <Badge variant="primary">
-                        {totalHours}h • {uniqueUsers} people
+                        {totalHours.toFixed(1)}h • {uniqueUsers} people
                       </Badge>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {allocations.length === 0 ? (
+                  {project.allocations.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <FolderOpen className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                       <p>No allocations for this project today</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {allocations.map(allocation => {
-                        const user = users.find(u => u.id === allocation.userId);
-                        const task = tasks.find(t => t.id === allocation.taskId);
-                        
-                        return (
-                          <div key={`${allocation.userId}-${allocation.taskId}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900">{task?.name}</div>
-                              <div className="text-sm text-gray-600">Assigned to: {user?.name}</div>
-                              <div className="flex items-center mt-1 space-x-4">
-                                <Badge variant="secondary" size="sm">
-                                  {task?.priority}
-                                </Badge>
-                                <Badge variant={
-                                  task?.status === 'completed' ? 'success' :
-                                  task?.status === 'in-progress' ? 'primary' :
-                                  task?.status === 'blocked' ? 'danger' : 'default'
-                                } size="sm">
-                                  {task?.status}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-semibold text-lg">{allocation.hoursPerDay}h</div>
-                              <div className="text-sm text-gray-600">allocated</div>
+                      {project.allocations.map(allocation => (
+                        <div key={`${allocation.user_id}-${allocation.task_id}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{allocation.task_name}</div>
+                            <div className="text-sm text-gray-600">Assigned to: {allocation.user_name}</div>
+                            <div className="flex items-center mt-1 space-x-4">
+                              <Badge variant="secondary" size="sm">
+                                {allocation.task_priority}
+                              </Badge>
+                              <Badge variant={
+                                allocation.task_status === 'completed' ? 'success' :
+                                allocation.task_status === 'in-progress' ? 'primary' :
+                                allocation.task_status === 'blocked' ? 'danger' : 'default'
+                              } size="sm">
+                                {allocation.task_status}
+                              </Badge>
                             </div>
                           </div>
-                        );
-                      })}
+                          <div className="text-right">
+                            <div className="font-semibold text-lg">{allocation.hours_per_day}h</div>
+                            <div className="text-sm text-gray-600">allocated</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>
@@ -604,6 +667,34 @@ export function DailyAllocations() {
       );
     }
   };
+
+  // Calculate summary stats from filtered data
+  const getSummaryStats = () => {
+    const filteredGroupedData = getFilteredGroupedData();
+    const users = Object.values(filteredGroupedData);
+    
+    let available = 0, busy = 0, overloaded = 0;
+
+    users.forEach(user => {
+      // Calculate average hours per day for this user
+      const dates = Object.keys(user.daily_allocations);
+      const totalHours = dates.reduce((sum, date) => sum + user.daily_allocations[date].total_hours, 0);
+      const avgHoursPerDay = dates.length > 0 ? totalHours / dates.length : 0;
+      
+      if (avgHoursPerDay === 0) available++;
+      else if (avgHoursPerDay > 8) overloaded++;
+      else if (avgHoursPerDay >= 6) busy++;
+    });
+
+    return {
+      total: users.length,
+      available,
+      busy,
+      overloaded
+    };
+  };
+
+  const summaryStats = getSummaryStats();
 
   return (
     <div className="p-6 space-y-6">
@@ -643,6 +734,41 @@ export function DailyAllocations() {
         </div>
 
         <div className="flex items-center space-x-4">
+          {/* Team Filter */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Team:</span>
+            <select
+              value={selectedTeam}
+              onChange={(e) => {
+                setSelectedTeam(e.target.value);
+                setSelectedMember('all'); // Reset member filter when team changes
+              }}
+              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Teams</option>
+              {getUniqueTeams().map(team => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Member Filter */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Member:</span>
+            <select
+              value={selectedMember}
+              onChange={(e) => setSelectedMember(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Members</option>
+              {getUniqueMembers().map(member => (
+                <option key={member.user_id || 'unknown'} value={(member.user_id || '').toString()}>
+                  {member.user_name || 'Unknown Member'}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Group By Toggle */}
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-600">Group by:</span>
@@ -681,6 +807,20 @@ export function DailyAllocations() {
               Week
             </Button>
           </div>
+
+          {/* Clear Filters */}
+          {(selectedTeam !== 'all' || selectedMember !== 'all') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedTeam('all');
+                setSelectedMember('all');
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
         </div>
       </div>
 
@@ -694,7 +834,7 @@ export function DailyAllocations() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Team</p>
-                <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{summaryStats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -708,9 +848,7 @@ export function DailyAllocations() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Available</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'available').length}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">{summaryStats.available}</p>
               </div>
             </div>
           </CardContent>
@@ -724,9 +862,7 @@ export function DailyAllocations() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Busy</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'busy').length}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">{summaryStats.busy}</p>
               </div>
             </div>
           </CardContent>
@@ -740,9 +876,7 @@ export function DailyAllocations() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Overloaded</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {users.filter(u => getUserWorkloadStatus(u.id, selectedDate) === 'overloaded').length}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">{summaryStats.overloaded}</p>
               </div>
             </div>
           </CardContent>
@@ -776,164 +910,803 @@ export function DailyAllocations() {
         )
       )}
 
-      {/* Add Allocation Modal */}
-      <AddAllocationModal
-        isOpen={isAllocationModalOpen}
-        onClose={() => setIsAllocationModalOpen(false)}
-        onSubmit={handleCreateAllocation}
-        users={users}
-        projects={projects}
-        tasks={tasks}
-      />
+      {/* Add Allocation Modal - Comprehensive Task Allocation */}
+      <Modal isOpen={isAllocationModalOpen} onClose={() => setIsAllocationModalOpen(false)} title="Allocate Tasks to Team Members" size="xl">
+        <TaskAllocationModal 
+          onClose={() => setIsAllocationModalOpen(false)}
+          onAllocationComplete={() => {
+            setIsAllocationModalOpen(false);
+            fetchDailyAllocations(); // Refresh the allocations
+          }}
+        />
+      </Modal>
+
+      {/* Daily Allocation Modal */}
+      <Modal 
+        isOpen={isDailyAllocationModalOpen} 
+        onClose={() => setIsDailyAllocationModalOpen(false)} 
+        title={`Daily Tasks - ${selectedDailyAllocation?.user?.user_name || 'Unknown User'}`}
+        size="lg"
+      >
+        {selectedDailyAllocation && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-900">
+                    {new Date(selectedDailyAllocation.date).toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {selectedDailyAllocation.user?.user_name} • {selectedDailyAllocation.user?.user_skills?.join(', ') || 'No skills'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {selectedDailyAllocation.totalHours.toFixed(1)}h
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {selectedDailyAllocation.tasks.length} tasks
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {selectedDailyAllocation.tasks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <User className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p>No tasks allocated for this day</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {selectedDailyAllocation.tasks.map(task => (
+                  <div key={task.task_id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h4 className="font-medium text-gray-900">{task.task_name}</h4>
+                          <Badge variant={
+                            task.status === 'completed' ? 'success' :
+                            task.status === 'in-progress' ? 'primary' :
+                            task.status === 'under-review' ? 'warning' :
+                            task.status === 'blocked' ? 'danger' : 'default'
+                          } size="sm">
+                            {task.status}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-2">{task.project_name}</div>
+                        <div className="flex items-center space-x-4 text-sm">
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span>{task.hours_per_day}h allocated</span>
+                          </div>
+                          <Badge variant="secondary" size="sm">
+                            {task.priority}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigateToTaskDetails(task.task_id)}
+                        className="text-blue-600 hover:text-blue-800 ml-4"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View Details
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
 
-interface AddAllocationModalProps {
-  isOpen: boolean;
+// Comprehensive Task Allocation Modal Component
+interface TaskAllocationModalProps {
   onClose: () => void;
-  onSubmit: (allocation: Partial<TeamAllocation>) => void;
-  users: any[];
-  projects: any[];
-  tasks: any[];
+  onAllocationComplete: () => void;
 }
 
-function AddAllocationModal({ isOpen, onClose, onSubmit, users, projects, tasks }: AddAllocationModalProps) {
-  const [formData, setFormData] = useState({
-    userId: '',
-    projectId: '',
-    taskId: '',
-    hoursPerDay: 8,
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  });
+function TaskAllocationModal({ onClose, onAllocationComplete }: TaskAllocationModalProps) {
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [selectedBook, setSelectedBook] = useState<string>('');
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const [selectedLesson, setSelectedLesson] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
+  const [selectedTeamMember, setSelectedTeamMember] = useState<number | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [allocationDate, setAllocationDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      ...formData,
-      startDate: new Date(formData.startDate),
-      endDate: new Date(formData.endDate),
-    });
-    setFormData({
-      userId: '',
-      projectId: '',
-      taskId: '',
-      hoursPerDay: 8,
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    });
+  // Load initial data
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Load stages and grades when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      loadStagesForProject(selectedProject);
+      loadGradesForProject(selectedProject);
+      // Reset all selections when project changes
+      setSelectedStage('');
+      setSelectedGrade('');
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    } else {
+      setStages([]);
+      setGrades([]);
+      setBooks([]);
+      setUnits([]);
+      setLessons([]);
+      setTasks([]);
+      setSelectedStage('');
+      setSelectedGrade('');
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    }
+  }, [selectedProject]);
+
+  // Load books when grade changes
+  useEffect(() => {
+    if (selectedGrade) {
+      loadBooksForGrade(selectedGrade);
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    } else {
+      setBooks([]);
+      setUnits([]);
+      setLessons([]);
+      setSelectedBook('');
+      setSelectedUnit('');
+      setSelectedLesson('');
+    }
+  }, [selectedGrade]);
+
+  // Load units when book changes
+  useEffect(() => {
+    if (selectedBook) {
+      loadUnitsForBook(selectedBook);
+      setSelectedUnit('');
+      setSelectedLesson('');
+    } else {
+      setUnits([]);
+      setLessons([]);
+      setSelectedUnit('');
+      setSelectedLesson('');
+    }
+  }, [selectedBook]);
+
+  // Load lessons when unit changes
+  useEffect(() => {
+    if (selectedUnit) {
+      loadLessonsForUnit(selectedUnit);
+      setSelectedLesson('');
+    } else {
+      setLessons([]);
+      setSelectedLesson('');
+    }
+  }, [selectedUnit]);
+
+  // Load tasks when any filter changes
+  useEffect(() => {
+    if (selectedProject) {
+      loadTasksForProject(selectedProject);
+    } else {
+      setTasks([]);
+    }
+  }, [selectedProject, selectedStage, selectedGrade, selectedBook, selectedUnit, selectedLesson]);
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      const [projectsData, teamMembersData] = await Promise.all([
+        projectService.getAll(),
+        teamService.getMembers()
+      ]);
+      
+      setProjects(projectsData.data || projectsData);
+      setTeamMembers(teamMembersData.data || teamMembersData);
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const availableTasks = (tasks || []).filter(task => 
-    !formData.projectId || task.projectId === formData.projectId
-  );
+  const loadStagesForProject = async (projectId: string) => {
+    try {
+      const stagesData = await stageService.getAll(projectId);
+      setStages(stagesData.data || stagesData);
+    } catch (error) {
+      console.error('Failed to load stages:', error);
+      setStages([]);
+    }
+  };
+
+  const loadGradesForProject = async (projectId: string) => {
+    try {
+      const gradesData = await gradeService.getByProject(projectId);
+      setGrades(gradesData.data || gradesData);
+    } catch (error) {
+      console.error('Failed to load grades:', error);
+      setGrades([]);
+    }
+  };
+
+  const loadBooksForGrade = async (gradeId: string) => {
+    try {
+      const booksData = await bookService.getByGrade(gradeId);
+      setBooks(booksData.data || booksData);
+    } catch (error) {
+      console.error('Failed to load books:', error);
+      setBooks([]);
+    }
+  };
+
+  const loadUnitsForBook = async (bookId: string) => {
+    try {
+      const unitsData = await unitService.getByBook(bookId);
+      setUnits(unitsData.data || unitsData);
+    } catch (error) {
+      console.error('Failed to load units:', error);
+      setUnits([]);
+    }
+  };
+
+  const loadLessonsForUnit = async (unitId: string) => {
+    try {
+      const lessonsData = await lessonService.getByUnit(unitId);
+      setLessons(lessonsData.data || lessonsData);
+    } catch (error) {
+      console.error('Failed to load lessons:', error);
+      setLessons([]);
+    }
+  };
+
+  const loadTasksForProject = async (projectId: string) => {
+    try {
+      setLoading(true);
+      const queryParams: any = { 
+        project_id: projectId,
+        all: 'true' // Get all tasks for the project
+      };
+      
+      // Add stage filter if selected
+      if (selectedStage) {
+        queryParams.stage_id = selectedStage;
+      }
+      
+      // Add educational hierarchy filters if selected
+      if (selectedGrade) {
+        queryParams.grade_id = selectedGrade;
+      }
+      if (selectedBook) {
+        queryParams.book_id = selectedBook;
+      }
+      if (selectedUnit) {
+        queryParams.unit_id = selectedUnit;
+      }
+      if (selectedLesson) {
+        queryParams.lesson_id = selectedLesson;
+      }
+      
+      const tasksData = await taskService.getAll(queryParams);
+      setTasks(tasksData.data || tasksData);
+    } catch (error) {
+      console.error('Failed to load tasks:', error);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = task.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         task.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+    const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
+
+  const filteredUsers = teamMembers.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(userSearchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  const handleTaskSelect = (taskId: number) => {
+    setSelectedTasks(prev => 
+      prev.includes(taskId) 
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    );
+  };
+
+
+  const handleAllocate = async () => {
+    if (selectedTasks.length === 0 || !selectedTeamMember) {
+      alert('Please select at least one task and one team member');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Create allocations for each selected task to the selected team member
+      const allocationPromises = selectedTasks.map(taskId => {
+        const task = tasks.find(t => t.id === taskId);
+        return allocationService.create({
+          user_id: selectedTeamMember,
+          user_type: 'team',
+          task_id: taskId,
+          project_id: selectedProject,
+          start_date: task?.start_date || allocationDate,
+          end_date: allocationDate, // Allocation date is the end_date
+          hours_per_day: 8 // Default 8 hours per day
+        });
+      });
+
+      await Promise.all(allocationPromises);
+      
+      const selectedUser = teamMembers.find(user => user.id === selectedTeamMember);
+      alert(`Successfully allocated, assigned, and updated end dates for ${selectedTasks.length} tasks to ${selectedUser?.name || 'selected team member'}`);
+      onAllocationComplete();
+    } catch (error) {
+      console.error('Failed to create allocations:', error);
+      alert('Failed to create allocations. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'in-progress': return 'bg-blue-100 text-blue-800';
+      case 'under-review': return 'bg-yellow-100 text-yellow-800';
+      case 'blocked': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add Team Allocation" size="lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-6">
+      {/* Project Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select Project *
+        </label>
+        <select
+          value={selectedProject}
+          onChange={(e) => setSelectedProject(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Choose a project...</option>
+          {projects.map(project => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Stage Selection */}
+      {selectedProject && stages.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Stage (Optional)
+          </label>
+          <select
+            value={selectedStage}
+            onChange={(e) => setSelectedStage(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All stages</option>
+            {stages.map(stage => (
+              <option key={stage.id} value={stage.id}>
+                {stage.name}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-gray-500">
+              Filter tasks by stage to narrow down your search
+            </p>
+            {selectedStage && (
+              <button
+                onClick={() => setSelectedStage('')}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear stage filter
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Educational Hierarchy Filters */}
+      {selectedProject && grades.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-700">Educational Hierarchy Filters</h3>
+          
+          {/* Grade Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Team Member *
+              Select Grade (Optional)
             </label>
             <select
-              required
-              value={formData.userId}
-              onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+              value={selectedGrade}
+              onChange={(e) => setSelectedGrade(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="">Select Team Member</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>{user.name}</option>
+              <option value="">All grades</option>
+              {grades.map(grade => (
+                <option key={grade.id} value={grade.id}>
+                  {grade.name}
+                </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Project *
-            </label>
-            <select
-              required
-              value={formData.projectId}
-              onChange={(e) => setFormData({ ...formData, projectId: e.target.value, taskId: '' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Select Project</option>
-              {projects.map(project => (
-                <option key={project.id} value={project.id}>{project.name}</option>
-              ))}
-            </select>
+          {/* Book Selection */}
+          {selectedGrade && books.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Book (Optional)
+              </label>
+              <select
+                value={selectedBook}
+                onChange={(e) => setSelectedBook(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All books</option>
+                {books.map(book => (
+                  <option key={book.id} value={book.id}>
+                    {book.name} ({book.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Unit Selection */}
+          {selectedBook && units.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Unit (Optional)
+              </label>
+              <select
+                value={selectedUnit}
+                onChange={(e) => setSelectedUnit(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All units</option>
+                {units.map(unit => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Lesson Selection */}
+          {selectedUnit && lessons.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Lesson (Optional)
+              </label>
+              <select
+                value={selectedLesson}
+                onChange={(e) => setSelectedLesson(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All lessons</option>
+                {lessons.map(lesson => (
+                  <option key={lesson.id} value={lesson.id}>
+                    {lesson.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Clear All Filters Button */}
+          {(selectedGrade || selectedBook || selectedUnit || selectedLesson) && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedGrade('');
+                  setSelectedBook('');
+                  setSelectedUnit('');
+                  setSelectedLesson('');
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Clear all educational filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedProject && (
+        <>
+          {/* Search and Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Tasks
+              </label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name or description..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status Filter
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Statuses</option>
+                <option value="not-started">Not Started</option>
+                <option value="in-progress">In Progress</option>
+                <option value="under-review">Under Review</option>
+                <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Priority Filter
+              </label>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Priorities</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
           </div>
 
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Task *
-            </label>
-            <select
-              required
-              value={formData.taskId}
-              onChange={(e) => setFormData({ ...formData, taskId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={!formData.projectId}
-            >
-              <option value="">Select Task</option>
-              {availableTasks.map(task => (
-                <option key={task.id} value={task.id}>{task.name}</option>
-              ))}
-            </select>
+          {/* Tasks List */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">
+              Available Tasks ({filteredTasks.length})
+              {(selectedStage || selectedGrade || selectedBook || selectedUnit || selectedLesson) && (
+                <span className="text-sm font-normal text-gray-600 ml-2">
+                  (filtered by: {[
+                    selectedStage && 'stage',
+                    selectedGrade && 'grade',
+                    selectedBook && 'book',
+                    selectedUnit && 'unit',
+                    selectedLesson && 'lesson'
+                  ].filter(Boolean).join(', ')})
+                </span>
+              )}
+            </h3>
+            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+              {loading ? (
+                <div className="p-4 text-center text-gray-500">Loading tasks...</div>
+              ) : filteredTasks.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">No tasks found</div>
+              ) : (
+                <div className="space-y-2 p-2">
+                  {filteredTasks.map(task => (
+                    <div
+                      key={task.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedTasks.includes(task.id)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleTaskSelect(task.id)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className="font-medium text-gray-900">{task.name}</h4>
+                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(task.status)}`}>
+                              {task.status}
+                            </span>
+                            <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(task.priority)}`}>
+                              {task.priority}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            {task.description || 'No description'}
+                          </p>
+                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                            <span>Est: {task.estimated_hours}h</span>
+                            <span>Progress: {task.progress}%</span>
+                            <span>Due: {task.end_date ? new Date(task.end_date).toLocaleDateString() : 'No due date'}</span>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          {selectedTasks.includes(task.id) && (
+                            <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs">✓</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Team Member Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Hours per Day
-            </label>
-            <input
-              type="number"
-              min="0.5"
-              max="12"
-              step="0.5"
-              value={formData.hoursPerDay}
-              onChange={(e) => setFormData({ ...formData, hoursPerDay: parseFloat(e.target.value) })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <h3 className="text-lg font-medium text-gray-900 mb-3">
+              Select Team Member
+            </h3>
+            
+            {/* Search Input */}
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder="Search team members by name or email..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Selected User Display */}
+            {selectedTeamMember && (
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {teamMembers.find(m => m.id === selectedTeamMember)?.name?.charAt(0) || '?'}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {teamMembers.find(m => m.id === selectedTeamMember)?.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {teamMembers.find(m => m.id === selectedTeamMember)?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedTeamMember(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* User Dropdown */}
+            {!selectedTeamMember && (
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    {userSearchTerm ? 'No team members found matching your search' : 'No team members available'}
+                  </div>
+                ) : (
+                  filteredUsers.map(member => (
+                    <div
+                      key={member.id}
+                      className="p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => setSelectedTeamMember(member.id)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                          {member.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{member.name}</p>
+                          <p className="text-sm text-gray-600">{member.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
+          {/* Allocation Date (End Date) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Date
+              Allocation End Date *
             </label>
             <input
               type="date"
-              value={formData.startDate}
-              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              value={allocationDate}
+              onChange={(e) => setAllocationDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              This will be the new end date for the tasks. The task's end date will be updated to this date, and the start date will remain the task's original start date.
+            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              End Date
-            </label>
-            <input
-              type="date"
-              value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
+          {/* Summary */}
+          {selectedTasks.length > 0 && selectedTeamMember && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Allocation Summary</h4>
+              <p className="text-sm text-blue-800">
+                You are about to allocate and assign <strong>{selectedTasks.length} tasks</strong> to{' '}
+                <strong>{teamMembers.find(m => m.id === selectedTeamMember)?.name}</strong> with end date{' '}
+                <strong>{new Date(allocationDate).toLocaleDateString()}</strong>.
+              </p>
+              <p className="text-sm text-blue-800 mt-1">
+                This will create <strong>{selectedTasks.length} allocations</strong>, assign the tasks to the selected team member, and update each task's end date to <strong>{new Date(allocationDate).toLocaleDateString()}</strong>.
+              </p>
+            </div>
+          )}
 
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit">
-            Add Allocation
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAllocate}
+              disabled={selectedTasks.length === 0 || !selectedTeamMember || loading}
+            >
+              {loading ? 'Creating Allocations...' : 'Create Allocations'}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

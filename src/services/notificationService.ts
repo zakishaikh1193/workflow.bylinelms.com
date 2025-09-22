@@ -41,7 +41,7 @@ class NotificationService {
   }
 
   // Connect to WebSocket server
-  connect(token: string, userType: 'admin' | 'team') {
+  connect(token: string, _userType: 'admin' | 'team') {
     if (this.socket && this.isConnected) {
       console.log('🔌 Already connected to notification server');
       return;
@@ -94,6 +94,8 @@ class NotificationService {
     // Connection events
     this.socket.on('connect', () => {
       console.log('✅ Connected to notification server');
+      console.log('🔍 Debug: Socket ID:', this.socket?.id);
+      console.log('🔍 Debug: Socket connected:', this.socket?.connected);
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
@@ -105,6 +107,8 @@ class NotificationService {
 
     this.socket.on('disconnect', (reason: string) => {
       console.log('❌ Disconnected from notification server:', reason);
+      console.log('🔍 Debug: Disconnect reason:', reason);
+      console.log('🔍 Debug: Socket ID before disconnect:', this.socket?.id);
       this.isConnected = false;
       this.notifyConnectionChange(false);
       
@@ -129,6 +133,9 @@ class NotificationService {
     // Notification events
     this.socket.on('new-notification', (notification: RealTimeNotification) => {
       console.log('📢 Received real-time notification:', notification);
+      console.log('🔍 Debug: Notification type:', notification.type);
+      console.log('🔍 Debug: Notification title:', notification.title);
+      console.log('🔍 Debug: Notification message:', notification.message);
       
       // Always show browser notification for team members
       // This ensures they see all notifications immediately
@@ -203,11 +210,14 @@ class NotificationService {
 
   // Notify all listeners
   private notifyListeners(notification: RealTimeNotification) {
-    this.notificationListeners.forEach(callback => {
+    console.log(`🔍 Debug: Notifying ${this.notificationListeners.length} listeners`);
+    this.notificationListeners.forEach((callback, index) => {
       try {
+        console.log(`🔍 Debug: Calling listener ${index}`);
         callback(notification);
+        console.log(`🔍 Debug: Listener ${index} completed successfully`);
       } catch (error) {
-        console.error('Error in notification listener:', error);
+        console.error(`Error in notification listener ${index}:`, error);
       }
     });
   }
@@ -238,6 +248,8 @@ class NotificationService {
   // Show browser notification
   private showBrowserNotification(notification: RealTimeNotification) {
     console.log('🔔 Attempting to show browser notification:', notification.title);
+    console.log('🔍 Debug: Notification permission status:', Notification.permission);
+    console.log('🔍 Debug: Notification in window:', 'Notification' in window);
     
     if (!('Notification' in window)) {
       console.log('❌ Browser notifications not supported');
@@ -263,11 +275,15 @@ class NotificationService {
     if (Notification.permission === 'granted') {
       try {
         console.log('🔔 Creating browser notification...');
+        console.log('🔍 Debug: Notification title:', notification.title);
+        console.log('🔍 Debug: Notification message:', notification.message);
+        console.log('🔍 Debug: Notification type:', notification.type);
+        console.log('🔍 Debug: Notification data:', notification.data);
         
         const browserNotification = new Notification(notification.title, {
           body: notification.message,
           icon: '/logo.png',
-          tag: `notification-${notification.type}-${notification.data.id}`,
+          tag: `notification-${notification.type}-${notification.data?.id || 'unknown'}`,
           requireInteraction: notification.priority === 'high',
           silent: false,
           badge: '/logo.png'
@@ -360,7 +376,11 @@ class NotificationService {
     return {
       isConnected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
-      maxReconnectAttempts: this.maxReconnectAttempts
+      maxReconnectAttempts: this.maxReconnectAttempts,
+      socketId: this.socket?.id,
+      socketConnected: this.socket?.connected,
+      notificationListeners: this.notificationListeners.length,
+      connectionListeners: this.connectionListeners.length
     };
   }
 

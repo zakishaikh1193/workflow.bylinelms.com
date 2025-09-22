@@ -9,12 +9,18 @@ import {
   AlertTriangle,
   Eye,
   RefreshCw,
-  CheckCircle
+  CheckCircle,
+  Copy,
+  FolderOpen,
+  ChevronDown,
+  ChevronUp,
+  XCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { RichTextDisplay } from './ui/RichTextEditor';
+import { useToast } from './ui/Toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { notificationService as apiNotificationService, taskService } from '../services/apiService';
@@ -50,32 +56,21 @@ interface TaskRemark extends Notification {
   remark: string;
   remark_type: string;
   is_private: boolean;
-}
-
-interface TaskUnderReview {
-  id: string;
-  type: 'task_under_review';
-  task_id: number;
-  task_name: string;
-  project_name: string;
-  submitted_by_name: string;
-  submitted_by_id: number;
-  submitted_at: string;
-  hierarchy: string;
-  stage_name: string;
-  is_new: boolean;
+  task_status: string;
+  server_location?: string;
+  file_name?: string;
 }
 
 interface NotificationsData {
   extensions: ExtensionRequest[];
   remarks: TaskRemark[];
-  underReviewTasks: TaskUnderReview[];
 }
 
 export function Notification() {
   const { user } = useAuth();
   const { dispatch } = useApp();
-  const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [], underReviewTasks: [] });
+  const { showToast } = useToast();
+  const [notifications, setNotifications] = useState<NotificationsData>({ extensions: [], remarks: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -88,6 +83,21 @@ export function Notification() {
   const [filterDate, setFilterDate] = useState<string>('');
   const [filterUser, setFilterUser] = useState<string>('');
   const [viewedTasks, setViewedTasks] = useState<Set<number>>(new Set());
+  
+  // Collapsible sections state
+  const [isExtensionsCollapsed, setIsExtensionsCollapsed] = useState(false);
+  const [isRemarksCollapsed, setIsRemarksCollapsed] = useState(false);
+  
+  // Extension review modal state
+  const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
+  const [selectedExtension, setSelectedExtension] = useState<ExtensionRequest | null>(null);
+  const [extensionAction, setExtensionAction] = useState<'approved' | 'rejected'>('approved');
+  const [extensionNotes, setExtensionNotes] = useState('');
+  const [approvedDate, setApprovedDate] = useState('');
+  
+  // Remark sorting and filtering state
+  const [remarkSortBy, setRemarkSortBy] = useState<'type' | 'date'>('type');
+  const [remarkFilterType, setRemarkFilterType] = useState<string>('all');
 
   // Keep filterType in localStorage so user's choice persists until changed
   useEffect(() => {
@@ -105,11 +115,8 @@ export function Notification() {
     notifications.remarks.forEach(r => {
       if (r.user_name) set.add(r.user_name);
     });
-    notifications.underReviewTasks.forEach(task => {
-      if (task.submitted_by_name) set.add(task.submitted_by_name);
-    });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [notifications.extensions, notifications.remarks, notifications.underReviewTasks]);
+  }, [notifications.extensions, notifications.remarks]);
 
   // Check if user is admin; team users authenticate via teamToken
   const isTeamSession = typeof window !== 'undefined' && !!window.localStorage.getItem('teamToken');
@@ -189,26 +196,97 @@ export function Notification() {
   const handleApproveTask = async (taskId: number) => {
     try {
       await taskService.reviewTask(taskId, 'approve');
+      
+      // Show success toast
+      const taskName = filteredNotifications.remarks.find(r => r.task_id === taskId)?.task_name || 'Task';
+      showToast(`✅ Task "${taskName}" has been approved and marked as completed!`, 'success');
+      
       // Reload notifications to reflect the change
       if (isAdmin) {
         loadNotifications();
       }
     } catch (error: any) {
       console.error('Failed to approve task:', error);
-      // You could add a toast notification here
+      showToast('❌ Failed to approve task. Please try again.', 'error');
     }
   };
 
   const handleDenyTask = async (taskId: number) => {
     try {
       await taskService.reviewTask(taskId, 'deny');
+      
+      // Show success toast
+      const taskName = filteredNotifications.remarks.find(r => r.task_id === taskId)?.task_name || 'Task';
+      showToast(`❌ Task "${taskName}" has been denied and marked as in-progress!`, 'success');
+      
       // Reload notifications to reflect the change
       if (isAdmin) {
         loadNotifications();
       }
     } catch (error: any) {
       console.error('Failed to deny task:', error);
-      // You could add a toast notification here
+      showToast('❌ Failed to deny task. Please try again.', 'error');
+    }
+  };
+
+  const copyServerLocation = async (serverLocation: string) => {
+    try {
+      await navigator.clipboard.writeText(serverLocation);
+      showToast('Server location copied to clipboard!', 'success');
+    } catch (error) {
+      console.error('Failed to copy server location:', error);
+      showToast('❌ Failed to copy server location', 'error');
+    }
+  };
+
+  const openExtensionModal = (extension: ExtensionRequest, action: 'approved' | 'rejected') => {
+    setSelectedExtension(extension);
+    setExtensionAction(action);
+    setExtensionNotes('');
+    // Set the approved date to the user's requested date by default
+    if (action === 'approved' && extension.requested_due_date) {
+      // Ensure the date is in YYYY-MM-DD format for HTML date input
+      const date = new Date(extension.requested_due_date);
+      const formattedDate = date.toISOString().split('T')[0];
+      setApprovedDate(formattedDate);
+    } else {
+      setApprovedDate('');
+    }
+    setIsExtensionModalOpen(true);
+  };
+
+  const handleExtensionReview = async () => {
+    if (!selectedExtension) return;
+
+    try {
+      const reviewData: any = {
+        status: extensionAction,
+        review_notes: extensionNotes
+      };
+
+      // For approved extensions, include the approved date
+      if (extensionAction === 'approved' && approvedDate) {
+        reviewData.approved_due_date = approvedDate;
+      }
+
+      await taskService.reviewExtension(selectedExtension.id, reviewData);
+      
+      // Show success toast
+      const actionText = extensionAction === 'approved' ? 'approved' : 'rejected';
+      showToast(`✅ Extension request for "${selectedExtension.task_name}" has been ${actionText}!`, 'success');
+      
+      // Close modal and reload notifications
+      setIsExtensionModalOpen(false);
+      setSelectedExtension(null);
+      setExtensionNotes('');
+      setApprovedDate('');
+      
+      if (isAdmin) {
+        loadNotifications();
+      }
+    } catch (error: any) {
+      console.error('Failed to review extension:', error);
+      showToast('❌ Failed to review extension request. Please try again.', 'error');
     }
   };
 
@@ -218,7 +296,9 @@ export function Notification() {
   const getFilteredNotifications = () => {
     let filteredExtensions = notifications.extensions;
     let filteredRemarks = notifications.remarks;
-    let filteredUnderReviewTasks = notifications.underReviewTasks;
+
+    // Note: Completion remark filtering is now handled in the backend
+    // The backend only returns the latest completion remark per user per task
 
     // Filter by type (New = last 24 hours)
     if (filterType === 'new') {
@@ -226,7 +306,6 @@ export function Notification() {
       cutoff.setHours(cutoff.getHours() - 24);
       filteredExtensions = filteredExtensions.filter(ext => new Date(ext.created_at) >= cutoff);
       filteredRemarks = filteredRemarks.filter(remark => new Date(remark.created_at) >= cutoff);
-      filteredUnderReviewTasks = filteredUnderReviewTasks.filter(task => new Date(task.submitted_at) >= cutoff);
     }
 
     // Filter by date
@@ -245,12 +324,6 @@ export function Notification() {
         remarkDate.setHours(0, 0, 0, 0);
         return remarkDate.getTime() === filterDateObj.getTime();
       });
-      
-      filteredUnderReviewTasks = filteredUnderReviewTasks.filter(task => {
-        const taskDate = new Date(task.submitted_at);
-        taskDate.setHours(0, 0, 0, 0);
-        return taskDate.getTime() === filterDateObj.getTime();
-      });
     }
 
     // Filter by user
@@ -261,20 +334,39 @@ export function Notification() {
       filteredRemarks = filteredRemarks.filter(remark => 
         remark.user_name?.toLowerCase().includes(filterUser.toLowerCase())
       );
-      filteredUnderReviewTasks = filteredUnderReviewTasks.filter(task => 
-        task.submitted_by_name?.toLowerCase().includes(filterUser.toLowerCase())
+    }
+
+    // Filter remarks by type
+    if (remarkFilterType !== 'all') {
+      filteredRemarks = filteredRemarks.filter(remark => 
+        remark.remark_type === remarkFilterType
       );
     }
 
-    return { extensions: filteredExtensions, remarks: filteredRemarks, underReviewTasks: filteredUnderReviewTasks };
+    // Sort remarks by type or date
+    if (remarkSortBy === 'type') {
+      // Define sort order for remark types
+      const typeOrder = { 'complete': 1, 'skipped': 2, 'general': 3, 'other': 4 };
+      filteredRemarks = filteredRemarks.sort((a, b) => {
+        const aOrder = typeOrder[a.remark_type as keyof typeof typeOrder] || 5;
+        const bOrder = typeOrder[b.remark_type as keyof typeof typeOrder] || 5;
+        return aOrder - bOrder;
+      });
+    } else {
+      // Sort by date (newest first)
+      filteredRemarks = filteredRemarks.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+
+    return { extensions: filteredExtensions, remarks: filteredRemarks };
   };
 
   const filteredNotifications = getFilteredNotifications();
   
   // Calculate total notifications for display
   const totalNotifications = filteredNotifications.extensions.length + 
-    filteredNotifications.remarks.length + 
-    filteredNotifications.underReviewTasks.length;
+    filteredNotifications.remarks.length;
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -294,9 +386,15 @@ export function Notification() {
       case 'extension_request':
         return 'border-orange-200 bg-orange-50';
       case 'remark':
-        // Special handling for complete remarks - green background
+        // Special handling for different remark types
         if (remarkType === 'complete') {
           return 'border-green-200 bg-green-50';
+        } else if (remarkType === 'skipped') {
+          return 'border-red-200 bg-red-50';
+        } else if (remarkType === 'general') {
+          return 'border-blue-200 bg-blue-50';
+        } else if (remarkType === 'other') {
+          return 'border-purple-200 bg-purple-50';
         }
         return 'border-blue-200 bg-blue-50';
       case 'task_under_review':
@@ -329,8 +427,12 @@ export function Notification() {
         return <Badge variant="primary">Update</Badge>;
       case 'complete':
         return <Badge variant="success">Complete</Badge>;
+      case 'skipped':
+        return <Badge variant="danger">Skipped</Badge>;
       case 'general':
         return <Badge variant="default">General</Badge>;
+      case 'other':
+        return <Badge variant="secondary">Other</Badge>;
       default:
         return <Badge variant="secondary">{type}</Badge>;
     }
@@ -515,93 +617,147 @@ export function Notification() {
       {filteredNotifications.extensions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-orange-500" />
-              <span>Extension Requests ({filteredNotifications.extensions.length})</span>
-            </CardTitle>
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded-md transition-colors"
+              onClick={() => setIsExtensionsCollapsed(!isExtensionsCollapsed)}
+            >
+              <CardTitle className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-orange-500" />
+                <span>Extension Requests ({filteredNotifications.extensions.length})</span>
+              </CardTitle>
+              {isExtensionsCollapsed ? (
+                <ChevronDown className="w-5 h-5 text-gray-500" />
+              ) : (
+                <ChevronUp className="w-5 h-5 text-gray-500" />
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
+          {!isExtensionsCollapsed && (
+            <CardContent>
             <div className="space-y-4">
               {filteredNotifications.extensions.map((extension) => (
                 <div 
                   key={extension.id} 
-                  className={`p-4 border rounded-lg ${getNotificationColor(extension.type)}`}
+                  className={`p-5 border rounded-xl ${getNotificationColor(extension.type)} shadow-sm hover:shadow-md transition-shadow duration-200`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {getNotificationIcon(extension.type)}
-                        <span className="font-medium text-gray-900">
-                          Extension Request for "{extension.task_name}"
-                        </span>
-                        {getStatusBadge(extension.status)}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">
-                            <User className="w-3 h-3 inline mr-1" />
-                            Requested by: <span className="font-medium">{extension.requester_name || 'Unknown User'}</span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            <FileText className="w-3 h-3 inline mr-1" />
-                            Project: <span className="font-medium">{extension.project_name}</span>
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">
-                            <Calendar className="w-3 h-3 inline mr-1" />
-                            Current Due: {new Date(extension.current_due_date).toLocaleDateString()}
-                          </p>
-                          <div className="text-sm text-gray-600">
-                            <Calendar className="w-3 h-3 inline mr-1" />
-                            Requested Due: {new Date(extension.requested_due_date).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Reason:</span> {extension.reason}
-                        </p>
-                        
-                        {/* Admin Review Information */}
-                        {extension.status !== 'pending' && extension.reviewer_name && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <span className="text-sm font-medium text-gray-900">
-                                Admin Review by {extension.reviewer_name}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {extension.reviewed_at && new Date(extension.reviewed_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                            {extension.review_notes && (
-                              <p className="text-sm text-gray-700">
-                                <span className="font-medium">Notes:</span> {extension.review_notes}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>Requested: {formatTimeAgo(extension.created_at)}</span>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleViewTask(extension.task_id)}
-                          className="flex items-center space-x-1"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>View Task Details</span>
-                        </Button>
+                  {/* Header with Task Name and Status Badge */}
+                  <div className="flex items-center space-x-3 mb-4">
+                    {getNotificationIcon(extension.type)}
+                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                      Extension Request for "{extension.task_name}"
+                    </h3>
+                    {getStatusBadge(extension.status)}
+                  </div>
+                  
+                  {/* Metadata Grid - Top Section */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-white/50 rounded-lg border border-white/20">
+                    <div className="flex items-center space-x-2">
+                      <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Requested by</p>
+                        <p className="text-sm font-medium text-gray-900">{extension.requester_name || 'Unknown User'}</p>
                       </div>
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Project</p>
+                        <p className="text-sm font-medium text-gray-900">{extension.project_name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Current Due</p>
+                        <p className="text-sm font-medium text-gray-900">{new Date(extension.current_due_date).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Requested</p>
+                        <p className="text-sm font-medium text-gray-900">{formatTimeAgo(extension.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Requested Due Date - New Section */}
+                  <div className="mb-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-orange-600 uppercase tracking-wide font-medium">Requested Due Date</p>
+                        <p className="text-sm font-medium text-gray-900">{new Date(extension.requested_due_date).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Reason Content - Middle Section */}
+                  <div className="bg-white/30 rounded-lg p-4 border border-white/20 mb-4">
+                    <div className="text-sm text-gray-800">
+                      <span className="font-semibold text-gray-700 mb-2 block">Reason:</span>
+                      <p className="text-gray-700">{extension.reason}</p>
+                    </div>
+                  </div>
+
+                  {/* Admin Review Information */}
+                  {extension.status !== 'pending' && extension.reviewer_name && (
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          Admin Review by {extension.reviewer_name}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {extension.reviewed_at && new Date(extension.reviewed_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {extension.review_notes && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Notes:</span> {extension.review_notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons - Bottom Section */}
+                  <div className="flex items-center justify-between">
+                    {/* View Task Details Button - Left Side */}
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleViewTask(extension.task_id)}
+                      className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View Details</span>
+                    </Button>
+                    
+                    {/* Approve/Deny buttons for pending extensions - Right Side */}
+                    {extension.status === 'pending' && (
+                      <div className="flex space-x-3">
+                        <Button 
+                          size="sm" 
+                          onClick={() => openExtensionModal(extension, 'approved')}
+                          className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Approve</span>
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => openExtensionModal(extension, 'rejected')}
+                          className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                        >
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>Deny</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
       )}
 
@@ -609,176 +765,204 @@ export function Notification() {
       {filteredNotifications.remarks.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MessageSquare className="w-5 h-5 text-blue-500" />
-              <span>Recent Remarks ({filteredNotifications.remarks.length})</span>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <div 
+                className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded-md transition-colors flex-1"
+                onClick={() => setIsRemarksCollapsed(!isRemarksCollapsed)}
+              >
+                <CardTitle className="flex items-center space-x-2">
+                  <MessageSquare className="w-5 h-5 text-blue-500" />
+                  <span>Recent Remarks ({filteredNotifications.remarks.length})</span>
+                </CardTitle>
+                {isRemarksCollapsed ? (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                ) : (
+                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                )}
+              </div>
+              
+              {/* Filter and Sort dropdowns - only show when not collapsed */}
+              {!isRemarksCollapsed && (
+                <div className="flex items-center space-x-4 ml-4">
+                  {/* Filter dropdown */}
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium text-gray-700">Filter:</label>
+                    <select
+                      value={remarkFilterType}
+                      onChange={(e) => setRemarkFilterType(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="complete">Completed</option>
+                      <option value="skipped">Skipped</option>
+                      <option value="general">General</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {remarkFilterType !== 'all' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRemarkFilterType('all')}
+                        className="text-gray-500 hover:text-gray-700 p-1 h-6 w-6"
+                        title="Clear filter"
+                      >
+                        ×
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Sort dropdown */}
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium text-gray-700">Sort by:</label>
+                    <select
+                      value={remarkSortBy}
+                      onChange={(e) => setRemarkSortBy(e.target.value as 'date' | 'type')}
+                      className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="date">Date</option>
+                      <option value="type">Type</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
+          {!isRemarksCollapsed && (
+            <CardContent>
             <div className="space-y-4">
               {filteredNotifications.remarks.map((remark) => (
                 <div 
                   key={remark.id} 
-                  className={`p-4 border rounded-lg ${getNotificationColor(remark.type, remark.remark_type)}`}
+                  className={`p-5 border rounded-xl ${getNotificationColor(remark.type, remark.remark_type)} shadow-sm hover:shadow-md transition-shadow duration-200`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {getNotificationIcon(remark.type)}
-                        <span className="font-medium text-gray-900">
-                          Remark on "{remark.task_name}"
-                        </span>
-                        {getRemarkTypeBadge(remark.remark_type)}
-                      </div>
-                      
-                      <div className="mb-3">
-                        <div className="text-sm text-gray-700">
-                          <span className="font-medium">Remark:</span>
-                          <div className="mt-1">
-                            <RichTextDisplay content={remark.remark} />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">
-                            <User className="w-3 h-3 inline mr-1" />
-                            Added by: <span className="font-medium">{remark.user_name || 'Unknown User'}</span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            <FileText className="w-3 h-3 inline mr-1" />
-                            Project: <span className="font-medium">{remark.project_name}</span>
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">
-                            <Calendar className="w-3 h-3 inline mr-1" />
-                            Date: {new Date(remark.created_at).toLocaleDateString()}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            <Clock className="w-3 h-3 inline mr-1" />
-                            Added: {formatTimeAgo(remark.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-end">
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleViewTask(remark.task_id)}
-                          className="flex items-center space-x-1"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>View Task Details</span>
-                        </Button>
+                  {/* Header with Task Name and Badge */}
+                  <div className="flex items-center space-x-3 mb-4">
+                    {getNotificationIcon(remark.type)}
+                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                      Remark on "{remark.task_name}"
+                    </h3>
+                    {getRemarkTypeBadge(remark.remark_type)}
+                  </div>
+                  
+                  {/* Metadata Grid - Top Section */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-white/50 rounded-lg border border-white/20">
+                    <div className="flex items-center space-x-2">
+                      <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Added by</p>
+                        <p className="text-sm font-medium text-gray-900">{remark.user_name || 'Unknown User'}</p>
                       </div>
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Project</p>
+                        <p className="text-sm font-medium text-gray-900">{remark.project_name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
+                        <p className="text-sm font-medium text-gray-900">{new Date(remark.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Added</p>
+                        <p className="text-sm font-medium text-gray-900">{formatTimeAgo(remark.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Server Location and File Name - New Section */}
+                  {(remark.server_location || remark.file_name) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      {remark.server_location && (
+                        <div className="flex items-center space-x-2">
+                          <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">Server Location</p>
+                            <div className="flex items-center space-x-2">
+                              <p className="text-sm font-medium text-gray-900 truncate">{remark.server_location}</p>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => copyServerLocation(remark.server_location!)}
+                                className="p-2 h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100 border border-blue-200 rounded-md"
+                                title="Copy server location"
+                              >
+                                <Copy className="w-8 h-8" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {remark.file_name && (
+                        <div className="flex items-center space-x-2">
+                          <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">File Name</p>
+                            <p className="text-sm font-medium text-gray-900">{remark.file_name}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Remark Content - Middle Section */}
+                  <div className="bg-white/30 rounded-lg p-4 border border-white/20 mb-4">
+                    <div className="text-sm text-gray-800">
+                      <span className="font-semibold text-gray-700 mb-2 block">Remark:</span>
+                      <div className="prose prose-sm max-w-none">
+                        <RichTextDisplay content={remark.remark} />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons - Bottom Section */}
+                  <div className="flex items-center justify-between">
+                    {/* View Task Details Button - Left Side */}
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleViewTask(remark.task_id)}
+                      className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View Details</span>
+                    </Button>
+                    
+                    {/* Approve/Deny buttons for completed remarks on under-review tasks - Right Side */}
+                    {remark.remark_type === 'complete' && remark.task_status === 'under-review' && (
+                      <div className="flex space-x-3">
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleApproveTask(remark.task_id)}
+                          className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Approve</span>
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleDenyTask(remark.task_id)}
+                          className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                        >
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>Deny</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
       )}
 
-      {/* Tasks Under Review */}
-      {filteredNotifications.underReviewTasks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-blue-500" />
-              <span>Tasks Under Review ({filteredNotifications.underReviewTasks.length})</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {filteredNotifications.underReviewTasks.map((task) => (
-                <div 
-                  key={task.id} 
-                  className={`p-4 border rounded-lg ${getNotificationColor(task.type)}`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {getNotificationIcon(task.type)}
-                        <span className="font-medium text-gray-900">
-                          Task Submitted for Review: "{task.task_name}"
-                        </span>
-                        <Badge variant="secondary">Under Review</Badge>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <div className="text-sm text-gray-700">
-                          <span className="font-medium">Submitted by:</span> {task.submitted_by_name}
-                        </div>
-                        <div className="text-sm text-gray-700 mt-1">
-                          <span className="font-medium">Hierarchy:</span> {task.hierarchy}
-                        </div>
-                        <div className="text-sm text-gray-700 mt-1">
-                          <span className="font-medium">Stage:</span> {task.stage_name}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">
-                            <User className="w-3 h-3 inline mr-1" />
-                            Submitted by: <span className="font-medium">{task.submitted_by_name}</span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            <FileText className="w-3 h-3 inline mr-1" />
-                            Project: <span className="font-medium">{task.project_name}</span>
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600">
-                            <Calendar className="w-3 h-3 inline mr-1" />
-                            Submitted: {new Date(task.submitted_at).toLocaleDateString()}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            <Clock className="w-3 h-3 inline mr-1" />
-                            Time: {formatTimeAgo(task.submitted_at)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex space-x-2">
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleApproveTask(task.task_id)}
-                            className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            <CheckCircle className="w-3 h-3" />
-                            <span>Approve</span>
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleDenyTask(task.task_id)}
-                            className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white"
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                            <span>Deny</span>
-                          </Button>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleViewTask(task.task_id)}
-                          className="flex items-center space-x-1"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>View Task Details</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* No Notifications */}
       {totalNotifications === 0 && (
@@ -787,10 +971,97 @@ export function Notification() {
             <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No New Notifications</h3>
             <p className="text-gray-600">
-              You're all caught up! No new extension requests, remarks, or tasks under review.
+              You're all caught up! No new extension requests or remarks.
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Extension Review Modal */}
+      {isExtensionModalOpen && selectedExtension && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {extensionAction === 'approved' ? 'Approve' : 'Reject'} Extension Request
+                </h2>
+                <button
+                  onClick={() => setIsExtensionModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Extension Details */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Extension Details</h3>
+                <div className="space-y-2 text-sm">
+                  <p><span className="font-medium">Requested by:</span> {selectedExtension.requester_name}</p>
+                  <p><span className="font-medium">Reason:</span> {selectedExtension.reason}</p>
+                  <p><span className="font-medium">Current due date:</span> {new Date(selectedExtension.current_due_date).toLocaleDateString()}</p>
+                  <p><span className="font-medium">Requested due date:</span> {new Date(selectedExtension.requested_due_date).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {/* Approve Until Date (only for approval) */}
+              {extensionAction === 'approved' && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Approve Until Date
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Default: User requested until {selectedExtension.requested_due_date ? new Date(selectedExtension.requested_due_date).toLocaleDateString() : 'N/A'}
+                  </p>
+                  <input
+                    type="date"
+                    value={approvedDate}
+                    onChange={(e) => setApprovedDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min={selectedExtension.current_due_date}
+                    placeholder="Select date"
+                  />
+                </div>
+              )}
+
+              {/* Review Notes */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Review Notes
+                </label>
+                <textarea
+                  value={extensionNotes}
+                  onChange={(e) => setExtensionNotes(e.target.value)}
+                  placeholder={extensionAction === 'approved' ? 'Add notes for approval...' : 'Add notes for rejection...'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24 resize-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3">
+                <Button
+                  onClick={() => setIsExtensionModalOpen(false)}
+                  variant="outline"
+                  className="px-4 py-2"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleExtensionReview}
+                  className={`px-4 py-2 ${
+                    extensionAction === 'approved' 
+                      ? 'bg-green-600 hover:bg-green-700 text-white' 
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                >
+                  {extensionAction === 'approved' ? 'Approve Extension' : 'Reject Extension'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

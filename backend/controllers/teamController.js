@@ -236,6 +236,239 @@ const getMyProfile = async (req, res) => {
   }
 };
 
+// Get team member's performance flags
+const getMyPerformanceFlags = async (req, res) => {
+  try {
+    const teamMemberId = req.user.id;
+    
+    const query = `
+      SELECT 
+        pf.*,
+        t.name as task_name,
+        t.description as task_description,
+        t.status as task_status,
+        t.progress as task_progress,
+        t.end_date as task_due_date,
+        p.name as project_name,
+        au.name as added_by_name
+      FROM performance_flags pf
+      LEFT JOIN tasks t ON pf.task_id = t.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN admin_users au ON pf.added_by_id = au.id
+      WHERE pf.team_member_id = ?
+      ORDER BY pf.created_at DESC
+    `;
+
+    const flags = await db.query(query, [teamMemberId]);
+
+    // Group flags by type for summary
+    const summary = {
+      total: flags.length,
+      red: flags.filter(f => f.type === 'red').length,
+      orange: flags.filter(f => f.type === 'orange').length,
+      yellow: flags.filter(f => f.type === 'yellow').length,
+      green: flags.filter(f => f.type === 'green').length
+    };
+
+    res.json({
+      success: true,
+      data: {
+        flags,
+        summary
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching team member performance flags:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch performance flags' }
+    });
+  }
+};
+
+// Get all teams
+const getTeams = async (req, res) => {
+  try {
+    const query = `
+      SELECT id, name, description, is_active
+      FROM teams 
+      WHERE is_active = true
+      ORDER BY name
+    `;
+    
+    const teams = await db.query(query);
+    
+    res.json({
+      success: true,
+      data: teams
+    });
+  } catch (error) {
+    console.error('Error fetching teams:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch teams' }
+    });
+  }
+};
+
+// Get team members with performance flags for ranking
+const getTeamMembersWithPerformanceFlags = async (req, res) => {
+  try {
+    const { teamId } = req.query;
+    console.log('🔍 Fetching team members with performance flags for ranking...', teamId ? `(Team: ${teamId})` : '(All teams)');
+    
+    // Build WHERE clause for team filtering
+    let teamFilter = '';
+    if (teamId) {
+      teamFilter = 'AND team.id = ?';
+    }
+    
+    const teamMembers = await db.query(`
+      SELECT 
+        tm.*,
+        GROUP_CONCAT(DISTINCT s.name) as skills,
+        GROUP_CONCAT(DISTINCT team.name) as team_names,
+        GROUP_CONCAT(DISTINCT team.id) as team_ids,
+        COUNT(DISTINCT CASE WHEN pf.type = 'green' THEN pf.id END) as green_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'yellow' THEN pf.id END) as yellow_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'orange' THEN pf.id END) as orange_flags,
+        COUNT(DISTINCT CASE WHEN pf.type = 'red' THEN pf.id END) as red_flags,
+        COUNT(DISTINCT pf.id) as total_flags,
+        COUNT(DISTINCT ta.task_id) as total_assigned_tasks,
+        COUNT(DISTINCT CASE WHEN task.status = 'completed' THEN ta.task_id END) as completed_tasks,
+        COUNT(DISTINCT CASE WHEN task.status = 'in-progress' THEN ta.task_id END) as in_progress_tasks,
+        COUNT(DISTINCT CASE WHEN task.status = 'under-review' THEN ta.task_id END) as under_review_tasks
+      FROM team_members tm
+      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
+      LEFT JOIN skills s ON tms.skill_id = s.id
+      LEFT JOIN team_members_teams tmt ON tm.id = tmt.team_member_id AND tmt.is_active = 1
+      LEFT JOIN teams team ON tmt.team_id = team.id AND team.is_active = 1
+      LEFT JOIN performance_flags pf ON tm.id = pf.team_member_id
+        LEFT JOIN task_assignees ta ON tm.id = ta.assignee_id AND ta.assignee_type = 'team'
+      LEFT JOIN tasks task ON ta.task_id = task.id
+      WHERE tm.is_active = true ${teamFilter}
+      GROUP BY tm.id
+      ORDER BY 
+        (green_flags * 4 + yellow_flags * 2 + orange_flags * 1 - red_flags * 3) DESC,
+        green_flags DESC,
+        yellow_flags DESC,
+        orange_flags DESC,
+        red_flags ASC
+    `, teamId ? [teamId] : []);
+
+    // Process the results
+    const processedMembers = teamMembers.map(member => {
+      member.skills = member.skills ? member.skills.split(',') : [];
+      member.team_names = member.team_names ? member.team_names.split(',') : [];
+      member.team_ids = member.team_ids ? member.team_ids.split(',').map(id => parseInt(id)) : [];
+      
+      // Calculate completion rate
+      member.completion_rate = member.total_assigned_tasks > 0 
+        ? Math.round((member.completed_tasks / member.total_assigned_tasks) * 100) 
+        : 0;
+
+      return member;
+    });
+
+    console.log('✅ Team members with performance flags fetched successfully:', processedMembers.length);
+
+    res.json({
+      success: true,
+      data: processedMembers
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching team members with performance flags:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch team members with performance flags' }
+    });
+  }
+};
+
+// Get performance flags for a specific team member (admin only)
+const getTeamMemberFlags = async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    console.log('🔍 Fetching performance flags for team member:', memberId);
+    
+    const flags = await db.query(`
+      SELECT 
+        pf.*,
+        t.name as task_name,
+        t.description as task_description,
+        t.status as task_status,
+        t.progress as task_progress,
+        t.end_date as task_due_date,
+        p.name as project_name,
+        au.name as added_by_name
+      FROM performance_flags pf
+      LEFT JOIN tasks t ON pf.task_id = t.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN admin_users au ON pf.added_by_id = au.id
+      WHERE pf.team_member_id = ?
+      ORDER BY pf.created_at DESC
+    `, [memberId]);
+
+    console.log('✅ Performance flags fetched successfully for member:', memberId, 'Count:', flags.length);
+
+    res.json({
+      success: true,
+      data: {
+        flags: flags,
+        summary: {
+          total: flags.length,
+          green: flags.filter(f => f.type === 'green').length,
+          yellow: flags.filter(f => f.type === 'yellow').length,
+          orange: flags.filter(f => f.type === 'orange').length,
+          red: flags.filter(f => f.type === 'red').length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching team member flags:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to fetch team member performance flags' }
+    });
+  }
+};
+
+// Remove a performance flag (admin only)
+const removePerformanceFlag = async (req, res) => {
+  try {
+    const { flagId } = req.params;
+    console.log('🗑️ Removing performance flag:', flagId);
+    
+    // Check if flag exists
+    const existingFlag = await db.query('SELECT * FROM performance_flags WHERE id = ?', [flagId]);
+    if (existingFlag.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Performance flag not found' }
+      });
+    }
+
+    // Remove the flag
+    await db.query('DELETE FROM performance_flags WHERE id = ?', [flagId]);
+
+    console.log('✅ Performance flag removed successfully:', flagId);
+
+    res.json({
+      success: true,
+      message: 'Performance flag removed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error removing performance flag:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to remove performance flag' }
+    });
+  }
+};
+
 // Get all team members (existing functionality)
 const getAllTeamMembers = async (req, res) => {
   try {
@@ -1307,7 +1540,12 @@ module.exports = {
   authenticateTeamMember,
   getMyTasks,
   getMyProfile,
+  getMyPerformanceFlags,
   getAllTeamMembers,
+  getTeams,
+  getTeamMembersWithPerformanceFlags,
+  getTeamMemberFlags,
+  removePerformanceFlag,
   getTeamMemberById,
   createTeamMember,
   updateTeamMember,

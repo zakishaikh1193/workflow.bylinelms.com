@@ -13,6 +13,8 @@ const calculateTaskProgress = (status) => {
       return 100;
     case 'blocked':
       return 25; // 25% for blocked tasks (some work done)
+    case 'skipped':
+      return 0; // Skipped tasks have 0% progress
     default:
       return 0;
   }
@@ -1770,16 +1772,8 @@ const requestTaskExtension = async (req, res) => {
     const current_due_date = task.end_date;
     const formattedRequestedDate = new Date(requested_due_date).toISOString().split('T')[0];
 
-    // Check if requested date is after current due date
-    if (new Date(formattedRequestedDate) <= new Date(current_due_date)) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Requested due date must be after the current due date'
-        }
-      });
-    }
+    // Note: Removed validation that required requested date to be after current due date
+    // Users can now request any date for extensions
 
     // Check if there's already a pending extension request
     const existingRequest = await db.query(
@@ -2001,6 +1995,43 @@ const reviewExtensionRequest = async (req, res) => {
       console.log(`✅ Task ${extension.task_id} due date updated to ${extension.requested_due_date}`);
     }
 
+    // Send notification to the team member who requested the extension
+    try {
+      if (global.notificationServer) {
+        // Get task name for notification
+        const taskQuery = 'SELECT name FROM tasks WHERE id = ?';
+        const taskResult = await db.query(taskQuery, [extension.task_id]);
+        const taskName = taskResult.length > 0 ? taskResult[0].name : 'Unknown Task';
+        
+        // Get reviewer name
+        const reviewerQuery = 'SELECT name FROM admin_users WHERE id = ?';
+        const reviewerResult = await db.query(reviewerQuery, [reviewed_by]);
+        const reviewerName = reviewerResult.length > 0 ? reviewerResult[0].name : 'Admin';
+        
+        const notificationData = {
+          task_id: extension.task_id,
+          task_name: taskName,
+          requested_by: extension.requested_by,
+          requested_by_type: extension.requested_by_type,
+          status: status,
+          reviewer_name: reviewerName,
+          review_notes: review_notes,
+          requested_due_date: extension.requested_due_date,
+          current_due_date: extension.current_due_date
+        };
+        
+        console.log('🔍 Debug: Sending extension review notification with data:', notificationData);
+        await global.notificationServer.notifyExtensionReview(notificationData);
+        console.log('📢 Real-time notification sent for extension review');
+      } else {
+        console.log('❌ Debug: Notification server not found in global scope');
+      }
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send real-time notification for extension review:', notificationError);
+      console.error('⚠️ Error stack:', notificationError.stack);
+      // Don't fail the main request if notification fails
+    }
+
     res.json({
       success: true,
       message: `Extension request ${status} successfully`
@@ -2026,7 +2057,14 @@ const reviewExtensionRequest = async (req, res) => {
 const addTaskRemark = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remark, remark_date, remark_type = 'general', is_private = false } = req.body;
+    const { 
+      remark, 
+      remark_date, 
+      remark_type = 'general', 
+      is_private = false,
+      server_location,
+      file_name
+    } = req.body;
     const added_by = req.user?.id;
     const added_by_type = req.user?.type || 'team';
     
@@ -2046,6 +2084,28 @@ const addTaskRemark = async (req, res) => {
           message: 'Remark content is required'
         }
       });
+    }
+
+    // For team members, validate mandatory fields
+    if (added_by_type === 'team') {
+      if (!server_location) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Server location is required for team members'
+          }
+        });
+      }
+      if (!file_name) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'File name is required for team members'
+          }
+        });
+      }
     }
 
     // Check if task exists
@@ -2070,15 +2130,109 @@ const addTaskRemark = async (req, res) => {
     // Create remark
     const insertQuery = `
       INSERT INTO task_remarks (
-        task_id, added_by, added_by_type, remark_date, remark, remark_type, is_private
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        task_id, added_by, added_by_type, remark_date, remark, remark_type, is_private, server_location, file_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await db.insert(insertQuery, [
-      id, added_by, added_by_type, formattedRemarkDate, remark, remark_type, is_private
+      id, added_by, added_by_type, formattedRemarkDate, remark, remark_type, is_private, server_location, file_name
     ]);
 
     console.log('✅ Task remark added:', result.insertId);
+
+    // If remark type is "complete", update task status to "under-review"
+    if (remark_type === 'complete') {
+      try {
+        console.log('🔄 Updating task status to under-review for completion remark...');
+        
+        // Update task status and progress
+        const updateTaskQuery = `
+          UPDATE tasks 
+          SET status = 'under-review', 
+              progress = 90,
+              updated_at = NOW()
+          WHERE id = ?
+        `;
+        await db.query(updateTaskQuery, [id]);
+        
+        console.log('✅ Task status updated to under-review');
+        
+        // Recalculate project progress
+        const projectQuery = 'SELECT project_id FROM tasks WHERE id = ?';
+        const projectResult = await db.query(projectQuery, [id]);
+        if (projectResult.length > 0) {
+          const projectId = projectResult[0].project_id;
+          await recalculateProjectProgress(projectId);
+          console.log('✅ Project progress recalculated');
+        }
+        
+        // Send notification to admins about task submission for review
+        if (global.notificationServer) {
+          const taskQuery = 'SELECT name, project_id FROM tasks WHERE id = ?';
+          const taskResult = await db.query(taskQuery, [id]);
+          
+          if (taskResult.length > 0) {
+            const taskName = taskResult[0].name;
+            const projectId = taskResult[0].project_id;
+            
+            // Get user name
+            const userQuery = added_by_type === 'admin' 
+              ? 'SELECT name FROM admin_users WHERE id = ?'
+              : 'SELECT name FROM team_members WHERE id = ?';
+            const userResult = await db.query(userQuery, [added_by]);
+            const userName = userResult.length > 0 ? userResult[0].name : 'Unknown User';
+            
+            const submissionData = {
+              task_id: id,
+              task_name: taskName,
+              project_id: projectId,
+              submitted_by_id: added_by,
+              submitted_by_name: userName,
+              submitted_at: new Date().toISOString()
+            };
+            
+            console.log('📢 Sending task submission notification:', submissionData);
+            await global.notificationServer.notifyTaskSubmission(submissionData);
+            console.log('✅ Task submission notification sent to admins');
+          }
+        }
+        
+      } catch (statusError) {
+        console.error('⚠️ Failed to update task status for completion remark:', statusError);
+        // Don't fail the main request if status update fails
+      }
+    }
+    
+    // If remark type is "skipped", update task status to "skipped"
+    if (remark_type === 'skipped') {
+      try {
+        console.log('🔄 Updating task status to skipped for skipped remark...');
+        
+        // Update task status and progress
+        const updateTaskQuery = `
+          UPDATE tasks 
+          SET status = 'skipped', 
+              progress = 0,
+              updated_at = NOW()
+          WHERE id = ?
+        `;
+        await db.query(updateTaskQuery, [id]);
+        
+        console.log('✅ Task status updated to skipped');
+        
+        // Recalculate project progress
+        const projectQuery = 'SELECT project_id FROM tasks WHERE id = ?';
+        const projectResult = await db.query(projectQuery, [id]);
+        if (projectResult.length > 0) {
+          const projectId = projectResult[0].project_id;
+          await recalculateProjectProgress(projectId);
+          console.log('✅ Project progress recalculated');
+        }
+      } catch (statusError) {
+        console.error('⚠️ Failed to update task status for skipped remark:', statusError);
+        // Don't fail the main request if status update fails
+      }
+    }
 
     // Send real-time notification
     try {
@@ -2278,7 +2432,7 @@ const getNotifications = async (req, res) => {
       ORDER BY te.created_at DESC
     `;
     
-    // Get recent remarks (last 7 days)
+    // Get recent remarks (last 7 days) with filtering for completion remarks
     const remarksQuery = `
       SELECT 
         tr.id,
@@ -2289,8 +2443,11 @@ const getNotifications = async (req, res) => {
         tr.remark,
         tr.remark_type,
         tr.is_private,
+        tr.server_location,
+        tr.file_name,
         tr.created_at,
         t.name as task_name,
+        t.status as task_status,
         p.name as project_name,
         CASE 
           WHEN tr.added_by_type = 'team' THEN tm.name
@@ -2303,45 +2460,30 @@ const getNotifications = async (req, res) => {
       LEFT JOIN admin_users au ON tr.added_by = au.id
       LEFT JOIN team_members tm ON tr.added_by = tm.id
       WHERE tr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND (
+          -- Show all non-completion remarks
+          tr.remark_type != 'complete'
+          OR
+          -- For completion remarks, only show if it's the latest completion remark for this user and task
+          (tr.remark_type = 'complete' AND tr.id = (
+            SELECT tr2.id 
+            FROM task_remarks tr2 
+            WHERE tr2.task_id = tr.task_id 
+              AND tr2.added_by = tr.added_by 
+              AND tr2.added_by_type = tr.added_by_type
+              AND tr2.remark_type = 'complete'
+            ORDER BY tr2.created_at DESC 
+            LIMIT 1
+          ))
+        )
       ORDER BY tr.created_at DESC
       LIMIT 50
     `;
     
-    // Get tasks under review (submitted for approval) by team members
-    const underReviewTasksQuery = `
-      SELECT DISTINCT
-        t.id as task_id,
-        t.name as task_name,
-        t.status,
-        t.updated_at as submitted_at,
-        p.name as project_name,
-        g.name as grade_name,
-        b.name as book_name,
-        u.name as unit_name,
-        l.name as lesson_name,
-        cs.name as stage_name,
-        tm.name as submitted_by_name,
-        tm.id as submitted_by_id
-      FROM tasks t
-      JOIN projects p ON t.project_id = p.id
-      LEFT JOIN grades g ON t.grade_id = g.id
-      LEFT JOIN books b ON t.book_id = b.id
-      LEFT JOIN units u ON t.unit_id = u.id
-      LEFT JOIN lessons l ON t.lesson_id = l.id
-      LEFT JOIN category_stages cs ON t.category_stage_id = cs.id
-      LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignee_type = 'team'
-      LEFT JOIN team_members tm ON ta.assignee_id = tm.id
-      WHERE t.status = 'under-review' 
-        AND t.updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND ta.assignee_type = 'team'
-      ORDER BY t.updated_at DESC
-      LIMIT 50
-    `;
     
-    const [extensions, remarks, underReviewTasks] = await Promise.all([
+    const [extensions, remarks] = await Promise.all([
       db.query(extensionQuery),
-      db.query(remarksQuery),
-      db.query(underReviewTasksQuery)
+      db.query(remarksQuery)
     ]);
     
     // Format the data - db.query returns rows directly, not nested arrays
@@ -2372,32 +2514,12 @@ const getNotifications = async (req, res) => {
         remark: remark.remark,
         remark_type: remark.remark_type,
         is_private: remark.is_private,
+        task_status: remark.task_status,
+        server_location: remark.server_location,
+        file_name: remark.file_name,
         created_at: remark.created_at,
         is_new: true // All recent remarks are considered new
       })),
-      underReviewTasks: underReviewTasks.map(task => {
-        // Build hierarchy string
-        const hierarchyParts = [];
-        if (task.grade_name) hierarchyParts.push(task.grade_name);
-        if (task.book_name) hierarchyParts.push(task.book_name);
-        if (task.unit_name) hierarchyParts.push(task.unit_name);
-        if (task.lesson_name) hierarchyParts.push(task.lesson_name);
-        const hierarchy = hierarchyParts.join(' > ') || 'No hierarchy';
-        
-        return {
-          id: `under_review_${task.task_id}_${task.submitted_by_id}`,
-          type: 'task_under_review',
-          task_id: task.task_id,
-          task_name: task.task_name,
-          project_name: task.project_name,
-          submitted_by_name: task.submitted_by_name,
-          submitted_by_id: task.submitted_by_id,
-          submitted_at: task.submitted_at,
-          hierarchy: hierarchy,
-          stage_name: task.stage_name || 'No stage',
-          is_new: new Date(task.submitted_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if submitted in last 24h
-        };
-      })
     };
     
     res.json({
@@ -2492,6 +2614,8 @@ const getTeamNotifications = async (req, res) => {
         tr.remark,
         tr.remark_type,
         tr.is_private,
+        tr.server_location,
+        tr.file_name,
         tr.created_at,
         t.name as task_name,
         p.name as project_name,
@@ -2511,6 +2635,22 @@ const getTeamNotifications = async (req, res) => {
       LEFT JOIN admin_users au ON tr.added_by = au.id
       LEFT JOIN team_members tm ON tr.added_by = tm.id
       WHERE tr.task_id IN (${taskIdsPlaceholder})
+        AND (
+          -- Show all non-completion remarks
+          tr.remark_type != 'complete'
+          OR
+          -- For completion remarks, only show if it's the latest completion remark for this user and task
+          (tr.remark_type = 'complete' AND tr.id = (
+            SELECT tr2.id 
+            FROM task_remarks tr2 
+            WHERE tr2.task_id = tr.task_id 
+              AND tr2.added_by = tr.added_by 
+              AND tr2.added_by_type = tr.added_by_type
+              AND tr2.remark_type = 'complete'
+            ORDER BY tr2.created_at DESC 
+            LIMIT 1
+          ))
+        )
       ORDER BY tr.created_at DESC
     `;
     
@@ -2584,6 +2724,8 @@ const getTeamNotifications = async (req, res) => {
         remark: remark.remark,
         remark_type: remark.remark_type,
         is_private: remark.is_private,
+        server_location: remark.server_location,
+        file_name: remark.file_name,
         created_at: remark.created_at,
         is_new: new Date(remark.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // New if created in last 24h
       })),
@@ -2672,9 +2814,29 @@ const reviewTaskCompletion = async (req, res) => {
     const task = tasks[0];
     const newStatus = action === 'approve' ? 'completed' : 'in-progress';
 
-    // Update task status
-    const updateQuery = 'UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-    await db.query(updateQuery, [newStatus, taskId]);
+    // Update task status and progress
+    const calculatedProgress = calculateTaskProgress(newStatus);
+    const updateQuery = 'UPDATE tasks SET status = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+    await db.query(updateQuery, [newStatus, calculatedProgress, taskId]);
+    
+    console.log(`🔄 Updated task ${taskId} progress to ${calculatedProgress}% for status '${newStatus}'`);
+
+    // Update project progress
+    try {
+      const projectUpdateQuery = `
+        UPDATE projects p 
+        SET progress = (
+          SELECT COALESCE(AVG(t.progress), 0) 
+          FROM tasks t 
+          WHERE t.project_id = p.id
+        )
+        WHERE p.id = (SELECT project_id FROM tasks WHERE id = ?)
+      `;
+      await db.query(projectUpdateQuery, [taskId]);
+      console.log(`🔄 Updated project progress for task ${taskId}`);
+    } catch (projectError) {
+      console.error('Failed to update project progress:', projectError);
+    }
 
     console.log(`✅ Task ${taskId} ${action}d by admin ${reviewerId}. New status: ${newStatus}`);
 

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Sep 12, 2025 at 01:02 PM
+-- Generation Time: Sep 15, 2025 at 09:42 AM
 -- Server version: 9.1.0
 -- PHP Version: 8.1.31
 
@@ -67,7 +67,14 @@ INSERT INTO `admin_sessions` (`id`, `user_id`, `access_token`, `refresh_token`, 
 ('admin_1_1756822408186', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyNDA4LCJleHAiOjE3NTY5MDg4MDh9.POzCIk3NIyt2n66z3aclgfc_0KtBJgtH5Y1eqoIusnk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyNDA4LCJleHAiOjE3NTc0MjcyMDh9.rlIKgC16J3Nm6LYtHcR-Q7csYQG4sk1-R51VOZDwgkU', '2025-09-03 14:13:28', '2025-09-02 14:13:28', '2025-09-02 14:13:28'),
 ('admin_1_1756822711869', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyNzExLCJleHAiOjE3NTY5MDkxMTF9.wl8mLK0npmnLCUcVjfwvg2r9_hwl25r3gPt6IPlX0dk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyNzExLCJleHAiOjE3NTc0Mjc1MTF9.eEJNF-nOkAurW-km52ZP4E25h5tggMjcpbPNdnzihtM', '2025-09-03 14:18:31', '2025-09-02 14:18:31', '2025-09-02 14:18:31'),
 ('admin_1_1756822835918', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyODM1LCJleHAiOjE3NTY5MDkyMzV9.AG2mGYmKIAgYdko-eo1f9rfIYNUvhSlR5qTvy9QwNkY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyODM1LCJleHAiOjE3NTc0Mjc2MzV9.qHQlgOF6vzKAbrdfKzg3Oe2T9w9k7Ciky7rreJ4YFYI', '2025-09-03 14:20:35', '2025-09-02 14:20:35', '2025-09-02 14:20:35'),
-('admin_1_1756822874810', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyODc0LCJleHAiOjE3NTY5MDkyNzR9.tLpyo3DWmPoRtEzSVx9I1SSILBnKgVzCwg3RwNAq6gM', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyODc0LCJleHAiOjE3NTc0Mjc2NzR9.GwA6vGDxFepWKb5dH-EuSZJuk84BuNiqbn6zeAkgcTk', '2025-09-03 14:21:14', '2025-09-02 14:21:14', '2025-09-02 14:21:14');
+('admin_1_1756822874810', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyODc0LCJleHAiOjE3NTY5MDkyNzR9.tLpyo3DWmPoRtEzSVx9I1SSILBnKgVzCwg3RwNAq6gM', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU2ODIyODc0LCJleHAiOjE3NTc0Mjc2NzR9.GwA6vGDxFepWKb5dH-EuSZJuk84BuNiqbn6zeAkgcTk', '2025-09-03 14:21:14', '2025-09-02 14:21:14', '2025-09-02 14:21:14'),
+('admin_1_1757760048538', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzYwMDQ4LCJleHAiOjE3NTg2MjQwNDh9.psY5cF5vaKkJFo_6qJKr69pvJSaJrV4C8d8qGN22fZM', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzYwMDQ4LCJleHAiOjE3NTk0ODgwNDh9.P-CBqfHNkLfNpWUY4fN0MYvihtuwAdeG9xmVZQfkWqY', '2025-09-23 10:40:48', '2025-09-13 10:40:48', '2025-09-13 10:40:48'),
+('admin_1_1757760957707', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzYwOTU3LCJleHAiOjE3NTg2MjQ5NTd9.IUmFl2QdBUBU5tZ2VSewLg5IU70CJmS4u-N7DrH5Aag', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzYwOTU3LCJleHAiOjE3NTk0ODg5NTd9.GKMCpeWEOjj30NuspsIw8UU_lWq2m4Tec4Y6JC13EbM', '2025-09-23 10:55:57', '2025-09-13 10:55:57', '2025-09-13 10:55:57'),
+('admin_1_1757764741030', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzY0NzQxLCJleHAiOjE3NTg2Mjg3NDF9.9riehKOeBRWJoLVi9B47cBoPe4fhxMvzb59prt5xP6U', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzY0NzQxLCJleHAiOjE3NTk0OTI3NDF9.xGkMzJpFozIq2Rmxmcl_X4Ge5pdAjLEp6FhkQPr2azc', '2025-09-23 11:59:01', '2025-09-13 11:59:01', '2025-09-13 11:59:01'),
+('admin_1_1757767888747', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzY3ODg4LCJleHAiOjE3NTg2MzE4ODh9.1MObBvrtA_tME58Ky3LdMwKJBFfre3ILnbeazkxCP8Q', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzY3ODg4LCJleHAiOjE3NTk0OTU4ODh9.G5sp8UCY3HWb2eACrHYnZrNyl-GH1qdfFioX04gMHZw', '2025-09-23 12:51:28', '2025-09-13 12:51:28', '2025-09-13 12:51:28'),
+('admin_1_1757767923834', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzY3OTIzLCJleHAiOjE3NTg2MzE5MjN9.S_2cjMcqZACml74vzxwOOZPjFm7qpVqEqXMxtZq-vtY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3NzY3OTIzLCJleHAiOjE3NTk0OTU5MjN9.Syu4GFfZvSavST_rqh3iAXu9zwMPvVEQeQOEz6JcuJg', '2025-09-23 12:52:03', '2025-09-13 12:52:03', '2025-09-13 12:52:03'),
+('admin_1_1757916040491', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3OTE2MDQwLCJleHAiOjE3NTg3ODAwNDB9.hHYpPEoMbah7a1sNIbP0t6Ai7MwkW4nGpPUKjyxu4lY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3OTE2MDQwLCJleHAiOjE3NTk2NDQwNDB9.ttwDF_JCnadd1mK7R7YZfyY5bTMbcqWAgjzD55uPzFY', '2025-09-25 06:00:40', '2025-09-15 06:00:40', '2025-09-15 06:00:40'),
+('admin_1_1757928856969', 1, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJpbmZvQGJ5bGluZWxlYXJuaW5nLmNvbSIsIm5hbWUiOiJEZW1vIEFkbWluIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3OTI4ODU2LCJleHAiOjE3NTg3OTI4NTZ9.18z1b5Bn-cXjsSuTJUmxt2D6C52GIqUb2wwnlBuC8qI', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidHlwZSI6ImFkbWluIiwiaWF0IjoxNzU3OTI4ODU2LCJleHAiOjE3NTk2NTY4NTZ9.mHMr_GExIsey8OtY-F90_HGQINCU1RiDwGzv5Nthbv0', '2025-09-25 09:34:16', '2025-09-15 09:34:16', '2025-09-15 09:34:16');
 
 -- --------------------------------------------------------
 
@@ -98,7 +105,7 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
 --
 
 INSERT INTO `admin_users` (`id`, `email`, `password_hash`, `name`, `avatar_url`, `is_active`, `last_login_at`, `email_verified_at`, `created_at`, `updated_at`) VALUES
-(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-09-02 14:21:14', '2025-08-09 13:56:11', '2025-08-09 13:56:11', '2025-09-02 14:21:14');
+(1, 'info@bylinelearning.com', '$2b$10$U0wXs2mwUNm3OTBCAEFeNOhvYEUjJcWag7YIwxUgaz9F9CFqx7j1m', 'Demo Admin', NULL, 1, '2025-09-15 09:34:16', '2025-08-09 13:56:11', '2025-08-09 13:56:11', '2025-09-15 09:34:16');
 
 -- --------------------------------------------------------
 
@@ -138,7 +145,7 @@ CREATE TABLE IF NOT EXISTS `books` (
   KEY `idx_grade` (`grade_id`),
   KEY `idx_type` (`type`),
   KEY `idx_order` (`order_index`)
-) ENGINE=InnoDB AUTO_INCREMENT=99 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `books`
@@ -149,9 +156,11 @@ INSERT INTO `books` (`id`, `grade_id`, `name`, `type`, `description`, `order_ind
 (93, 20, 'U2', 'student', 'U2', 2, 5.00, '2025-09-02 10:05:30', '2025-09-02 10:05:30'),
 (94, 21, 'L1', 'student', 'L1', 1, 5.00, '2025-09-02 10:06:00', '2025-09-02 10:06:00'),
 (95, 21, 'L2', 'student', 'L2', 2, 5.00, '2025-09-02 10:06:11', '2025-09-02 10:06:11'),
-(96, 26, 'U1', 'student', 'U1', 1, 0.00, '2025-09-12 12:33:11', '2025-09-12 12:33:11'),
+(96, 26, 'U5', 'student', 'U5', 1, 0.00, '2025-09-12 12:33:11', '2025-09-12 13:18:11'),
 (97, 27, 'U2', 'student', 'U2', 1, 0.00, '2025-09-12 12:33:27', '2025-09-12 12:33:27'),
-(98, 28, 'U3', 'student', 'U3', 1, 0.00, '2025-09-12 12:34:02', '2025-09-12 12:34:02');
+(98, 28, 'U3', 'student', 'U3', 1, 0.00, '2025-09-12 12:34:02', '2025-09-12 12:34:02'),
+(99, 26, 'U8', 'student', NULL, 2, 0.00, '2025-09-12 13:18:51', '2025-09-12 13:18:51'),
+(100, 26, 'U9', 'student', NULL, 3, 0.00, '2025-09-12 13:19:06', '2025-09-12 13:19:06');
 
 -- --------------------------------------------------------
 
@@ -328,7 +337,7 @@ CREATE TABLE IF NOT EXISTS `lessons` (
   PRIMARY KEY (`id`),
   KEY `idx_unit` (`unit_id`),
   KEY `idx_order` (`order_index`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `lessons`
@@ -336,7 +345,8 @@ CREATE TABLE IF NOT EXISTS `lessons` (
 
 INSERT INTO `lessons` (`id`, `unit_id`, `name`, `description`, `order_index`, `weight`, `created_at`, `updated_at`) VALUES
 (1, 3, 'Lesson 1', 'Lesson 1', 1, 0.00, '2025-09-02 13:26:45', '2025-09-02 13:26:45'),
-(2, 12, 'M1', NULL, 1, 0.00, '2025-09-12 12:34:17', '2025-09-12 12:34:17');
+(2, 12, 'M1', NULL, 1, 0.00, '2025-09-12 12:34:17', '2025-09-12 12:34:17'),
+(3, 14, 'asdcbcx', 'bfgb', 1, 0.00, '2025-09-12 13:19:19', '2025-09-12 13:19:19');
 
 -- --------------------------------------------------------
 
@@ -409,7 +419,7 @@ CREATE TABLE IF NOT EXISTS `projects` (
 --
 
 INSERT INTO `projects` (`id`, `name`, `description`, `category_id`, `current_stage_id`, `status`, `start_date`, `end_date`, `progress`, `created_by`, `parent_id`, `created_at`, `updated_at`) VALUES
-(16, 'ICT Standard', 'ICT Standard', 2, NULL, 'planning', '2025-09-02', '2025-10-31', 14, 1, NULL, '2025-09-02 10:02:59', '2025-09-12 12:17:22'),
+(16, 'ICT Standard', 'ICT Standard', 2, NULL, 'planning', '2025-09-02', '2025-10-31', 11, 1, NULL, '2025-09-02 10:02:59', '2025-09-15 07:59:57'),
 (17, 'S', NULL, 2, NULL, 'planning', '2025-09-02', '2025-10-02', 0, 1, NULL, '2025-09-02 10:47:55', '2025-09-02 10:47:55'),
 (18, 'Project 1', '', 7, NULL, 'planning', '2025-09-02', '2025-10-02', 0, 1, NULL, '2025-09-02 12:58:14', '2025-09-02 12:58:46');
 
@@ -639,7 +649,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `unit_id` int DEFAULT NULL,
   `lesson_id` int DEFAULT NULL,
   `component_path` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('not-started','in-progress','under-review','completed','blocked') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'not-started',
+  `status` enum('not-started','in-progress','under-review','completed','blocked','skipped') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'not-started',
   `priority` enum('low','medium','high','urgent') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'medium',
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
@@ -661,7 +671,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   KEY `idx_dates` (`start_date`,`end_date`),
   KEY `idx_components` (`grade_id`,`book_id`,`unit_id`,`lesson_id`),
   KEY `idx_tasks_project_status` (`project_id`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=1916 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1923 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `tasks`
@@ -670,11 +680,11 @@ CREATE TABLE IF NOT EXISTS `tasks` (
 INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `category_stage_id`, `grade_id`, `book_id`, `unit_id`, `lesson_id`, `component_path`, `status`, `priority`, `start_date`, `end_date`, `progress`, `estimated_hours`, `actual_hours`, `created_by`, `created_at`, `updated_at`) VALUES
 (1816, 'G1 > U1 > L1 - Requirements Analysis', 'Task for G1 > U1 > L1 at Requirements Analysis stage', 16, 9, 20, 89, 3, NULL, 'G1 > U1 > L1', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1817, 'G1 > U1 > L1 - System Design', 'Task for G1 > U1 > L1 at System Design stage', 16, 10, 20, 89, 3, NULL, 'G1 > U1 > L1', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
-(1818, 'G1 > U1 > L1 - Implementation', 'Task for G1 > U1 > L1 at Implementation stage', 16, 11, 20, 89, 3, NULL, 'G1 > U1 > L1', 'completed', 'medium', '2025-09-02', '2025-08-27', 100, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-12 09:17:47'),
+(1818, 'G1 > U1 > L1 - Implementation', 'Task for G1 > U1 > L1 at Implementation stage', 16, 11, 20, 89, 3, NULL, 'G1 > U1 > L1', 'under-review', 'medium', '2025-09-02', '2025-08-27', 90, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-15 07:39:22'),
 (1819, 'G1 > U1 > L1 - Testing', 'Task for G1 > U1 > L1 at Testing stage', 16, 12, 20, 89, 3, NULL, 'G1 > U1 > L1', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
-(1820, 'G1 > U1 > L1 - Documentation', 'Task for G1 > U1 > L1 at Documentation stage', 16, 13, 20, 89, 3, NULL, 'G1 > U1 > L1', 'completed', 'medium', '2025-09-02', '2025-08-26', 100, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-12 08:24:29'),
-(1821, 'G1 > U1 > L1 - Deployment', 'Task for G1 > U1 > L1 at Deployment stage', 16, 14, 20, 89, 3, NULL, 'G1 > U1 > L1', 'completed', 'medium', '2025-09-02', '2025-08-25', 100, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:36:09'),
-(1822, 'G1 > U1 > L1 - Maintenance', 'Task for G1 > U1 > L1 at Maintenance stage', 16, 15, 20, 89, 3, NULL, 'G1 > U1 > L1', 'in-progress', 'medium', '2025-09-02', '2025-09-13', 50, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-12 11:06:16'),
+(1820, 'G1 > U1 > L1 - Documentation', 'Task for G1 > U1 > L1 at Documentation stage', 16, 13, 20, 89, 3, NULL, 'G1 > U1 > L1', 'completed', 'medium', '2025-09-02', '2025-08-26', 100, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-15 06:57:44'),
+(1821, 'G1 > U1 > L1 - Deployment', 'Task for G1 > U1 > L1 at Deployment stage', 16, 14, 20, 89, 3, NULL, 'G1 > U1 > L1', 'skipped', 'medium', '2025-09-02', '2025-08-25', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-15 07:26:45'),
+(1822, 'G1 > U1 > L1 - Maintenance', 'Task for G1 > U1 > L1 at Maintenance stage', 16, 15, 20, 89, 3, NULL, 'G1 > U1 > L1', 'skipped', 'medium', '2025-09-02', '2025-09-13', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-15 07:24:26'),
 (1824, 'G1 > U2 > L1 - Requirements Analysis', 'Task for G1 > U2 > L1 at Requirements Analysis stage', 16, 9, 20, 93, 9, NULL, 'G1 > U2 > L1', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1825, 'G1 > U2 > L1 - System Design', 'Task for G1 > U2 > L1 at System Design stage', 16, 10, 20, 93, 9, NULL, 'G1 > U2 > L1', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1826, 'G1 > U2 > L1 - Implementation', 'Task for G1 > U2 > L1 at Implementation stage', 16, 11, 20, 93, 9, NULL, 'G1 > U2 > L1', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
@@ -687,14 +697,14 @@ INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `category_stage_
 (1834, 'G1 > U1 > L2 - Implementation', 'Task for G1 > U1 > L2 at Implementation stage', 16, 11, 20, 89, 4, NULL, 'G1 > U1 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1835, 'G1 > U1 > L2 - Testing', 'Task for G1 > U1 > L2 at Testing stage', 16, 12, 20, 89, 4, NULL, 'G1 > U1 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1836, 'G1 > U1 > L2 - Documentation', 'Task for G1 > U1 > L2 at Documentation stage', 16, 13, 20, 89, 4, NULL, 'G1 > U1 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
-(1837, 'G1 > U1 > L2 - Deployment', 'Task for G1 > U1 > L2 at Deployment stage', 16, 14, 20, 89, 4, NULL, 'G1 > U1 > L2', 'completed', 'medium', '2025-09-02', '2025-08-29', 100, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-12 09:12:27'),
+(1837, 'G1 > U1 > L2 - Deployment', 'Task for G1 > U1 > L2 at Deployment stage', 16, 14, 20, 89, 4, NULL, 'G1 > U1 > L2', 'skipped', 'medium', '2025-09-02', '2025-08-29', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-15 07:26:21'),
 (1838, 'G1 > U1 > L2 - Maintenance', 'Task for G1 > U1 > L2 at Maintenance stage', 16, 15, 20, 89, 4, NULL, 'G1 > U1 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1840, 'G1 > U2 > L2 - Requirements Analysis', 'Task for G1 > U2 > L2 at Requirements Analysis stage', 16, 9, 20, 93, 10, NULL, 'G1 > U2 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1841, 'G1 > U2 > L2 - System Design', 'Task for G1 > U2 > L2 at System Design stage', 16, 10, 20, 93, 10, NULL, 'G1 > U2 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1842, 'G1 > U2 > L2 - Implementation', 'Task for G1 > U2 > L2 at Implementation stage', 16, 11, 20, 93, 10, NULL, 'G1 > U2 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1843, 'G1 > U2 > L2 - Testing', 'Task for G1 > U2 > L2 at Testing stage', 16, 12, 20, 93, 10, NULL, 'G1 > U2 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1844, 'G1 > U2 > L2 - Documentation', 'Task for G1 > U2 > L2 at Documentation stage', 16, 13, 20, 93, 10, NULL, 'G1 > U2 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
-(1845, 'G1 > U2 > L2 - Deployment', 'Task for G1 > U2 > L2 at Deployment stage', 16, 14, 20, 93, 10, NULL, 'G1 > U2 > L2', 'under-review', 'medium', '2025-09-02', '2025-10-31', 90, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:52:36'),
+(1845, 'G1 > U2 > L2 - Deployment', 'Task for G1 > U2 > L2 at Deployment stage', 16, 14, 20, 93, 10, NULL, 'G1 > U2 > L2', 'under-review', 'medium', '2025-09-02', '2025-10-31', 90, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-13 13:08:38'),
 (1846, 'G1 > U2 > L2 - Maintenance', 'Task for G1 > U2 > L2 at Maintenance stage', 16, 15, 20, 93, 10, NULL, 'G1 > U2 > L2', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1849, 'G1 > U1 > L3 - System Design', 'Task for G1 > U1 > L3 at System Design stage', 16, 10, 20, 89, 5, NULL, 'G1 > U1 > L3', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1850, 'G1 > U1 > L3 - Implementation', 'Task for G1 > U1 > L3 at Implementation stage', 16, 11, 20, 89, 5, NULL, 'G1 > U1 > L3', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
@@ -715,9 +725,9 @@ INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `category_stage_
 (1867, 'G1 > U1 > L5 - Testing', 'Task for G1 > U1 > L5 at Testing stage', 16, 12, 20, 89, 7, NULL, 'G1 > U1 > L5', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1868, 'G1 > U1 > L5 - Documentation', 'Task for G1 > U1 > L5 at Documentation stage', 16, 13, 20, 89, 7, NULL, 'G1 > U1 > L5', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
 (1870, 'G1 > U1 > L5 - Maintenance', 'Task for G1 > U1 > L5 at Maintenance stage', 16, 15, 20, 89, 7, NULL, 'G1 > U1 > L5', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:34', '2025-09-02 10:07:34'),
-(1892, 'G3 - Deployment', 'Task for G3 at Deployment stage', 16, 14, 22, NULL, NULL, NULL, 'G3', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-02 10:07:35'),
-(1893, 'G3 - Maintenance', 'Task for G3 at Maintenance stage', 16, 15, 22, NULL, NULL, NULL, 'G3', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-02 10:07:35'),
-(1895, 'G4 - Requirements Analysis', 'Task for G4 at Requirements Analysis stage', 16, 9, 23, NULL, NULL, NULL, 'G4', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-02 10:07:35'),
+(1892, 'G3 - Deployment', 'Task for G3 at Deployment stage', 16, 14, 22, NULL, NULL, NULL, 'G3', 'under-review', 'medium', '2025-09-02', '2025-09-17', 90, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-15 08:38:15'),
+(1893, 'G3 - Maintenance', 'Task for G3 at Maintenance stage', 16, 15, 22, NULL, NULL, NULL, 'G3', 'under-review', 'medium', '2025-09-02', '2025-10-13', 90, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-13 13:08:56'),
+(1895, 'G4 - Requirements Analysis', 'Task for G4 at Requirements Analysis stage', 16, 9, 23, NULL, NULL, NULL, 'G4', 'completed', 'medium', '2025-09-02', '2025-09-13', 100, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-15 07:03:26'),
 (1896, 'G4 - System Design', 'Task for G4 at System Design stage', 16, 10, 23, NULL, NULL, NULL, 'G4', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-02 10:07:35'),
 (1897, 'G4 - Implementation', 'Task for G4 at Implementation stage', 16, 11, 23, NULL, NULL, NULL, 'G4', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-02 10:07:35'),
 (1898, 'G4 - Testing', 'Task for G4 at Testing stage', 16, 12, 23, NULL, NULL, NULL, 'G4', 'not-started', 'medium', '2025-09-02', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-02 10:07:35', '2025-09-02 10:07:35'),
@@ -736,7 +746,14 @@ INSERT INTO `tasks` (`id`, `name`, `description`, `project_id`, `category_stage_
 (1912, 'G3 - QA', 'Task for G3 at QA stage', 16, 19, 22, NULL, NULL, NULL, 'G3', 'not-started', 'medium', '2025-09-12', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-12 12:17:33', '2025-09-12 12:17:33'),
 (1913, 'G4 - QA', 'Task for G4 at QA stage', 16, 19, 23, NULL, NULL, NULL, 'G4', 'not-started', 'medium', '2025-09-12', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-12 12:17:33', '2025-09-12 12:17:33'),
 (1914, 'G4 > U3 > L2 > M1 - Stage 1', 'Task for G4 > U3 > L2 > M1 at Stage 1 stage', 18, 21, 28, 98, 12, 2, 'G4 > U3 > L2 > M1', 'not-started', 'medium', '2025-09-12', '2025-10-02', 0, 8.00, 0.00, 1, '2025-09-12 12:34:38', '2025-09-12 12:34:38'),
-(1915, 'G3 > U2 > L1 - Stage 1', 'Task for G3 > U2 > L1 at Stage 1 stage', 18, 21, 27, 97, 11, NULL, 'G3 > U2 > L1', 'not-started', 'medium', '2025-09-12', '2025-10-02', 0, 8.00, 0.00, 1, '2025-09-12 12:34:38', '2025-09-12 12:34:38');
+(1915, 'G3 > U2 > L1 - Stage 1', 'Task for G3 > U2 > L1 at Stage 1 stage', 18, 21, 27, 97, 11, NULL, 'G3 > U2 > L1', 'not-started', 'medium', '2025-09-12', '2025-10-02', 0, 8.00, 0.00, 1, '2025-09-12 12:34:38', '2025-09-12 12:34:38'),
+(1916, 'G2 > U1 - Stage 1', 'Task for G2 > U1 at Stage 1 stage', 18, 21, 26, 96, NULL, NULL, 'G2 > U1', 'not-started', 'medium', '2025-09-12', '2025-10-02', 0, 8.00, 0.00, 1, '2025-09-12 13:16:43', '2025-09-12 13:16:43'),
+(1917, 'G2 > U9 > asdadsasd > asdcbcx - Stage 1', 'Task for G2 > U9 > asdadsasd > asdcbcx at Stage 1 stage', 18, 21, 26, 100, 14, 3, 'G2 > U9 > asdadsasd > asdcbcx', 'not-started', 'medium', '2025-09-12', '2025-10-02', 0, 8.00, 0.00, 1, '2025-09-12 13:20:10', '2025-09-12 13:20:10'),
+(1918, 'G2 > U8 > asd - Stage 1', 'Task for G2 > U8 > asd at Stage 1 stage', 18, 21, 26, 99, 13, NULL, 'G2 > U8 > asd', 'not-started', 'medium', '2025-09-12', '2025-10-02', 0, 8.00, 0.00, 1, '2025-09-12 13:20:10', '2025-09-12 13:20:10'),
+(1919, 'G1 > U1 > L1 > Lesson 1 - Testing', 'Task for G1 > U1 > L1 > Lesson 1 at Testing stage', 16, 12, 20, 89, 3, 1, 'G1 > U1 > L1 > Lesson 1', 'not-started', 'medium', '2025-09-15', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-15 07:59:36', '2025-09-15 08:00:27'),
+(1920, 'G2 > L1 - Testing', 'Task for G2 > L1 at Testing stage', 16, 12, 21, 94, NULL, NULL, 'G2 > L1', 'not-started', 'medium', '2025-09-15', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-15 07:59:36', '2025-09-15 07:59:36'),
+(1921, 'G2 > L2 - Testing', 'Task for G2 > L2 at Testing stage', 16, 12, 21, 95, NULL, NULL, 'G2 > L2', 'not-started', 'medium', '2025-09-15', '2025-10-31', 0, 8.00, 0.00, 1, '2025-09-15 07:59:36', '2025-09-15 07:59:36'),
+(1922, 'G3 - Testing', 'Task for G3 at Testing stage', 16, 12, 22, NULL, NULL, NULL, 'G3', 'not-started', 'medium', '2025-09-15', '2025-09-17', 0, 8.00, 0.00, 1, '2025-09-15 07:59:36', '2025-09-15 08:17:22');
 
 -- --------------------------------------------------------
 
@@ -756,22 +773,27 @@ CREATE TABLE IF NOT EXISTS `task_assignees` (
   KEY `idx_task` (`task_id`),
   KEY `idx_assignee` (`assignee_id`,`assignee_type`),
   KEY `idx_tasks_assignee_status` (`assignee_id`,`assignee_type`)
-) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `task_assignees`
 --
 
 INSERT INTO `task_assignees` (`id`, `task_id`, `assignee_id`, `assignee_type`, `created_at`) VALUES
-(3, 1821, 33, 'team', '2025-09-02 10:36:09'),
 (10, 1853, 28, 'team', '2025-09-02 10:38:18'),
 (11, 1861, 28, 'team', '2025-09-02 10:38:32'),
 (13, 1829, 28, 'team', '2025-09-02 10:38:58'),
-(14, 1845, 10, 'team', '2025-09-02 10:52:36'),
-(21, 1837, 33, 'team', '2025-09-12 08:19:55'),
-(22, 1818, 33, 'team', '2025-09-12 08:20:02'),
-(23, 1820, 33, 'team', '2025-09-12 08:20:09'),
-(26, 1822, 33, 'team', '2025-09-12 11:03:37');
+(34, 1895, 33, 'team', '2025-09-13 12:19:06'),
+(36, 1893, 33, 'team', '2025-09-13 12:59:17'),
+(38, 1845, 33, 'team', '2025-09-13 13:06:00'),
+(39, 1892, 33, 'team', '2025-09-13 13:11:57'),
+(40, 1821, 33, 'team', '2025-09-13 13:12:02'),
+(41, 1818, 33, 'team', '2025-09-13 13:12:06'),
+(42, 1822, 33, 'team', '2025-09-13 13:12:14'),
+(43, 1837, 33, 'team', '2025-09-13 13:12:21'),
+(44, 1820, 33, 'team', '2025-09-13 13:12:29'),
+(45, 1922, 33, 'team', '2025-09-15 08:00:17'),
+(46, 1919, 33, 'team', '2025-09-15 08:00:27');
 
 -- --------------------------------------------------------
 
@@ -802,15 +824,20 @@ CREATE TABLE IF NOT EXISTS `task_extensions` (
   KEY `idx_dates` (`current_due_date`,`requested_due_date`),
   KEY `idx_task_extensions_task_status` (`task_id`,`status`),
   KEY `idx_task_extensions_requester` (`requested_by`,`requested_by_type`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Track extension requests for tasks - allows team members to request deadline extensions';
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Track extension requests for tasks - allows team members to request deadline extensions';
 
 --
 -- Dumping data for table `task_extensions`
 --
 
 INSERT INTO `task_extensions` (`id`, `task_id`, `requested_by`, `requested_by_type`, `current_due_date`, `requested_due_date`, `reason`, `status`, `reviewed_by`, `reviewed_at`, `review_notes`, `created_at`, `updated_at`) VALUES
-(2, 1818, 33, 'team', '2025-08-27', '2025-09-19', 'test', 'pending', NULL, NULL, NULL, '2025-09-12 09:04:01', '2025-09-12 09:04:01'),
-(3, 1822, 33, 'team', '2025-09-12', '2025-09-13', 'Reason test', 'approved', 1, '2025-09-12 11:06:16', 'Approved until 2025-09-12. Approved', '2025-09-12 11:05:53', '2025-09-12 11:06:16');
+(2, 1818, 33, 'team', '2025-08-27', '2025-09-19', 'test', 'rejected', 1, '2025-09-15 08:38:33', 'note', '2025-09-12 09:04:01', '2025-09-15 08:38:33'),
+(3, 1822, 33, 'team', '2025-09-12', '2025-09-13', 'Reason test', 'approved', 1, '2025-09-12 11:06:16', 'Approved until 2025-09-12. Approved', '2025-09-12 11:05:53', '2025-09-12 11:06:16'),
+(4, 1895, 33, 'team', '2025-09-13', '2025-09-14', 'afdsfdfssd', 'pending', NULL, NULL, NULL, '2025-09-13 13:00:18', '2025-09-13 13:00:18'),
+(5, 1919, 33, 'team', '2025-10-31', '2025-09-16', 'reason', 'pending', NULL, NULL, NULL, '2025-09-15 08:06:58', '2025-09-15 08:06:58'),
+(6, 1922, 33, 'team', '2025-09-20', '2025-09-16', 'accept', 'approved', 1, '2025-09-15 08:15:15', 'Approved until 2025-09-16. accepted', '2025-09-15 08:07:40', '2025-09-15 08:15:15'),
+(7, 1892, 33, 'team', '2025-10-31', '2025-09-17', 'check', 'approved', 1, '2025-09-15 08:38:15', 'notes', '2025-09-15 08:16:13', '2025-09-15 08:38:15'),
+(8, 1922, 33, 'team', '2025-09-16', '2025-09-17', 'chec', 'approved', 1, '2025-09-15 08:17:22', 'Approved until 2025-09-17. done', '2025-09-15 08:16:55', '2025-09-15 08:17:22');
 
 -- --------------------------------------------------------
 
@@ -826,10 +853,12 @@ CREATE TABLE IF NOT EXISTS `task_remarks` (
   `added_by_type` enum('admin','team') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of user adding remark',
   `remark_date` date NOT NULL COMMENT 'Date for the remark (can be current date or selected date)',
   `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'The remark/comment content',
-  `remark_type` enum('general','progress','issue','update','other','complete') COLLATE utf8mb4_unicode_ci DEFAULT 'general',
+  `remark_type` enum('general','complete','skipped','other') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'general',
   `is_private` tinyint(1) DEFAULT '0' COMMENT 'Whether remark is private (only visible to admins)',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `server_location` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Server path where files are saved',
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Exact name of the file worked on',
   PRIMARY KEY (`id`),
   KEY `idx_task` (`task_id`),
   KEY `idx_added_by` (`added_by`,`added_by_type`),
@@ -838,15 +867,32 @@ CREATE TABLE IF NOT EXISTS `task_remarks` (
   KEY `idx_private` (`is_private`),
   KEY `idx_task_remarks_task_date` (`task_id`,`remark_date`),
   KEY `idx_task_remarks_user` (`added_by`,`added_by_type`),
-  KEY `idx_task_remarks_type` (`remark_type`,`is_private`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Track remarks/comments on tasks - allows users to add notes and updates';
+  KEY `idx_task_remarks_type` (`remark_type`,`is_private`),
+  KEY `idx_server_location` (`server_location`),
+  KEY `idx_file_name` (`file_name`)
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Track remarks/comments on tasks - allows users to add notes and updates';
 
 --
 -- Dumping data for table `task_remarks`
 --
 
-INSERT INTO `task_remarks` (`id`, `task_id`, `added_by`, `added_by_type`, `remark_date`, `remark`, `remark_type`, `is_private`, `created_at`, `updated_at`) VALUES
-(7, 1822, 33, 'team', '2025-09-12', '<p>jhsdj</p><p>kfshs</p><p><strong>sdjajs jhdjhs </strong> dhgsh <em>dfjhhs</em></p>', 'general', 0, '2025-09-12 11:42:21', '2025-09-12 11:42:21');
+INSERT INTO `task_remarks` (`id`, `task_id`, `added_by`, `added_by_type`, `remark_date`, `remark`, `remark_type`, `is_private`, `created_at`, `updated_at`, `server_location`, `file_name`) VALUES
+(7, 1822, 33, 'team', '2025-09-12', '<p>jhsdj</p><p>kfshs</p><p><strong>sdjajs jhdjhs </strong> dhgsh <em>dfjhhs</em></p>', 'general', 0, '2025-09-12 11:42:21', '2025-09-12 11:42:21', NULL, NULL),
+(8, 1822, 33, 'team', '2025-09-13', '<p>Please approve</p>', 'general', 0, '2025-09-13 10:59:06', '2025-09-13 10:59:06', NULL, NULL),
+(9, 1895, 33, 'team', '2025-09-13', '<p>ABC</p>', '', 0, '2025-09-13 12:59:59', '2025-09-13 12:59:59', NULL, NULL),
+(10, 1820, 33, 'team', '2025-09-15', '<p><strong>Status: </strong>working</p><p><strong>Server: </strong>workflow.bylinelms.com</p><p><strong>Remark:&nbsp;</strong></p><p>-Added the Approval system for the users so the users can request the completion, and admin can approve it from the Notifications, Tasks and Project Details - Changes not hosted yet</p><p>-Worked on connecting the wordpress to the moodle</p><p>-Tried hosting the internal applications to the new domain, but it is giving server issues, need to be resolved</p>', 'complete', 0, '2025-09-15 06:23:26', '2025-09-15 06:23:26', NULL, NULL),
+(11, 1892, 33, 'team', '2025-09-15', '<p><strong>Status: </strong>working</p><p><strong>Server: </strong><a href=\"workflow.bylinelms.com\" rel=\"noopener noreferrer\" target=\"_blank\">workflow.bylinelms.com</a></p><p><strong>Remark:&nbsp;</strong></p><p>-Added the Approval system for the users so the users can request the completion, and admin can approve it from the Notifications, Tasks and Project Details - Changes not hosted yet</p><p>-Worked on connecting the wordpress to the moodle</p><p>-Tried hosting the internal applications to the new domain, but it is giving server issues, need to be resolved</p>', 'complete', 0, '2025-09-15 06:23:50', '2025-09-15 06:23:50', NULL, NULL),
+(12, 1837, 33, 'team', '2025-09-15', '<p><strong>Status:</strong>working</p><p><strong>Server:</strong>workflow.bylinelms.com</p><p><strong>Remark:&nbsp;</strong></p><p>-Added the Approval system for the users so the users can request the completion, and admin can approve it from the Notifications, Tasks </p>', 'complete', 0, '2025-09-15 06:24:35', '2025-09-15 06:24:35', NULL, NULL),
+(13, 1837, 33, 'team', '2025-09-15', '<p><strong>Status &lt;&lt;should be able to select&gt;&gt;</strong></p><p><em>In Progress / Completed / Skipped</em></p><p><strong>Server Location</strong><em>The exact path of the server where you have saved the file</em></p><p><strong>File Name</strong><em>The Exact name of the file you worked on</em></p><p><strong>Remark</strong><em>next steps, or any notes</em></p>', 'complete', 0, '2025-09-15 07:01:36', '2025-09-15 07:01:36', NULL, NULL),
+(14, 1895, 33, 'team', '2025-09-15', '<p>Check</p>', 'complete', 0, '2025-09-15 07:02:45', '2025-09-15 07:02:45', NULL, NULL),
+(15, 1837, 33, 'team', '2025-09-15', '<p>check</p>', 'complete', 0, '2025-09-15 07:02:56', '2025-09-15 07:02:56', NULL, NULL),
+(16, 1892, 33, 'team', '2025-09-15', '<p>Check the file as this is completed</p>', 'complete', 0, '2025-09-15 07:11:41', '2025-09-15 07:11:41', 'Y:\\Tech\\Riyada Training UI UX\\Riyada Training UI UX_Folder', 'Riyada Training UI UX.ai'),
+(17, 1821, 33, 'team', '2025-09-15', '<p>new test</p>', 'general', 0, '2025-09-15 07:19:48', '2025-09-15 07:19:48', 'Y:\\Tech\\Riyada Training UI UX\\Riyada Training UI UX_Folder', 'abc.pdf'),
+(18, 1818, 33, 'team', '2025-09-15', '<p>fhks</p>', 'complete', 0, '2025-09-15 07:20:06', '2025-09-15 07:20:06', 'Y:\\Tech\\Riyada Training UI UX\\Riyada Training UI UX_Folder', 'check.pdf'),
+(19, 1822, 33, 'team', '2025-09-15', '<p>safdd</p>', 'skipped', 0, '2025-09-15 07:24:26', '2025-09-15 07:24:26', 'Hello', 'check'),
+(20, 1837, 33, 'team', '2025-09-15', '<p>fds</p>', 'skipped', 0, '2025-09-15 07:26:21', '2025-09-15 07:26:21', 'adas', 'adas'),
+(21, 1821, 33, 'team', '2025-09-15', '<p>qwee2123</p>', 'skipped', 0, '2025-09-15 07:26:45', '2025-09-15 07:26:45', 'fdss', 'fssfbhdfgh'),
+(22, 1818, 33, 'team', '2025-09-15', '<p>The task is completed </p><ol><li>One</li><li>Two</li><li>Three</li></ol>', 'complete', 0, '2025-09-15 07:39:22', '2025-09-15 07:39:22', 'Y:\\Standard ICT\\Digital Assets\\Grade 10\\Unit 2\\L2\\Published', 'ICT_G10_U1_L2');
 
 -- --------------------------------------------------------
 
@@ -1039,7 +1085,7 @@ INSERT INTO `team_members` (`id`, `email`, `passcode`, `name`, `is_active`, `las
 (28, 'rahul.k@bylinelearning.com', '2019', 'Rahul', 1, NULL, '2025-08-19 11:30:17', '2025-08-19 11:30:17'),
 (29, 'deleted_1755603889077_48dgx9u0u@deleted.com', 'FG', 'TEST', 0, NULL, '2025-08-19 11:44:39', '2025-08-19 11:44:49'),
 (30, 'test@gmail.com', 'dftg', ' Test', 1, NULL, '2025-08-19 11:45:25', '2025-08-19 11:45:25'),
-(33, 'zaki@bylinelearning.com', '2019', 'Zaki Shaikh', 1, '2025-09-12 11:03:10', '2025-09-02 10:00:24', '2025-09-12 11:03:10');
+(33, 'zaki@bylinelearning.com', '2019', 'Zaki Shaikh', 1, '2025-09-13 12:51:12', '2025-09-02 10:00:24', '2025-09-13 12:51:12');
 
 -- --------------------------------------------------------
 
@@ -1239,7 +1285,7 @@ CREATE TABLE IF NOT EXISTS `units` (
   PRIMARY KEY (`id`),
   KEY `idx_book` (`book_id`),
   KEY `idx_order` (`order_index`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `units`
@@ -1254,7 +1300,9 @@ INSERT INTO `units` (`id`, `book_id`, `name`, `description`, `order_index`, `wei
 (9, 93, 'L1', 'L1', 1, 1.00, '2025-09-02 10:05:33', '2025-09-02 10:05:33'),
 (10, 93, 'L2', 'L2', 2, 1.00, '2025-09-02 10:05:41', '2025-09-02 10:05:41'),
 (11, 97, 'L1', NULL, 1, 0.00, '2025-09-12 12:33:39', '2025-09-12 12:33:39'),
-(12, 98, 'L2', NULL, 1, 0.00, '2025-09-12 12:34:10', '2025-09-12 12:34:10');
+(12, 98, 'L2', NULL, 1, 0.00, '2025-09-12 12:34:10', '2025-09-12 12:34:10'),
+(13, 99, 'asd', NULL, 1, 0.00, '2025-09-12 13:18:58', '2025-09-12 13:18:58'),
+(14, 100, 'asdadsasd', NULL, 1, 0.00, '2025-09-12 13:19:12', '2025-09-12 13:19:12');
 
 -- --------------------------------------------------------
 

@@ -796,6 +796,74 @@ export function TaskManager() {
     }
   };
 
+  const handleApproveTask = async (task: Task) => {
+    try {
+      setError(null);
+      await taskService.reviewTask(task.id, 'approve');
+      
+      // Refresh tasks list
+      const filters: any = {
+        sort: sortField,
+        order: sortOrder,
+        page: currentPage,
+        limit: pageSize
+      };
+
+      if (selectedStatus !== 'all') filters.status = selectedStatus;
+      if (selectedPriority !== 'all') filters.priority = selectedPriority;
+      if (selectedStage !== 'all') filters.stage_id = selectedStage; else if (selectedProject !== 'all') filters.project_id = selectedProject;
+      if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
+      if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
+      if (debouncedSearch) filters.search = debouncedSearch;
+
+      const tasksResponse = await taskService.getAll(filters);
+      if (tasksResponse && tasksResponse.data) {
+        setTasks(tasksResponse.data);
+        setTotalTasks(tasksResponse.pagination?.total || 0);
+        setTotalPages(tasksResponse.pagination?.pages || 1);
+      }
+
+      console.log('✅ Task approved successfully:', task.name);
+    } catch (err: any) {
+      console.error('❌ Approve task error:', err);
+      setError(err.message || 'Failed to approve task');
+    }
+  };
+
+  const handleDenyTask = async (task: Task) => {
+    try {
+      setError(null);
+      await taskService.reviewTask(task.id, 'deny');
+      
+      // Refresh tasks list
+      const filters: any = {
+        sort: sortField,
+        order: sortOrder,
+        page: currentPage,
+        limit: pageSize
+      };
+
+      if (selectedStatus !== 'all') filters.status = selectedStatus;
+      if (selectedPriority !== 'all') filters.priority = selectedPriority;
+      if (selectedStage !== 'all') filters.stage_id = selectedStage; else if (selectedProject !== 'all') filters.project_id = selectedProject;
+      if (selectedDueDate !== 'all') filters.due_date = selectedDueDate;
+      if (selectedAssignee !== 'all') filters.assignee_id = selectedAssignee;
+      if (debouncedSearch) filters.search = debouncedSearch;
+
+      const tasksResponse = await taskService.getAll(filters);
+      if (tasksResponse && tasksResponse.data) {
+        setTasks(tasksResponse.data);
+        setTotalTasks(tasksResponse.pagination?.total || 0);
+        setTotalPages(tasksResponse.pagination?.pages || 1);
+      }
+
+      console.log('✅ Task denied successfully:', task.name);
+    } catch (err: any) {
+      console.error('❌ Deny task error:', err);
+      setError(err.message || 'Failed to deny task');
+    }
+  };
+
   // Task selection functions
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTasks(prev => {
@@ -1458,7 +1526,7 @@ export function TaskManager() {
                   });
                   
                   return (
-                    <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''}`}>
+                    <tr key={task.id} className={`hover:bg-gray-50 ${overdue ? 'bg-red-50' : ''} ${task.status === 'under-review' ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
                           type="checkbox"
@@ -1472,6 +1540,7 @@ export function TaskManager() {
                           <div className="text-sm font-medium text-gray-900 flex items-center">
                             {task.name}
                             {overdue && <AlertTriangle className="w-4 h-4 text-red-500 ml-2" />}
+                            {task.status === 'under-review' && <Clock className="w-4 h-4 text-yellow-500 ml-2" />}
                           </div>
                           <div className="text-sm text-gray-500">
                             {task.component_path && (
@@ -1570,6 +1639,37 @@ export function TaskManager() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          
+                          {/* Show Approve/Deny buttons only for tasks under review */}
+                          {task.status === 'under-review' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApproveTask(task);
+                                }}
+                                title="Approve Task"
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <CheckSquare className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDenyTask(task);
+                                }}
+                                title="Deny Task"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <AlertTriangle className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                          
                           <Button
                             variant="ghost"
                             size="sm"

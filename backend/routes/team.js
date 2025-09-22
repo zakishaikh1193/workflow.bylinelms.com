@@ -6,7 +6,12 @@ const {
   authenticateTeamMember,
   getMyTasks,
   getMyProfile,
+  getMyPerformanceFlags,
   getAllTeamMembers,
+  getTeams,
+  getTeamMembersWithPerformanceFlags,
+  getTeamMemberFlags,
+  removePerformanceFlag,
   getTeamMemberById,
   createTeamMember,
   updateTeamMember,
@@ -34,9 +39,22 @@ router.post('/authenticate', authenticateTeamMember);
 // Team member specific routes (requires team auth)
 router.get('/my-tasks', requireTeamAuth, getMyTasks);
 router.get('/my-profile', requireTeamAuth, getMyProfile);
+router.get('/my-performance-flags', requireTeamAuth, getMyPerformanceFlags);
+
+// Get all teams (admin only)
+router.get('/teams', requireAdminAuth, getTeams);
 
 // Get all team members (admin only)
 router.get('/members', requireAdminAuth, getAllTeamMembers);
+
+// Get team members with performance flags for ranking (admin only)
+router.get('/members/performance-ranking', requireAdminAuth, getTeamMembersWithPerformanceFlags);
+
+// Get performance flags for a specific team member (admin only)
+router.get('/members/:memberId/flags', requireAdminAuth, getTeamMemberFlags);
+
+// Remove a performance flag (admin only)
+router.delete('/flags/:flagId', requireAdminAuth, removePerformanceFlag);
 
 // Get team member by ID
 router.get('/members/:id', requireAdminAuth, getTeamMemberById);

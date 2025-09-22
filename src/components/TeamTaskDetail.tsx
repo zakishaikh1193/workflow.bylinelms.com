@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
-  Check,
   Clock,
   AlertTriangle,
   Calendar,
@@ -9,7 +8,9 @@ import {
   Activity,
   MessageSquare,
   Award,
-  BarChart3
+  BarChart3,
+  Copy,
+  FolderOpen
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
@@ -28,14 +29,15 @@ interface TeamTaskDetailProps {
 
 export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailProps) {
   const { showToast } = useToast();
-  const [isMarkCompleteModalOpen, setIsMarkCompleteModalOpen] = useState(false);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
   const [isRemarkModalOpen, setIsRemarkModalOpen] = useState(false);
   const [extensionReason, setExtensionReason] = useState('');
-  const [extensionDate, setExtensionDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [extensionDate, setExtensionDate] = useState('');
   const [remarkContent, setRemarkContent] = useState('');
   const [remarkDate, setRemarkDate] = useState(new Date().toISOString().split('T')[0]);
   const [remarkType, setRemarkType] = useState('general');
+  const [serverLocation, setServerLocation] = useState('');
+  const [fileName, setFileName] = useState('');
   const [remarks, setRemarks] = useState<any[]>([]);
   const [extensions, setExtensions] = useState<any[]>([]);
   const [, setLoading] = useState(false);
@@ -74,9 +76,6 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const handleSubmitForReview = () => {
-    setIsMarkCompleteModalOpen(true);
-  };
 
   const handleRequestExtension = () => {
     setIsExtensionModalOpen(true);
@@ -86,20 +85,29 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
     setIsRemarkModalOpen(true);
   };
 
-  const submitForReview = async () => {
+  const copyServerLocation = async (serverLocation: string) => {
     try {
-      await teamTaskService.updateStatus(task.id, 'under-review');
-      showToast(`Task "${task.name}" has been submitted for review!`, 'success');
-      onTaskUpdate();
-      onBack();
-    } catch (error: any) {
-      console.error('Failed to submit task for review:', error);
-      showToast('Failed to submit task for review. Please try again.', 'error');
+      await navigator.clipboard.writeText(serverLocation);
+      showToast('Server location copied to clipboard!', 'success');
+    } catch (error) {
+      console.error('Failed to copy server location:', error);
+      showToast('❌ Failed to copy server location', 'error');
     }
-    setIsMarkCompleteModalOpen(false);
   };
 
+
   const submitExtensionRequest = async () => {
+    // Client-side validation
+    if (!extensionDate.trim()) {
+      showToast('❌ Please select a new due date for the extension.', 'error');
+      return;
+    }
+    
+    if (!extensionReason.trim()) {
+      showToast('❌ Please provide a reason for the extension.', 'error');
+      return;
+    }
+
     try {
       await teamTaskService.requestExtension(task.id, {
         requested_due_date: extensionDate,
@@ -114,7 +122,7 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
     }
     setIsExtensionModalOpen(false);
     setExtensionReason('');
-    setExtensionDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+    setExtensionDate('');
   };
 
   const submitRemark = async () => {
@@ -122,23 +130,62 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
     
     if (hasContent) {
       try {
+        // Client-side validation for mandatory fields
+        if (!serverLocation.trim()) {
+          showToast('❌ Server Location is required. Please provide the exact path where you saved the file.', 'error');
+          return;
+        }
+
+        if (!fileName.trim()) {
+          showToast('❌ File Name is required. Please provide the exact name of the file you worked on.', 'error');
+          return;
+        }
+
         await teamTaskService.addRemark(task.id, {
           remark: remarkContent,
           remark_date: remarkDate,
-          remark_type: remarkType
+          remark_type: remarkType,
+          server_location: serverLocation,
+          file_name: fileName
         });
-        showToast('Remark added successfully!', 'success');
+
+        // If remark type is "completed", also update task status to "under-review"
+        if (remarkType === 'complete') {
+          await teamTaskService.updateStatus(task.id, 'under-review');
+          showToast(`Task "${task.name}" has been submitted for review with completion remark!`, 'success');
+        } else if (remarkType === 'skipped') {
+          await teamTaskService.updateStatus(task.id, 'skipped');
+          showToast(`Task "${task.name}" has been marked as skipped!`, 'success');
+        } else {
+          showToast('Remark added successfully!', 'success');
+        }
+
         await loadTaskDetails();
         onTaskUpdate();
       } catch (error: any) {
         console.error('Failed to add remark:', error);
-        showToast('Failed to add remark. Please try again.', 'error');
+        
+        // Handle specific validation errors from backend
+        if (error.response?.data?.error?.message) {
+          const errorMessage = error.response.data.error.message;
+          if (errorMessage.includes('Server location is required')) {
+            showToast('❌ Server Location is required. Please provide the exact path where you saved the file.', 'error');
+          } else if (errorMessage.includes('File name is required')) {
+            showToast('❌ File Name is required. Please provide the exact name of the file you worked on.', 'error');
+          } else {
+            showToast(`❌ ${errorMessage}`, 'error');
+          }
+        } else {
+          showToast('Failed to add remark. Please try again.', 'error');
+        }
       }
     }
     setIsRemarkModalOpen(false);
     setRemarkContent('');
     setRemarkDate(new Date().toISOString().split('T')[0]);
     setRemarkType('general');
+    setServerLocation('');
+    setFileName('');
   };
 
   const daysUntilDue = getDaysUntilDue();
@@ -176,20 +223,11 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
                   <span>Request Extension</span>
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={handleAddRemark}
-                  className="flex items-center space-x-2"
+                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <MessageSquare className="w-4 h-4" />
                   <span>Add Remark</span>
-                </Button>
-                <Button
-                  onClick={handleSubmitForReview}
-                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Submit for Review</span>
                 </Button>
               </div>
             )}
@@ -543,6 +581,42 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
                           </span>
                         </div>
                       </div>
+                      
+                      {/* Server Location and File Name */}
+                      {(remark.server_location || remark.file_name) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          {remark.server_location && (
+                            <div className="flex items-center space-x-2">
+                              <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">Server Location</p>
+                                <div className="flex items-center space-x-2">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{remark.server_location}</p>
+                     <Button
+                       size="sm"
+                       variant="ghost"
+                       onClick={() => copyServerLocation(remark.server_location)}
+                       className="p-2 h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100 border border-blue-200 rounded-md"
+                       title="Copy server location"
+                     >
+                       <Copy className="w-8 h-8" />
+                     </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {remark.file_name && (
+                            <div className="flex items-center space-x-2">
+                              <MessageSquare className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <div>
+                                <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">File Name</p>
+                                <p className="text-sm font-medium text-gray-900">{remark.file_name}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className="prose prose-sm max-w-none">
                         <RichTextDisplay content={remark.remark} />
                       </div>
@@ -555,50 +629,6 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
         </div>
       </div>
 
-      {/* Submit for Review Modal */}
-      <Modal
-        isOpen={isMarkCompleteModalOpen}
-        onClose={() => setIsMarkCompleteModalOpen(false)}
-        title="Submit Task for Review"
-      >
-        <div className="space-y-6">
-          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
-            <h4 className="font-semibold text-gray-900 text-lg">{task.name}</h4>
-            <p className="text-sm text-gray-600 mt-1">
-              Are you sure you want to submit this task for admin review?
-            </p>
-          </div>
-
-          <div className="p-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="w-6 h-6 text-yellow-600" />
-              <div>
-                <h4 className="font-semibold text-yellow-800">Review Process</h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  This task will be marked as "Under Review" and an admin will need to approve it before it's marked as complete. You'll be notified once the review is complete.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsMarkCompleteModalOpen(false)}
-              className="px-6 py-3 font-semibold"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={submitForReview}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Submit for Review
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Extension Request Modal */}
       <Modal
@@ -616,13 +646,14 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              New Due Date
+              New Due Date <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
               value={extensionDate}
               onChange={(e) => setExtensionDate(e.target.value)}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
             />
           </div>
 
@@ -650,8 +681,8 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
             </Button>
             <Button
               onClick={submitExtensionRequest}
-              disabled={!extensionReason.trim()}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              disabled={!extensionReason.trim() || !extensionDate.trim()}
+              className="px-6 py-3 font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Submit Request
             </Button>
@@ -682,13 +713,63 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
               onChange={(e) => setRemarkType(e.target.value)}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             >
-              <option value="general">General</option>
-              <option value="progress">Progress Update</option>
-              <option value="issue">Issue/Problem</option>
-              <option value="update">Update</option>
-              <option value="complete">Complete</option>
+              <option value="general">General / In Progress</option>
+              <option value="complete">Completed</option>
+              <option value="skipped">Skipped</option>
               <option value="other">Other</option>
             </select>
+            {remarkType === 'complete' && (
+              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> Selecting "Complete" will submit this task for admin review. The task status will change to "Under Review" and an admin will need to approve it.
+                  </p>
+                </div>
+              </div>
+            )}
+            {remarkType === 'skipped' && (
+              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                  <p className="text-sm text-red-800">
+                    <strong>Warning:</strong> Selecting "Skipped" will mark this task as skipped and set its progress to 0.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Server Location - Required for team members */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              Server Location <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={serverLocation}
+              onChange={(e) => setServerLocation(e.target.value)}
+              placeholder="e.g., /var/www/html/project, C:\project\src"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">The exact path of the server where you have saved the file</p>
+          </div>
+
+          {/* File Name - Required for team members */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              File Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              placeholder="e.g., index.html, main.js, styles.css"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">The exact name of the file you worked on</p>
           </div>
 
           <div>
@@ -713,8 +794,12 @@ export function TeamTaskDetail({ task, onBack, onTaskUpdate }: TeamTaskDetailPro
             </Button>
             <Button
               onClick={submitRemark}
-              disabled={remarkContent.replace(/<[^>]*>/g, '').trim().length === 0}
-              className="px-6 py-3 font-semibold bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+              disabled={
+                remarkContent.replace(/<[^>]*>/g, '').trim().length === 0 ||
+                !serverLocation.trim() ||
+                !fileName.trim()
+              }
+              className="px-6 py-3 font-semibold bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Remark
             </Button>

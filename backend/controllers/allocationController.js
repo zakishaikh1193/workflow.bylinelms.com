@@ -250,6 +250,42 @@ const createAllocation = async (req, res) => {
     const result = await db.insert(insertQuery, insertParams);
     const allocationId = result.insertId;
 
+    // Also add the user as a task assignee and update task end_date if task_id is provided
+    if (task_id) {
+      try {
+        // Check if assignee already exists for this task
+        const existingAssignee = await db.query(
+          'SELECT id FROM task_assignees WHERE task_id = ? AND assignee_id = ? AND assignee_type = ?',
+          [task_id, user_id, finalUserType]
+        );
+
+        if (existingAssignee.length === 0) {
+          // Add as task assignee
+          const assigneeQuery = `
+            INSERT INTO task_assignees (task_id, assignee_id, assignee_type)
+            VALUES (?, ?, ?)
+          `;
+          await db.insert(assigneeQuery, [task_id, user_id, finalUserType]);
+          console.log('✅ Task assignee created for task:', task_id, 'user:', user_id);
+        } else {
+          console.log('ℹ️ Task assignee already exists for task:', task_id, 'user:', user_id);
+        }
+
+        // Update the task's end_date to match the allocation end_date
+        const updateTaskQuery = `
+          UPDATE tasks 
+          SET end_date = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `;
+        await db.query(updateTaskQuery, [formattedEndDate, task_id]);
+        console.log('✅ Task end_date updated to:', formattedEndDate, 'for task:', task_id);
+        
+      } catch (assigneeError) {
+        console.error('⚠️ Failed to create task assignee or update task (allocation still created):', assigneeError);
+        // Don't fail the allocation creation if assignee creation or task update fails
+      }
+    }
+
     // Get the created allocation with all related data
     const createdAllocation = await getAllocationById(allocationId);
 
@@ -258,7 +294,7 @@ const createAllocation = async (req, res) => {
     res.status(201).json({
       success: true,
       data: createdAllocation,
-      message: 'Allocation created successfully'
+      message: task_id ? 'Allocation created, task assigned, and end date updated successfully' : 'Allocation created successfully'
     });
 
   } catch (error) {
@@ -501,6 +537,383 @@ const getWorkloadSummary = async (req, res) => {
   }
 };
 
+// Get daily allocations based on actual task assignments
+const getDailyAllocations = async (req, res) => {
+  try {
+    const { 
+      start_date, 
+      end_date, 
+      group_by = 'team' // 'team' or 'project'
+    } = req.query;
+
+    console.log('🔍 Getting daily allocations with params:', { start_date, end_date, group_by });
+
+    // Get all tasks with their assignees and project info
+    let tasksQuery = `
+      SELECT 
+        t.id as task_id,
+        t.name as task_name,
+        t.estimated_hours,
+        t.start_date,
+        t.end_date,
+        t.status,
+        t.priority,
+        p.id as project_id,
+        p.name as project_name,
+        c.name as project_category,
+        ta.assignee_id,
+        ta.assignee_type,
+        tm.name as team_member_name,
+        tm.email as team_member_email,
+        GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') as team_member_skills,
+        au.name as admin_name,
+        au.email as admin_email
+      FROM tasks t
+      LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN task_assignees ta ON t.id = ta.task_id
+      LEFT JOIN team_members tm ON ta.assignee_id = tm.id AND ta.assignee_type = 'team'
+      LEFT JOIN team_member_skills tms ON tm.id = tms.team_member_id
+      LEFT JOIN skills s ON tms.skill_id = s.id
+      LEFT JOIN admin_users au ON ta.assignee_id = au.id AND ta.assignee_type = 'admin'
+      WHERE t.start_date IS NOT NULL 
+        AND t.end_date IS NOT NULL
+        AND ta.assignee_id IS NOT NULL
+      GROUP BY t.id, ta.assignee_id, ta.assignee_type
+    `;
+
+    const queryParams = [];
+    if (start_date && end_date) {
+      tasksQuery += ' AND t.start_date <= ? AND t.end_date >= ?';
+      queryParams.push(end_date, start_date);
+    }
+
+    tasksQuery += ' ORDER BY t.start_date ASC, ta.assignee_id ASC';
+
+    console.log('🔍 Tasks query:', tasksQuery);
+    console.log('🔍 Query params:', queryParams);
+
+    const tasks = await db.query(tasksQuery, queryParams);
+    console.log('📊 Found tasks:', tasks.length);
+
+    // Transform tasks into daily allocations
+    const dailyAllocations = [];
+    const dateRange = getDateRange(start_date, end_date);
+
+    tasks.forEach(task => {
+      if (!task.assignee_id || !task.start_date || !task.end_date) return;
+
+      const estimatedHours = parseFloat(task.estimated_hours) || 8;
+      const endDate = new Date(task.end_date);
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      // Check if estimated hours > 8 and we need to distribute across days
+      if (estimatedHours > 8) {
+        // Get previous day
+        const previousDate = new Date(endDate);
+        previousDate.setDate(previousDate.getDate() - 1);
+        const previousDateStr = previousDate.toISOString().split('T')[0];
+
+        // Check if previous day has 0 hours allocated for this user
+        const hasPreviousDayAllocation = dailyAllocations.some(allocation => 
+          allocation.user_id === task.assignee_id && 
+          allocation.date === previousDateStr && 
+          allocation.hours_per_day > 0
+        );
+
+        // If previous day has 0 hours, distribute the hours
+        if (!hasPreviousDayAllocation && dateRange.includes(previousDateStr)) {
+          // Add 8 hours to previous day
+          dailyAllocations.push({
+            id: `${task.task_id}-${task.assignee_id}-${previousDateStr}`,
+            user_id: task.assignee_id,
+            user_type: task.assignee_type,
+            user_name: task.assignee_type === 'team' ? task.team_member_name : task.admin_name,
+            user_email: task.assignee_type === 'team' ? task.team_member_email : task.admin_email,
+            user_skills: task.team_member_skills ? task.team_member_skills.split(', ').filter(skill => skill.trim()) : [],
+            project_id: task.project_id,
+            project_name: task.project_name,
+            project_category: task.project_category,
+            task_id: task.task_id,
+            task_name: task.task_name,
+            task_status: task.status,
+            task_priority: task.priority,
+            hours_per_day: 8,
+            date: previousDateStr,
+            start_date: task.start_date,
+            end_date: task.end_date,
+            estimated_hours: estimatedHours
+          });
+
+          // Add remaining hours to end date
+          const remainingHours = estimatedHours - 8;
+          if (dateRange.includes(endDateStr)) {
+            dailyAllocations.push({
+              id: `${task.task_id}-${task.assignee_id}-${endDateStr}`,
+              user_id: task.assignee_id,
+              user_type: task.assignee_type,
+              user_name: task.assignee_type === 'team' ? task.team_member_name : task.admin_name,
+              user_email: task.assignee_type === 'team' ? task.team_member_email : task.admin_email,
+              user_skills: task.team_member_skills ? task.team_member_skills.split(', ').filter(skill => skill.trim()) : [],
+              project_id: task.project_id,
+              project_name: task.project_name,
+              project_category: task.project_category,
+              task_id: task.task_id,
+              task_name: task.task_name,
+              task_status: task.status,
+              task_priority: task.priority,
+              hours_per_day: remainingHours,
+              date: endDateStr,
+              start_date: task.start_date,
+              end_date: task.end_date,
+              estimated_hours: estimatedHours
+            });
+          }
+        } else {
+          // Previous day has hours or not in range, put all hours on end date
+          if (dateRange.includes(endDateStr)) {
+            dailyAllocations.push({
+              id: `${task.task_id}-${task.assignee_id}-${endDateStr}`,
+              user_id: task.assignee_id,
+              user_type: task.assignee_type,
+              user_name: task.assignee_type === 'team' ? task.team_member_name : task.admin_name,
+              user_email: task.assignee_type === 'team' ? task.team_member_email : task.admin_email,
+              user_skills: task.team_member_skills ? task.team_member_skills.split(', ').filter(skill => skill.trim()) : [],
+              project_id: task.project_id,
+              project_name: task.project_name,
+              project_category: task.project_category,
+              task_id: task.task_id,
+              task_name: task.task_name,
+              task_status: task.status,
+              task_priority: task.priority,
+              hours_per_day: estimatedHours,
+              date: endDateStr,
+              start_date: task.start_date,
+              end_date: task.end_date,
+              estimated_hours: estimatedHours
+            });
+          }
+        }
+      } else {
+        // Estimated hours <= 8, put all hours on end date (original logic)
+        if (dateRange.includes(endDateStr)) {
+          dailyAllocations.push({
+            id: `${task.task_id}-${task.assignee_id}-${endDateStr}`,
+            user_id: task.assignee_id,
+            user_type: task.assignee_type,
+            user_name: task.assignee_type === 'team' ? task.team_member_name : task.admin_name,
+            user_email: task.assignee_type === 'team' ? task.team_member_email : task.admin_email,
+            user_skills: task.team_member_skills ? task.team_member_skills.split(', ').filter(skill => skill.trim()) : [],
+            project_id: task.project_id,
+            project_name: task.project_name,
+            project_category: task.project_category,
+            task_id: task.task_id,
+            task_name: task.task_name,
+            task_status: task.status,
+            task_priority: task.priority,
+            hours_per_day: estimatedHours,
+            date: endDateStr,
+            start_date: task.start_date,
+            end_date: task.end_date,
+            estimated_hours: estimatedHours
+          });
+        }
+      }
+    });
+
+    console.log('📊 Generated daily allocations:', dailyAllocations.length);
+
+    // Group by team or project
+    let groupedData;
+    if (group_by === 'project') {
+      groupedData = groupByProject(dailyAllocations);
+    } else {
+      groupedData = groupByTeam(dailyAllocations);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        allocations: dailyAllocations,
+        grouped: groupedData,
+        summary: getSummaryStats(dailyAllocations),
+        date_range: {
+          start: start_date,
+          end: end_date
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get daily allocations error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch daily allocations'
+      }
+    });
+  }
+};
+
+// Helper function to get date range
+const getDateRange = (startDate, endDate) => {
+  if (!startDate || !endDate) {
+    // Default to current week if no dates provided
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    
+    startDate = startOfWeek.toISOString().split('T')[0];
+    endDate = endOfWeek.toISOString().split('T')[0];
+  }
+
+  const dates = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  
+  return dates;
+};
+
+// Helper function to group allocations by team member
+const groupByTeam = (allocations) => {
+  const grouped = {};
+  
+  allocations.forEach(allocation => {
+    const userId = allocation.user_id;
+    if (!grouped[userId]) {
+      grouped[userId] = {
+        user_id: userId,
+        user_name: allocation.user_name,
+        user_email: allocation.user_email,
+        user_skills: allocation.user_skills,
+        daily_allocations: {}
+      };
+    }
+    
+    const date = allocation.date;
+    if (!grouped[userId].daily_allocations[date]) {
+      grouped[userId].daily_allocations[date] = {
+        date: date,
+        total_hours: 0,
+        tasks: []
+      };
+    }
+    
+    grouped[userId].daily_allocations[date].total_hours += allocation.hours_per_day;
+    grouped[userId].daily_allocations[date].tasks.push({
+      task_id: allocation.task_id,
+      task_name: allocation.task_name,
+      project_name: allocation.project_name,
+      hours_per_day: allocation.hours_per_day,
+      status: allocation.task_status,
+      priority: allocation.task_priority
+    });
+  });
+  
+  return grouped;
+};
+
+// Helper function to group allocations by project
+const groupByProject = (allocations) => {
+  const grouped = {};
+  
+  allocations.forEach(allocation => {
+    const projectId = allocation.project_id;
+    if (!grouped[projectId]) {
+      grouped[projectId] = {
+        project_id: projectId,
+        project_name: allocation.project_name,
+        project_category: allocation.project_category,
+        daily_allocations: {}
+      };
+    }
+    
+    const date = allocation.date;
+    if (!grouped[projectId].daily_allocations[date]) {
+      grouped[projectId].daily_allocations[date] = {
+        date: date,
+        total_hours: 0,
+        team_members: []
+      };
+    }
+    
+    grouped[projectId].daily_allocations[date].total_hours += allocation.hours_per_day;
+    grouped[projectId].daily_allocations[date].team_members.push({
+      user_id: allocation.user_id,
+      user_name: allocation.user_name,
+      task_id: allocation.task_id,
+      task_name: allocation.task_name,
+      hours_per_day: allocation.hours_per_day
+    });
+  });
+  
+  return grouped;
+};
+
+// Helper function to get summary statistics
+const getSummaryStats = (allocations) => {
+  const userStats = {};
+  const dateStats = {};
+  
+  allocations.forEach(allocation => {
+    const userId = allocation.user_id;
+    const date = allocation.date;
+    
+    // User stats
+    if (!userStats[userId]) {
+      userStats[userId] = {
+        user_id: userId,
+        user_name: allocation.user_name,
+        total_hours: 0,
+        total_tasks: 0,
+        dates_worked: new Set()
+      };
+    }
+    
+    userStats[userId].total_hours += allocation.hours_per_day;
+    userStats[userId].total_tasks += 1;
+    userStats[userId].dates_worked.add(date);
+    
+    // Date stats
+    if (!dateStats[date]) {
+      dateStats[date] = {
+        date: date,
+        total_hours: 0,
+        total_tasks: 0,
+        unique_users: new Set()
+      };
+    }
+    
+    dateStats[date].total_hours += allocation.hours_per_day;
+    dateStats[date].total_tasks += 1;
+    dateStats[date].unique_users.add(userId);
+  });
+  
+  // Convert sets to counts
+  Object.values(userStats).forEach(user => {
+    user.dates_worked = user.dates_worked.size;
+  });
+  
+  Object.values(dateStats).forEach(date => {
+    date.unique_users = date.unique_users.size;
+  });
+  
+  return {
+    total_allocations: allocations.length,
+    total_users: Object.keys(userStats).length,
+    total_dates: Object.keys(dateStats).length,
+    user_stats: Object.values(userStats),
+    date_stats: Object.values(dateStats)
+  };
+};
+
 // Helper function to get allocation by ID with all related data
 const getAllocationById = async (allocationId) => {
   const query = `
@@ -534,5 +947,6 @@ module.exports = {
   createAllocation,
   updateAllocation,
   deleteAllocation,
-  getWorkloadSummary
+  getWorkloadSummary,
+  getDailyAllocations
 };

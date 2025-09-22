@@ -11,6 +11,7 @@ import { Settings } from './Settings';
 import { Analytics } from './Analytics';
 import { CoreAnalytics } from './CoreAnalytics';
 import { Notification } from './Notification';
+import { TopPerformers } from './TopPerformers';
 import { ToastProvider } from './ui/Toast';
 import { TaskDetails } from './TaskDetails';
 
@@ -40,13 +41,23 @@ export function MainApp() {
         case 'tasks':
           return <TaskManager />;
         case 'allocations':
-          return <DailyAllocations />;
+          return (
+            <DailyAllocations 
+              onNavigateToTask={(taskId) => {
+                dispatch({ type: 'SET_PREVIOUS_VIEW', payload: state.selectedView });
+                dispatch({ type: 'SET_SELECTED_TASK', payload: taskId.toString() });
+                dispatch({ type: 'SET_SELECTED_VIEW', payload: 'task-details' });
+              }}
+            />
+          );
         case 'analytics':
           return <Analytics />;
         case 'core-analytics':
           return <CoreAnalytics />;
         case 'notifications':
           return <Notification />;
+        case 'top-performers':
+          return <TopPerformers />;
         case 'settings':
           return <Settings />;
         default:
