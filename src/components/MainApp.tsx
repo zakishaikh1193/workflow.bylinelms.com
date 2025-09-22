@@ -11,6 +11,7 @@ import { Settings } from './Settings';
 import { Analytics } from './Analytics';
 import { CoreAnalytics } from './CoreAnalytics';
 import { Notification } from './Notification';
+import { TopPerformers } from './TopPerformers';
 import { ToastProvider } from './ui/Toast';
 import { TaskDetails } from './TaskDetails';
 
@@ -55,6 +56,8 @@ export function MainApp() {
           return <CoreAnalytics />;
         case 'notifications':
           return <Notification />;
+        case 'top-performers':
+          return <TopPerformers />;
         case 'settings':
           return <Settings />;
         default:

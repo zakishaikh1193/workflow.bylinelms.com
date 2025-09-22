@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   LayoutDashboard, 
   FolderOpen, 
@@ -8,7 +7,8 @@ import {
   Calendar,
   Settings,
   TrendingUp,
-  Bell
+  Bell,
+  Trophy
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -18,6 +18,7 @@ const navigation = [
   { name: 'Teams', icon: Users, key: 'teams' },
   { name: 'Tasks', icon: CheckSquare, key: 'tasks' },
   { name: 'Allocations', icon: Calendar, key: 'allocations' },
+  { name: 'Top Performers', icon: Trophy, key: 'top-performers' },
   { name: 'Analytics', icon: BarChart3, key: 'analytics' },
   { name: 'Core Analytics', icon: TrendingUp, key: 'core-analytics' },
   { name: 'Manage Activities', icon: Bell, key: 'notifications' },

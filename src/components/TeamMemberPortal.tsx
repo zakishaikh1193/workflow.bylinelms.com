@@ -56,6 +56,8 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [, setRecentNotifications] = useState<RealTimeNotification[]>([]);
+  const [selectedFlagType, setSelectedFlagType] = useState<string | null>(null);
+  const [showFlagTasksModal, setShowFlagTasksModal] = useState(false);
   
   // Task list expansion state
   const [showAllActiveTasks, setShowAllActiveTasks] = useState(false);
@@ -190,14 +192,12 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
   const loadPerformanceFlags = async () => {
     try {
-      // Mock performance flags data for now
-      // TODO: Implement actual API call when backend is ready
-      const mockFlags = [
-        { id: 1, type: 'green', description: 'Excellent performance' },
-        { id: 2, type: 'yellow', description: 'Minor improvement needed' },
-        { id: 3, type: 'red', description: 'Attention required' }
-      ];
-      setPerformanceFlags(mockFlags);
+      const response = await teamService.getMyPerformanceFlags();
+      if (response && response.flags) {
+        setPerformanceFlags(response.flags);
+      } else {
+        setPerformanceFlags([]);
+      }
     } catch (error) {
       console.error('Failed to load performance flags:', error);
       setPerformanceFlags([]);
@@ -234,6 +234,16 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
 
   const handleBackFromTaskDetail = () => {
     setSelectedTaskForDetail(null);
+  };
+
+  const handleFlagTypeClick = (flagType: string) => {
+    setSelectedFlagType(flagType);
+    setShowFlagTasksModal(true);
+  };
+
+  const handleCloseFlagTasksModal = () => {
+    setShowFlagTasksModal(false);
+    setSelectedFlagType(null);
   };
 
   const submitExtensionRequest = async () => {
@@ -559,6 +569,72 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
             </CardContent>
           </Card>
         </div>
+
+
+        {/* Performance Flags Overview */}
+        {performanceFlags.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Flag className="w-5 h-5 text-gray-600" />
+                <span>Performance Flags ({performanceFlags.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {performanceFlags.length === 0 ? (
+                <div className="text-center py-8">
+                  <Flag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No performance flags yet</p>
+                </div>
+              ) : (
+                <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div 
+                  className="text-center p-4 bg-green-50 border border-green-200 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => handleFlagTypeClick('green')}
+                >
+                  <div className="text-2xl font-bold text-green-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'green').length}
+                  </div>
+                  <div className="text-sm text-green-600 font-medium">Green Flags</div>
+                  <div className="text-xs text-green-500 mt-1">Click to view tasks</div>
+                </div>
+                <div 
+                  className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg cursor-pointer hover:bg-yellow-100 transition-colors"
+                  onClick={() => handleFlagTypeClick('yellow')}
+                >
+                  <div className="text-2xl font-bold text-yellow-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'yellow').length}
+                  </div>
+                  <div className="text-sm text-yellow-600 font-medium">Yellow Flags</div>
+                  <div className="text-xs text-yellow-500 mt-1">Click to view tasks</div>
+                </div>
+                <div 
+                  className="text-center p-4 bg-orange-50 border border-orange-200 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors"
+                  onClick={() => handleFlagTypeClick('orange')}
+                >
+                  <div className="text-2xl font-bold text-orange-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'orange').length}
+                  </div>
+                  <div className="text-sm text-orange-600 font-medium">Orange Flags</div>
+                  <div className="text-xs text-orange-500 mt-1">Click to view tasks</div>
+                </div>
+                <div 
+                  className="text-center p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
+                  onClick={() => handleFlagTypeClick('red')}
+                >
+                  <div className="text-2xl font-bold text-red-700 mb-1">
+                    {performanceFlags.filter(f => f.type === 'red').length}
+                  </div>
+                  <div className="text-sm text-red-600 font-medium">Red Flags</div>
+                  <div className="text-xs text-red-500 mt-1">Click to view tasks</div>
+                </div>
+              </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
 
         {/* Task Lists */}
@@ -998,46 +1074,121 @@ export function TeamMemberPortal({ user, onLogout }: TeamMemberPortalProps) {
         </div>
       )}
 
-              
-        {/* Performance Flags Overview */}
-        {performanceFlags.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Flag className="w-5 h-5 text-gray-600" />
-                <span>Performance Flags ({performanceFlags.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="text-2xl font-bold text-green-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'green').length}
-                  </div>
-                  <div className="text-sm text-green-600 font-medium">Green Flags</div>
+      {/* Performance Flag Tasks Modal */}
+      <Modal
+        isOpen={showFlagTasksModal}
+        onClose={handleCloseFlagTasksModal}
+        title={`${selectedFlagType?.toUpperCase()} Flag Tasks`}
+      >
+        <div className="space-y-6">
+          {selectedFlagType && (
+            <>
+              <div className={`p-4 rounded-lg border-2 ${
+                selectedFlagType === 'green' ? 'bg-green-50 border-green-200' :
+                selectedFlagType === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                selectedFlagType === 'orange' ? 'bg-orange-50 border-orange-200' :
+                'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center space-x-2 mb-2">
+                  <Badge 
+                    variant={
+                      selectedFlagType === 'red' ? 'danger' :
+                      selectedFlagType === 'orange' ? 'warning' :
+                      selectedFlagType === 'yellow' ? 'warning' : 'default'
+                    }
+                    size="sm"
+                  >
+                    {selectedFlagType.toUpperCase()}
+                  </Badge>
+                  <span className="text-sm text-gray-600">
+                    {performanceFlags.filter(f => f.type === selectedFlagType).length} flag(s)
+                  </span>
                 </div>
-                <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'yellow').length}
-                  </div>
-                  <div className="text-sm text-yellow-600 font-medium">Yellow Flags</div>
-                </div>
-                <div className="text-center p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'orange').length}
-                  </div>
-                  <div className="text-sm text-orange-600 font-medium">Orange Flags</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="text-2xl font-bold text-red-700 mb-1">
-                    {performanceFlags.filter(f => f.type === 'red').length}
-                  </div>
-                  <div className="text-sm text-red-600 font-medium">Red Flags</div>
-                </div>
+                <p className="text-gray-800">
+                  Tasks associated with {selectedFlagType} performance flags
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        )}
+
+              <div className="space-y-4">
+                {performanceFlags
+                  .filter(flag => flag.type === selectedFlagType)
+                  .map((flag) => (
+                    <div
+                      key={flag.id}
+                      className={`p-4 rounded-lg border-2 ${
+                        selectedFlagType === 'green' ? 'bg-green-50 border-green-200' :
+                        selectedFlagType === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                        selectedFlagType === 'orange' ? 'bg-orange-50 border-orange-200' :
+                        'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="text-sm text-gray-600">
+                              {new Date(flag.created_at).toLocaleDateString()}
+                            </span>
+                            {flag.added_by && (
+                              <span className="text-xs text-gray-500">
+                                Added by: {flag.added_by}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-800 mb-3">{flag.reason}</p>
+                          
+                          {flag.task_name ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-700">Related Task:</span>
+                                <span className="text-sm text-gray-600">{flag.task_name}</span>
+                              </div>
+                              {flag.project_name && (
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm font-medium text-gray-700">Project:</span>
+                                  <span className="text-sm text-gray-600">{flag.project_name}</span>
+                                </div>
+                              )}
+                              <div className="pt-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    // Find the task in userTasks and show its detail
+                                    const relatedTask = userTasks.find(t => t.name === flag.task_name);
+                                    if (relatedTask) {
+                                      handleViewTaskDetail(relatedTask);
+                                      handleCloseFlagTasksModal();
+                                    } else {
+                                      showToast('Task not found in your assigned tasks', 'error');
+                                    }
+                                  }}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  View Task
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-500 italic">
+                              No specific task associated with this flag
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                
+                {performanceFlags.filter(flag => flag.type === selectedFlagType).length === 0 && (
+                  <div className="text-center py-8">
+                    <Flag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No {selectedFlagType} flags found</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
     </div>
   );
 }

@@ -7,7 +7,10 @@ import {
   AlertTriangle,
   Calendar,
   ChevronRight,
-  Loader2
+  Loader2,
+  Trophy,
+  Star,
+  Flag
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Badge } from './ui/Badge';
@@ -15,7 +18,7 @@ import { ProgressBar } from './ui/ProgressBar';
 import { Button } from './ui/Button';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
-import { dashboardService } from '../services/apiService';
+import { dashboardService, teamService } from '../services/apiService';
 import tokenService from '../services/tokenService';
 // import { calculateProjectProgress } from '../utils/progressCalculator';
 
@@ -23,6 +26,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const { state, dispatch } = useApp();
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [topPerformers, setTopPerformers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,10 +50,14 @@ export function Dashboard() {
           }
         }
         
-        const data = await dashboardService.getOverview();
+        const [dashboardDataResult, topPerformersResult] = await Promise.all([
+          dashboardService.getOverview(),
+          teamService.getMembersWithPerformanceRanking()
+        ]);
         
         if (isMounted) {
-          setDashboardData(data);
+          setDashboardData(dashboardDataResult);
+          setTopPerformers(topPerformersResult.slice(0, 5)); // Get top 5 performers
         }
       } catch (err: any) {
         if (isMounted) {
@@ -62,9 +70,13 @@ export function Dashboard() {
               const refreshed = await tokenService.refreshToken();
               if (refreshed) {
                 // Retry the API call
-                const retryData = await dashboardService.getOverview();
+                const [retryDashboardData, retryTopPerformers] = await Promise.all([
+                  dashboardService.getOverview(),
+                  teamService.getMembersWithPerformanceRanking()
+                ]);
                 if (isMounted) {
-                  setDashboardData(retryData);
+                  setDashboardData(retryDashboardData);
+                  setTopPerformers(retryTopPerformers.slice(0, 5));
                   setError(null);
                 }
               } else {
@@ -434,6 +446,86 @@ export function Dashboard() {
             })}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Top Performers Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Performers */}
+        <Card className="rounded-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center space-x-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                <span>Top Performers</span>
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => dispatch({ type: 'SET_SELECTED_VIEW', payload: 'top-performers' })}
+              >
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {topPerformers.length > 0 ? (
+              topPerformers.map((member, index) => (
+                <div 
+                  key={member.id} 
+                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 hover:shadow-sm hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => handleUserClick(member.id)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      {index === 0 && <Trophy className="w-4 h-4 text-yellow-500" />}
+                      {index === 1 && <Star className="w-4 h-4 text-gray-400" />}
+                      {index === 2 && <Star className="w-4 h-4 text-orange-400" />}
+                      {index > 2 && <span className="w-4 h-4 text-xs font-bold text-gray-500 flex items-center justify-center">#{index + 1}</span>}
+                    </div>
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-sm">
+                      {member.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{member.name}</p>
+                      <p className="text-sm text-gray-600">{member.skills?.[0] || 'No skills'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-1">
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-xs text-gray-600">{member.green_flags || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                        <span className="text-xs text-gray-600">{member.yellow_flags || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                        <span className="text-xs text-gray-600">{member.orange_flags || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span className="text-xs text-gray-600">{member.red_flags || 0}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">{member.total_flags || 0} flags</p>
+                      <p className="text-xs text-gray-500">{member.completion_rate || 0}% completion</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Trophy className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No performance data available</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
 
       {/* Quick Actions */}
