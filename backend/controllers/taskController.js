@@ -2135,7 +2135,15 @@ const addTaskRemark = async (req, res) => {
     `;
 
     const result = await db.insert(insertQuery, [
-      id, added_by, added_by_type, formattedRemarkDate, remark, remark_type, is_private, server_location, file_name
+      id, 
+      added_by, 
+      added_by_type, 
+      formattedRemarkDate, 
+      remark, 
+      remark_type || null, 
+      is_private || false, 
+      server_location || null, 
+      file_name || null
     ]);
 
     console.log('✅ Task remark added:', result.insertId);
